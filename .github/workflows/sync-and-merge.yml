@@ -1,0 +1,154 @@
+# Workflow de sincronización: upstream → main → custom (FORK maestroagi/openclaw)
+#
+# DÓNDE VA: repo maestroagi/openclaw, rama MAIN (no custom).
+# Ruta: .github/workflows/sync-and-merge.yml
+#
+# Por qué en main: GitHub ejecuta schedule y workflow_dispatch desde la rama por defecto.
+# Permisos en el fork: Settings → Actions → General → Workflow permissions: Read and write.
+#
+# Opcional: Secret WORKSPACE_DISPATCH_TOKEN (PAT con repo) para que al actualizar custom
+# se dispare el build en maestroagi/openclaw-workspace. Si no está, el workspace puede
+# hacer polling (check-upstream.yml cada hora).
+
+name: Sync upstream and merge to custom
+
+on:
+  schedule:
+    - cron: '0 * * * *'   # Cada hora
+  workflow_dispatch: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+
+    outputs:
+      main_updated: ${{ steps.sync-main.outputs.updated }}
+      custom_updated: ${{ steps.merge-custom.outputs.updated }}
+      has_conflict: ${{ steps.merge-custom.outputs.conflict }}
+
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Sync main with upstream
+        id: sync-main
+        run: |
+          git remote add upstream https://github.com/openclaw/openclaw.git || true
+          git fetch upstream main
+
+          UPSTREAM_SHA=$(git rev-parse upstream/main)
+          CURRENT_SHA=$(git rev-parse origin/main)
+
+          if [ "$UPSTREAM_SHA" = "$CURRENT_SHA" ]; then
+            echo "main already up to date"
+            echo "updated=false" >> $GITHUB_OUTPUT
+          else
+            git merge upstream/main --no-edit
+            git push origin main
+            echo "updated=true" >> $GITHUB_OUTPUT
+            echo "new_sha=$UPSTREAM_SHA" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Merge main into custom
+        id: merge-custom
+        run: |
+          git fetch origin
+          if ! git show-ref --quiet refs/remotes/origin/custom; then
+            git checkout -b custom
+            git push origin custom
+            echo "updated=true" >> $GITHUB_OUTPUT
+            echo "conflict=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          git checkout custom
+          MAIN_SHA=$(git rev-parse origin/main)
+          CUSTOM_BASE=$(git merge-base origin/main HEAD 2>/dev/null || true)
+
+          if [ "$MAIN_SHA" = "$CUSTOM_BASE" ]; then
+            echo "custom already includes all of main"
+            echo "updated=false" >> $GITHUB_OUTPUT
+            echo "conflict=false" >> $GITHUB_OUTPUT
+          else
+            if git merge origin/main --no-edit; then
+              git push origin custom
+              echo "updated=true" >> $GITHUB_OUTPUT
+              echo "conflict=false" >> $GITHUB_OUTPUT
+            else
+              echo "Merge conflict detected"
+              git merge --abort || true
+              echo "updated=false" >> $GITHUB_OUTPUT
+              echo "conflict=true" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Create issue on conflict
+        if: steps.merge-custom.outputs.conflict == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = '⚠️ Merge conflict: main → custom';
+            const body = `El merge automático de main a custom ha fallado.
+
+            **Acción requerida:** Resolver el conflicto manualmente.
+
+            \`\`\`bash
+            git fetch origin
+            git checkout custom
+            git merge origin/main
+            # resolver conflictos
+            git add .
+            git commit
+            git push origin custom
+            \`\`\`
+
+            Mientras tanto, la imagen anterior sigue funcionando.`;
+
+            const { owner, repo } = context.repo;
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner,
+              repo,
+              state: 'open',
+              per_page: 100
+            });
+            const existing = issues.find((i) => i.title === title);
+            if (!existing) {
+              await github.rest.issues.create({
+                owner,
+                repo,
+                title,
+                body,
+                labels: ['merge-conflict']
+              });
+            }
+
+  trigger-build:
+    needs: sync
+    if: needs.sync.outputs.custom_updated == 'true' && secrets.WORKSPACE_DISPATCH_TOKEN != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger build in workspace
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.WORKSPACE_DISPATCH_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'maestroagi',
+              repo: 'openclaw-workspace',
+              workflow_id: 'build-and-push.yml',
+              ref: 'main',
+              inputs: { reason: 'sync-upstream' }
+            });
+            console.log('Build triggered in openclaw-workspace');
