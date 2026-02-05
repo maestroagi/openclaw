@@ -39,7 +39,7 @@ jobs:
         with:
           fetch-depth: 0
           ref: main
-          token: ${{ secrets.WORKSPACE_DISPATCH_TOKEN }}
+          token: ${{ secrets.WORKSPACE_DISPATCH_TOKEN || github.token }}
 
       - name: Configure git
         run: |
@@ -64,6 +64,42 @@ jobs:
             echo "updated=true" >> $GITHUB_OUTPUT
             echo "new_sha=$UPSTREAM_SHA" >> $GITHUB_OUTPUT
           fi
+
+      - name: Notify upstream update
+        if: steps.sync-main.outputs.updated == 'true'
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_NOTIFY_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_NOTIFY_CHAT_ID }}
+        run: |
+          if [ -z "$BOT_TOKEN" ] || [ -z "$CHAT_ID" ]; then
+            echo "Telegram secrets not configured, skipping"
+            exit 0
+          fi
+          UPSTREAM_SHA=$(git rev-parse upstream/main)
+          UPSTREAM_SHORT=${UPSTREAM_SHA:0:7}
+          UPSTREAM_MSG=$(git log -1 --format=%s upstream/main)
+          UPSTREAM_DATE=$(git log -1 --format=%cd --date=iso-strict upstream/main)
+          PAYLOAD=$(python3 - << 'PY'
+import json, os
+bot = os.environ["BOT_TOKEN"]
+chat = os.environ["CHAT_ID"]
+sha = os.environ.get("UPSTREAM_SHA", "")
+short = os.environ.get("UPSTREAM_SHORT", "")
+msg = os.environ.get("UPSTREAM_MSG", "")
+date = os.environ.get("UPSTREAM_DATE", "")
+text = (
+    "🔔 OpenClaw oficial — nuevo commit\n"
+    f"📦 {short}\n"
+    f"🕐 {date}\n\n"
+    f"{msg}\n\n"
+    f"🔗 https://github.com/openclaw/openclaw/commit/{sha}"
+)
+print(json.dumps({"chat_id": chat, "text": text, "disable_web_page_preview": True}))
+PY
+          )
+          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" >/dev/null 2>&1 || true
 
       - name: Merge main into custom
         id: merge-custom
@@ -98,6 +134,41 @@ jobs:
             fi
           fi
 
+      - name: Notify fork sync
+        if: steps.merge-custom.outputs.updated == 'true'
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_NOTIFY_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_NOTIFY_CHAT_ID }}
+        run: |
+          if [ -z "$BOT_TOKEN" ] || [ -z "$CHAT_ID" ]; then
+            echo "Telegram secrets not configured, skipping"
+            exit 0
+          fi
+          CUSTOM_SHA=$(git rev-parse HEAD)
+          CUSTOM_SHORT=${CUSTOM_SHA:0:7}
+          CUSTOM_MSG=$(git log -1 --format=%s)
+          CUSTOM_DATE=$(git log -1 --format=%cd --date=iso-strict)
+          PAYLOAD=$(python3 - << 'PY'
+import json, os
+chat = os.environ["CHAT_ID"]
+sha = os.environ.get("CUSTOM_SHA", "")
+short = os.environ.get("CUSTOM_SHORT", "")
+msg = os.environ.get("CUSTOM_MSG", "")
+date = os.environ.get("CUSTOM_DATE", "")
+text = (
+    "✅ Fork sincronizado\n"
+    "maestroagi/openclaw → custom actualizado\n"
+    f"📦 {short}\n"
+    f"🕐 {date}\n\n"
+    f"{msg}\n\n"
+    f"🔗 https://github.com/maestroagi/openclaw/commit/{sha}"
+)
+print(json.dumps({"chat_id": chat, "text": text, "disable_web_page_preview": True}))
+PY
+          )
+          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" >/dev/null 2>&1 || true
       - name: Create issue on conflict
         if: steps.merge-custom.outputs.conflict == 'true'
         continue-on-error: true
@@ -147,7 +218,7 @@ jobs:
       - name: Trigger build in workspace
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.WORKSPACE_DISPATCH_TOKEN }}
+          github-token: ${{ secrets.WORKSPACE_DISPATCH_TOKEN || github.token }}
           script: |
             await github.rest.actions.createWorkflowDispatch({
               owner: 'maestroagi',
