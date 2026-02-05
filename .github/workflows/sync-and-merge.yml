@@ -136,10 +136,13 @@ jobs:
 
   trigger-build:
     needs: sync
-    if: needs.sync.outputs.custom_updated == 'true' && secrets.WORKSPACE_DISPATCH_TOKEN != ''
+    if: needs.sync.outputs.custom_updated == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Trigger build in workspace
+        if: env.HAS_TOKEN == 'true'
+        env:
+          HAS_TOKEN: ${{ secrets.WORKSPACE_DISPATCH_TOKEN != '' }}
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.WORKSPACE_DISPATCH_TOKEN }}
