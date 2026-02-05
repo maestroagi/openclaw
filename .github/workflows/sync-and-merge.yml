@@ -139,7 +139,7 @@ jobs:
               });
             }
 
-trigger-build:
+  trigger-build:
     needs: sync
     if: needs.sync.outputs.custom_updated == 'true'
     runs-on: ubuntu-latest
