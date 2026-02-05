@@ -14,7 +14,11 @@ name: Sync upstream and merge to custom
 
 on:
   schedule:
-    - cron: '0 * * * *'   # Cada hora
+    # - cron: '0 */2 * * *'   # Cada 2 horas
+    # - cron: '0 * * * *'     # Cada hora
+    # - cron: '*/45 * * * *'  # Cada 45 min
+    # - cron: '*/30 * * * *'  # Cada 30 min
+    - cron: '*/15 * * * *'    # Cada 15 min
   workflow_dispatch: {}
 
 jobs:
