@@ -6,6 +6,7 @@ Docs: https://docs.openclaw.ai
 
 ### Changes
 
+- Telegram: remove last `@ts-nocheck` from `bot-handlers.ts`, use Grammy types directly, deduplicate `StickerMetadata`. Zero `@ts-nocheck` remaining in `src/telegram/`. (#9206)
 - Telegram: remove `@ts-nocheck` from `bot-message.ts`, type deps via `Omit<BuildTelegramMessageContextParams>`, widen `allMedia` to `TelegramMediaRef[]`. (#9180)
 - Telegram: remove `@ts-nocheck` from `bot.ts`, fix duplicate `bot.catch` error handler (Grammy overrides), remove dead reaction `message_thread_id` routing, harden sticker cache guard. (#9077)
 - Onboarding: add Cloudflare AI Gateway provider setup and docs. (#7914) Thanks @roerohan.
@@ -29,8 +30,11 @@ Docs: https://docs.openclaw.ai
 - Web UI: fix agent model selection saves for default/non-default agents and wrap long workspace paths. Thanks @Takhoffman.
 - Web UI: resolve header logo path when `gateway.controlUi.basePath` is set. (#7178) Thanks @Yeom-JinHo.
 - Web UI: apply button styling to the new-messages indicator.
+- Onboarding: infer auth choice from non-interactive API key flags. (#8484) Thanks @f-trycua.
 - Security: keep untrusted channel metadata out of system prompts (Slack/Discord). Thanks @KonstantinMirin.
 - Security: enforce sandboxed media paths for message tool attachments. (#9182) Thanks @victormier.
+- Security: require explicit credentials for gateway URL overrides to prevent credential leakage. (#8113) Thanks @victormier.
+- Security: gate `whatsapp_login` tool to owner senders and default-deny non-owner contexts. (#8768) Thanks @victormier.
 - Voice call: harden webhook verification with host allowlists/proxy trust and keep ngrok loopback bypass.
 - Voice call: add regression coverage for anonymous inbound caller IDs with allowlist policy. (#8104) Thanks @victormier.
 - Cron: accept epoch timestamps and 0ms durations in CLI `--at` parsing.
