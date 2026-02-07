@@ -79,24 +79,8 @@ jobs:
           UPSTREAM_SHORT=${UPSTREAM_SHA:0:7}
           UPSTREAM_MSG=$(git log -1 --format=%s upstream/main)
           UPSTREAM_DATE=$(git log -1 --format=%cd --date=iso-strict upstream/main)
-          PAYLOAD=$(python3 - << 'PY'
-import json, os
-bot = os.environ["BOT_TOKEN"]
-chat = os.environ["CHAT_ID"]
-sha = os.environ.get("UPSTREAM_SHA", "")
-short = os.environ.get("UPSTREAM_SHORT", "")
-msg = os.environ.get("UPSTREAM_MSG", "")
-date = os.environ.get("UPSTREAM_DATE", "")
-text = (
-    "🔔 OpenClaw oficial — nuevo commit\n"
-    f"📦 {short}\n"
-    f"🕐 {date}\n\n"
-    f"{msg}\n\n"
-    f"🔗 https://github.com/openclaw/openclaw/commit/{sha}"
-)
-print(json.dumps({"chat_id": chat, "text": text, "disable_web_page_preview": True}))
-PY
-          )
+          export UPSTREAM_SHA UPSTREAM_SHORT UPSTREAM_MSG UPSTREAM_DATE
+          PAYLOAD=$(python3 -c "import json, os; chat = os.environ['CHAT_ID']; sha = os.environ.get('UPSTREAM_SHA', ''); short = os.environ.get('UPSTREAM_SHORT', ''); msg = os.environ.get('UPSTREAM_MSG', ''); date = os.environ.get('UPSTREAM_DATE', ''); text = f'🔔 OpenClaw oficial — nuevo commit\n📦 {short}\n🕐 {date}\n\n{msg}\n\n🔗 https://github.com/openclaw/openclaw/commit/{sha}'; print(json.dumps({'chat_id': chat, 'text': text, 'disable_web_page_preview': True}))")
           curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
             -H "Content-Type: application/json" \
             -d "$PAYLOAD" >/dev/null 2>&1 || true
@@ -148,24 +132,8 @@ PY
           CUSTOM_SHORT=${CUSTOM_SHA:0:7}
           CUSTOM_MSG=$(git log -1 --format=%s)
           CUSTOM_DATE=$(git log -1 --format=%cd --date=iso-strict)
-          PAYLOAD=$(python3 - << 'PY'
-import json, os
-chat = os.environ["CHAT_ID"]
-sha = os.environ.get("CUSTOM_SHA", "")
-short = os.environ.get("CUSTOM_SHORT", "")
-msg = os.environ.get("CUSTOM_MSG", "")
-date = os.environ.get("CUSTOM_DATE", "")
-text = (
-    "✅ Fork sincronizado\n"
-    "maestroagi/openclaw → custom actualizado\n"
-    f"📦 {short}\n"
-    f"🕐 {date}\n\n"
-    f"{msg}\n\n"
-    f"🔗 https://github.com/maestroagi/openclaw/commit/{sha}"
-)
-print(json.dumps({"chat_id": chat, "text": text, "disable_web_page_preview": True}))
-PY
-          )
+          export CUSTOM_SHA CUSTOM_SHORT CUSTOM_MSG CUSTOM_DATE
+          PAYLOAD=$(python3 -c "import json, os; chat = os.environ['CHAT_ID']; sha = os.environ.get('CUSTOM_SHA', ''); short = os.environ.get('CUSTOM_SHORT', ''); msg = os.environ.get('CUSTOM_MSG', ''); date = os.environ.get('CUSTOM_DATE', ''); text = f'✅ Fork sincronizado\nmaestroagi/openclaw → custom actualizado\n📦 {short}\n🕐 {date}\n\n{msg}\n\n🔗 https://github.com/maestroagi/openclaw/commit/{sha}'; print(json.dumps({'chat_id': chat, 'text': text, 'disable_web_page_preview': True}))")
           curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
             -H "Content-Type: application/json" \
             -d "$PAYLOAD" >/dev/null 2>&1 || true
