@@ -1,3 +1,6 @@
+// pipeline-test: 21:39:39
+// Last synced: 2026-02-08T18:33:35Z
+// Last synced: 2026-02-08T18:33:05Z
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -20,7 +23,7 @@ type BuildInfo = {
   commitSubject?: string | null;
 };
 
-/** Build metadata from OPENCLAW_BUILD_INFO_URL (new format with upstream + sync). */
+/** Build metadata from build-metadata branch (rich format with upstream + sync). */
 export type BuildMetadata = {
   version?: string | null;
   built_at?: string | null;
@@ -59,7 +62,36 @@ export type VersionMessageResult = {
   buttons?: ButtonRow[];
 };
 
-// ─── Internal helpers ────────────────────────────────────────────
+// ─── GitHub API configuration ────────────────────────────────────
+
+const WORKSPACE_REPO = "maestroagi/openclaw-workspace";
+const FORK_REPO = "maestroagi/openclaw";
+const BUILD_METADATA_RAW_URL = `https://raw.githubusercontent.com/${WORKSPACE_REPO}/build-metadata/build-info.json`;
+const WORKFLOW_RUNS_URL = `https://api.github.com/repos/${WORKSPACE_REPO}/actions/workflows/build-and-push.yml/runs`;
+const CACHE_TTL_MS = 60_000;
+const DEFAULT_TIMEOUT_MS = 3500;
+
+// ─── Auth & fetch helpers ─────────────────────────────────────────
+
+function resolveGithubToken(env: NodeJS.ProcessEnv = process.env): string | null {
+  return env.GH_TOKEN ?? env.GITHUB_TOKEN ?? env.COPILOT_GITHUB_TOKEN ?? null;
+}
+
+async function fetchWithTimeout(
+  url: string,
+  timeoutMs: number,
+  init?: RequestInit,
+): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), Math.max(250, timeoutMs));
+  try {
+    return await fetch(url, { ...init, signal: ctrl.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ─── Local build-info.json (RUNNING block) ────────────────────────
 
 function readBuildInfo(): BuildInfo | null {
   const bases = [
@@ -82,39 +114,141 @@ function readBuildInfo(): BuildInfo | null {
   return null;
 }
 
-function resolveBuildInfoUrl(env: NodeJS.ProcessEnv = process.env): string | null {
-  return env.OPENCLAW_BUILD_INFO_URL?.trim() || env.OPENCLAW_BUILD_METADATA_URL?.trim() || null;
-}
+// ─── Cached GitHub API fetchers (60s TTL, 3.5s timeout) ───────────
 
-async function fetchBuildMetadata(params: {
-  url: string;
+type CacheEntry<T> = { value: T; expiresAt: number };
+
+// --- Build metadata from build-metadata branch ---
+
+let buildMetadataCache: CacheEntry<BuildMetadata> | null = null;
+
+async function fetchLatestBuildMetadata(params?: {
   timeoutMs?: number;
-}): Promise<{ metadata: BuildMetadata | null; error?: string }> {
-  const timeoutMs = params.timeoutMs ?? 3500;
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), Math.max(250, timeoutMs));
+  now?: number;
+  env?: NodeJS.ProcessEnv;
+  forceRefresh?: boolean;
+}): Promise<{ metadata: BuildMetadata | null; error?: string; cached?: boolean }> {
+  const now = params?.now ?? Date.now();
+  if (!params?.forceRefresh && buildMetadataCache && buildMetadataCache.expiresAt > now) {
+    return { metadata: buildMetadataCache.value, cached: true };
+  }
+
+  const token = resolveGithubToken(params?.env);
+  const headers: Record<string, string> = { "User-Agent": "OpenClaw" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const timeoutMs = params?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   try {
-    const res = await fetch(params.url, { signal: ctrl.signal });
-    if (!res.ok) {
-      return { metadata: null, error: `HTTP ${res.status}` };
-    }
+    const res = await fetchWithTimeout(BUILD_METADATA_RAW_URL, timeoutMs, { headers });
+    if (!res.ok) return { metadata: null, error: `HTTP ${res.status}` };
+
     const payload = (await res.json()) as BuildMetadata;
-    if (!payload) {
-      return { metadata: null, error: "invalid build metadata" };
-    }
+    if (!payload) return { metadata: null, error: "invalid build metadata" };
+
     const hasData =
       (payload.custom?.commit ?? payload.custom?.short) ||
       (payload.upstream?.commit ?? payload.upstream?.short) ||
       payload.built_at;
-    if (!hasData) {
-      return { metadata: null, error: "invalid build metadata" };
-    }
+    if (!hasData) return { metadata: null, error: "empty build metadata" };
+
+    buildMetadataCache = { value: payload, expiresAt: now + CACHE_TTL_MS };
     return { metadata: payload };
   } catch (err) {
     return { metadata: null, error: String(err) };
-  } finally {
-    clearTimeout(timer);
   }
+}
+
+// --- Workflow run info (success + in-progress checks) ---
+
+type WorkflowRunInfo = {
+  id: number;
+  status: string;
+  conclusion: string | null;
+  created_at: string;
+  updated_at: string;
+  head_sha: string;
+  html_url: string;
+};
+
+let successfulRunCache: CacheEntry<WorkflowRunInfo | null> | null = null;
+let inProgressRunCache: CacheEntry<WorkflowRunInfo | null> | null = null;
+
+async function fetchWorkflowRun(params: {
+  queryStatus: string;
+  cache: CacheEntry<WorkflowRunInfo | null> | null;
+  setCache: (entry: CacheEntry<WorkflowRunInfo | null>) => void;
+  timeoutMs?: number;
+  now?: number;
+  env?: NodeJS.ProcessEnv;
+  forceRefresh?: boolean;
+}): Promise<{ run: WorkflowRunInfo | null; error?: string; cached?: boolean }> {
+  const now = params.now ?? Date.now();
+  if (!params.forceRefresh && params.cache && params.cache.expiresAt > now) {
+    return { run: params.cache.value, cached: true };
+  }
+
+  const token = resolveGithubToken(params.env);
+  const headers: Record<string, string> = {
+    Accept: "application/vnd.github+json",
+    "User-Agent": "OpenClaw",
+  };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const timeoutMs = params.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  try {
+    const url = `${WORKFLOW_RUNS_URL}?status=${params.queryStatus}&per_page=1`;
+    const res = await fetchWithTimeout(url, timeoutMs, { headers });
+    if (!res.ok) return { run: null, error: `HTTP ${res.status}` };
+
+    const data = (await res.json()) as { workflow_runs?: Array<Record<string, unknown>> };
+    const raw = data.workflow_runs?.[0];
+    if (!raw) {
+      params.setCache({ value: null, expiresAt: now + CACHE_TTL_MS });
+      return { run: null };
+    }
+
+    const info: WorkflowRunInfo = {
+      id: Number(raw.id),
+      status: String(raw.status ?? ""),
+      conclusion: raw.conclusion != null ? String(raw.conclusion) : null,
+      created_at: String(raw.created_at ?? ""),
+      updated_at: String(raw.updated_at ?? ""),
+      head_sha: String(raw.head_sha ?? ""),
+      html_url: String(raw.html_url ?? ""),
+    };
+    params.setCache({ value: info, expiresAt: now + CACHE_TTL_MS });
+    return { run: info };
+  } catch (err) {
+    return { run: null, error: String(err) };
+  }
+}
+
+async function fetchLatestSuccessfulRun(params?: {
+  timeoutMs?: number;
+  now?: number;
+  env?: NodeJS.ProcessEnv;
+  forceRefresh?: boolean;
+}): Promise<{ run: WorkflowRunInfo | null; error?: string; cached?: boolean }> {
+  return fetchWorkflowRun({
+    queryStatus: "success",
+    cache: successfulRunCache,
+    setCache: (e) => { successfulRunCache = e; },
+    ...params,
+  });
+}
+
+async function fetchBuildInProgress(params?: {
+  timeoutMs?: number;
+  now?: number;
+  env?: NodeJS.ProcessEnv;
+  forceRefresh?: boolean;
+}): Promise<{ run: WorkflowRunInfo | null; error?: string; cached?: boolean }> {
+  return fetchWorkflowRun({
+    queryStatus: "in_progress",
+    cache: inProgressRunCache,
+    setCache: (e) => { inProgressRunCache = e; },
+    ...params,
+  });
 }
 
 // ─── Date/time formatting ────────────────────────────────────────
@@ -240,7 +374,10 @@ function formatVersionBlock(data: VersionBlockData): string {
 // ─── Public API ──────────────────────────────────────────────────
 
 /**
- * Get update state for the UPDATE button: popup text, optional chat message, and whether to trigger pull+restart.
+ * Get update state for the UPDATE button: popup text, optional chat message,
+ * and whether to trigger pull+restart.
+ *
+ * Fetches build metadata and in-progress status from GitHub API in real-time.
  */
 export async function getVersionUpdateState(params?: {
   env?: NodeJS.ProcessEnv;
@@ -249,10 +386,11 @@ export async function getVersionUpdateState(params?: {
   const build = readBuildInfo();
   const currentCommit = (build?.commit?.trim() ?? "").slice(0, 7) || null;
 
-  const buildInfoUrl = resolveBuildInfoUrl(env);
-  const { metadata } = buildInfoUrl
-    ? await fetchBuildMetadata({ url: buildInfoUrl })
-    : { metadata: null };
+  // Fetch build metadata and in-progress status in parallel
+  const [{ metadata }, { run: inProgressRun }] = await Promise.all([
+    fetchLatestBuildMetadata({ env }),
+    fetchBuildInProgress({ env }),
+  ]);
 
   const readyShort = metadata?.custom?.short?.trim() ?? metadata?.custom?.commit?.trim()?.slice(0, 7) ?? null;
   const behind = metadata?.sync?.behind ?? 0;
@@ -264,6 +402,13 @@ export async function getVersionUpdateState(params?: {
       popup: "🔄 Request to update SENT",
       message: "🔄 UPDATING to latest build…\n⏳ Wait 1–2 minutes",
       action: "trigger_update",
+    };
+  }
+  if (inProgressRun) {
+    return {
+      popup: "🔨 Build in progress",
+      message: "🔨 A build is currently running…\n⏳ Come back in a few minutes",
+      action: "none",
     };
   }
   if (isBehindUpstream) {
@@ -282,11 +427,12 @@ export async function getVersionUpdateState(params?: {
 
 /**
  * Build /version message with 4 Unicode bold blocks:
- *   📦 𝗥𝗨𝗡𝗡𝗜𝗡𝗚 𝗕𝗨𝗜𝗟𝗗  — current running container
- *   ✅ 𝗥𝗘𝗔𝗗𝗬 𝗧𝗢 𝗨𝗣𝗗𝗔𝗧𝗘 — latest built image (from build-info URL)
- *   🔜 𝗤𝗨𝗘𝗨𝗘𝗗 𝗕𝗨𝗜𝗟𝗗     — new upstream commits not yet built
+ *   📦 𝗥𝗨𝗡𝗡𝗜𝗡𝗚 𝗕𝗨𝗜𝗟𝗗  — current running container (local build-info.json)
+ *   ✅ 𝗥𝗘𝗔𝗗𝗬 𝗧𝗢 𝗨𝗣𝗗𝗔𝗧𝗘 — latest built image (GitHub API: build-metadata branch)
+ *   🔜 𝗤𝗨𝗘𝗨𝗘𝗗 𝗕𝗨𝗜𝗟𝗗     — new upstream commits / in-progress builds (GitHub Actions API)
  *   🔄 𝗦𝗬𝗡𝗖 𝗦𝗧𝗔𝗧𝗨𝗦     — behind/ahead of upstream
  *
+ * All remote data fetched in parallel from GitHub API with 60s cache and 3.5s timeout.
  * UPDATE button shown when READY has a different commit than RUNNING.
  */
 export async function buildOpenClawStatusMessage(params?: {
@@ -303,31 +449,29 @@ export async function buildOpenClawStatusMessage(params?: {
   const runningCommit = runningCommitRaw ? runningCommitRaw.slice(0, 7) : null;
   const runningBuiltAt = build?.builtAt ?? null;
 
-  // ── 2. READY data: from build metadata URL ──
-  const buildInfoUrl = resolveBuildInfoUrl();
-  const { metadata, error: metaError } = buildInfoUrl
-    ? await fetchBuildMetadata({ url: buildInfoUrl })
-    : { metadata: null, error: "missing OPENCLAW_BUILD_INFO_URL" };
+  // ── 2. Fetch all remote data in parallel (GitHub API) ──
+  const [
+    { metadata, error: metaError },
+    { run: successRun },
+    { run: inProgressRun },
+    { status: liveUpstream, error: liveError },
+  ] = await Promise.all([
+    fetchLatestBuildMetadata({ now }),
+    fetchLatestSuccessfulRun({ now }),
+    fetchBuildInProgress({ now }),
+    fetchOpenClawUpstreamStatus({ now }),
+  ]);
 
   const metaUpstream = metadata?.upstream;
   const metaCustom = metadata?.custom;
   const metaSync = metadata?.sync;
   const upstreamRepo = metaUpstream?.repo ?? "openclaw/openclaw";
 
-  // Resolve RUNNING upstream short from metadata (the metadata describes the READY build,
-  // but upstream.short from the running container is the commit it was built with).
-  // We use build-info.json commit as the RUNNING custom, and metadata for READY.
+  // Resolve READY commit shorts
   const readyUpstreamShort = metaUpstream?.short ?? metaUpstream?.commit?.slice(0, 7) ?? null;
   const readyCustomShort = metaCustom?.short ?? metaCustom?.commit?.slice(0, 7) ?? null;
 
-  // ── 3. QUEUED data: live GitHub API ──
-  const { status: liveUpstream, error: liveError } = await fetchOpenClawUpstreamStatus({ now });
-
-  // ── 4. Enrich RUNNING upstream data from GitHub if we have metadata ──
-  // The RUNNING upstream commit = what the running container was built with.
-  // If metadata has upstream info, that's the READY upstream. For RUNNING we need
-  // to look at the actual running commit from build-info, or fallback to metadata
-  // if the running commit matches.
+  // ── 3. Enrich RUNNING upstream data from metadata or GitHub ──
   const runningUpstreamShort = metaUpstream?.short ?? liveUpstream?.commit ?? null;
   let runningUpstreamAuthor = metaUpstream?.author ?? null;
   let runningUpstreamMessage = metaUpstream?.message ?? null;
@@ -360,12 +504,12 @@ export async function buildOpenClawStatusMessage(params?: {
   const runningCustomMessage = metaCustom?.message ?? null;
   const runningCustomDate = metaCustom?.date ?? null;
   const runningCustomCommitUrl = runningCustomShort
-    ? `https://github.com/maestroagi/openclaw/commit/${runningCustomShort}`
+    ? `https://github.com/${FORK_REPO}/commit/${runningCustomShort}`
     : null;
   const aheadNum = metaSync?.ahead ?? 0;
   const runningCustomTotal = Number(aheadNum) > 0 ? `+${aheadNum} ahead of upstream` : null;
 
-  // ── 5. Change detection: RUNNING vs READY ──
+  // ── 4. Change detection: RUNNING vs READY ──
   const readyHasNewUpstream = Boolean(
     runningUpstreamShort && readyUpstreamShort && runningUpstreamShort !== readyUpstreamShort,
   );
@@ -427,7 +571,7 @@ export async function buildOpenClawStatusMessage(params?: {
       ? `https://github.com/${upstreamRepo}/commit/${readyUpstreamShort}`
       : null;
     const readyCustomCommitUrl = readyCustomShort
-      ? `https://github.com/maestroagi/openclaw/commit/${readyCustomShort}`
+      ? `https://github.com/${FORK_REPO}/commit/${readyCustomShort}`
       : null;
     const readyUpstreamTotalBase = metaUpstream?.total_commits != null
       ? metaUpstream.total_commits.toLocaleString()
@@ -471,6 +615,11 @@ export async function buildOpenClawStatusMessage(params?: {
       isEmpty: false,
       now,
     });
+
+    // Append link to the last successful build run
+    if (successRun?.html_url) {
+      readyBlock += `\n  🔗 Build: ${successRun.html_url}`;
+    }
   } else {
     readyBlock = formatVersionBlock({
       title: "𝗥𝗘𝗔𝗗𝗬 𝗧𝗢 𝗨𝗣𝗗𝗔𝗧𝗘",
@@ -487,7 +636,19 @@ export async function buildOpenClawStatusMessage(params?: {
 
   // ── QUEUED BUILD ──
   let queuedBlock: string;
-  if (queuedHasNewUpstream && liveUpstream) {
+  if (inProgressRun) {
+    // A build is currently running in GitHub Actions
+    const runStarted = formatDateWithAge(inProgressRun.created_at, now);
+    queuedBlock = formatVersionBlock({
+      title: "𝗤𝗨𝗘𝗨𝗘𝗗 𝗕𝗨𝗜𝗟𝗗",
+      emoji: "🔜",
+      isEmpty: true,
+      emptyMessage: `🔨 Build in progress…\n⏳ Started: ${runStarted}\n🔗 ${inProgressRun.html_url}`,
+      upstream: { type: "upstream", changed: false, available: false, now },
+      custom: { type: "custom", changed: false, available: false, now },
+      now,
+    });
+  } else if (queuedHasNewUpstream && liveUpstream) {
     const queuedUpstreamCommitUrl = liveUpstreamShort
       ? `https://github.com/${upstreamRepo}/commit/${liveUpstreamShort}`
       : null;
