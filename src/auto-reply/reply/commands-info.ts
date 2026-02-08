@@ -1,4 +1,7 @@
-import type { CommandHandler } from "./commands-types.js";
+import {
+  buildOpenClawStatusMessage,
+  VERSION_UPDATE_CALLBACK_DATA,
+} from "../status-openclaw.js";
 import { logVerbose } from "../../globals.js";
 import { listSkillCommandsForAgents } from "../skill-commands.js";
 import {
@@ -201,4 +204,77 @@ export const handleWhoamiCommand: CommandHandler = async (params, allowTextComma
     lines.push(`AllowFrom: ${senderId}`);
   }
   return { shouldContinue: false, reply: { text: lines.join("\n") } };
+};
+
+export const handleVersionCommand: CommandHandler = async (params, allowTextCommands) => {
+  if (!allowTextCommands) {
+    return null;
+  }
+  if (params.command.commandBodyNormalized !== "/version") {
+    return null;
+  }
+  if (!params.command.isAuthorizedSender) {
+    logVerbose(
+      `Ignoring /version from unauthorized sender: ${params.command.senderId || "<unknown>"}`,
+    );
+    return { shouldContinue: false };
+  }
+  const includeUpdateButton = params.ctx.Surface === "telegram";
+  const { text, buttons } = await buildOpenClawStatusMessage({
+    includeUpdateButton,
+  });
+  const reply: { text: string; channelData?: { telegram: { buttons: unknown } } } = { text };
+  if (buttons?.length && params.ctx.Surface === "telegram") {
+    reply.channelData = { telegram: { buttons } };
+  }
+  return { shouldContinue: false, reply };
+};
+
+export { VERSION_UPDATE_CALLBACK_DATA };
+
+export async function triggerUpdateBuild(): Promise<{ ok: boolean; message: string }> {
+  const url = process.env.OPENCLAW_UPDATE_TRIGGER_URL?.trim();
+  const token = process.env.OPENCLAW_UPDATE_TRIGGER_TOKEN?.trim();
+  if (!url) {
+    return { ok: false, message: "Update trigger not configured (OPENCLAW_UPDATE_TRIGGER_URL)." };
+  }
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ trigger: "updatetolatest" }),
+    });
+    if (!res.ok) {
+      return { ok: false, message: `Trigger responded ${res.status}.` };
+    }
+    return { ok: true, message: "Update triggered. You'll get a notification when the new version is running." };
+  } catch (err) {
+    return {
+      ok: false,
+      message: `Trigger failed: ${err instanceof Error ? err.message : String(err)}.`,
+    };
+  }
+}
+
+export const handleUpdateToLatestCommand: CommandHandler = async (params, allowTextCommands) => {
+  if (!allowTextCommands) {
+    return null;
+  }
+  if (params.command.commandBodyNormalized !== "/updatetolatest") {
+    return null;
+  }
+  if (!params.command.isAuthorizedSender) {
+    logVerbose(
+      `Ignoring /updatetolatest from unauthorized sender: ${params.command.senderId || "<unknown>"}`,
+    );
+    return { shouldContinue: false };
+  }
+  const result = await triggerUpdateBuild();
+  return {
+    shouldContinue: false,
+    reply: { text: result.ok ? result.message : `\u274c ${result.message}` },
+  };
 };

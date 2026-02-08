@@ -173,6 +173,20 @@ function buildChatCommands(): ChatCommandDefinition[] {
       category: "status",
     }),
     defineChatCommand({
+      key: "version",
+      nativeName: "version",
+      description: "Show OpenClaw upstream version info.",
+      textAlias: "/version",
+      category: "status",
+    }),
+    defineChatCommand({
+      key: "updatetolatest",
+      nativeName: "updatetolatest",
+      description: "Trigger build and deploy to latest; bot notifies when done.",
+      textAlias: "/updatetolatest",
+      category: "status",
+    }),
+    defineChatCommand({
       key: "allowlist",
       description: "List/add/remove allowlist entries.",
       textAlias: "/allowlist",

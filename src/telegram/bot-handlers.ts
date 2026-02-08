@@ -7,7 +7,7 @@ import {
   createInboundDebouncer,
   resolveInboundDebounceMs,
 } from "../auto-reply/inbound-debounce.js";
-import { buildCommandsPaginationKeyboard } from "../auto-reply/reply/commands-info.js";
+import { buildCommandsPaginationKeyboard, triggerUpdateBuild, VERSION_UPDATE_CALLBACK_DATA } from "../auto-reply/reply/commands-info.js";
 import { buildModelsProviderData } from "../auto-reply/reply/commands-models.js";
 import { resolveStoredModelOverride } from "../auto-reply/reply/model-selection.js";
 import { listSkillCommandsForAgents } from "../auto-reply/skill-commands.js";
@@ -439,6 +439,19 @@ export const registerTelegramHandlers = ({
         }
       }
 
+      // UPDATE button from /version
+      if (data === VERSION_UPDATE_CALLBACK_DATA) {
+        const result = await triggerUpdateBuild();
+        const replyText = result.ok
+          ? "\u2705 " + result.message
+          : "\u274c " + result.message;
+        try {
+          await bot.api.sendMessage(callbackMessage.chat.id, replyText);
+        } catch (sendErr) {
+          logger.error({ err: sendErr }, "Failed to send update trigger reply");
+        }
+        return;
+      }
       const paginationMatch = data.match(/^commands_page_(\d+|noop)(?::(.+))?$/);
       if (paginationMatch) {
         const pageValue = paginationMatch[1];
