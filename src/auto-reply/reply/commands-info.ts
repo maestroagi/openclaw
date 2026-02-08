@@ -1,3 +1,4 @@
+import type { CommandHandler } from "./commands-types.js";
 import {
   buildOpenClawStatusMessage,
   VERSION_UPDATE_CALLBACK_DATA,
