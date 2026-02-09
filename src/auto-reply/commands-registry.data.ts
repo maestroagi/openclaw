@@ -526,8 +526,20 @@ function buildChatCommands(): ChatCommandDefinition[] {
           name: "model",
           description: "Model id (provider/model or id)",
           type: "string",
+          choices: (ctx) => {
+            const models = ctx.cfg?.agents?.defaults?.models;
+            if (!models || typeof models !== "object") return [];
+            return Object.entries(models).map(([key, config]) => {
+              const label =
+                config && typeof config === "object" && "alias" in config && config.alias
+                  ? String((config as { alias?: string }).alias)
+                  : (key.split("/").pop() ?? key);
+              return { value: key, label };
+            });
+          },
         },
       ],
+      argsMenu: { arg: "model", title: "Select model" },
     }),
     defineChatCommand({
       key: "models",

@@ -152,6 +152,7 @@ const formatAge = (ms?: number | null) => {
   const days = Math.round(hours / 24);
   return `${days}d ago`;
 };
+
 const formatQueueDetails = (queue?: QueueStatus) => {
   if (!queue) {
     return "";

@@ -498,8 +498,13 @@ export async function buildOpenClawStatusMessage(params?: {
     }
   }
 
-  // RUNNING custom = the running container's custom commit
-  const runningCustomShort = runningCommit;
+  // RUNNING custom = the running container's custom commit.
+  // When local build-info.json has commit: null (Docker image without custom commit),
+  // fall back to metadata from build-metadata branch for display purposes.
+  const runningCustomShort = runningCommit
+    ?? metaCustom?.short
+    ?? metaCustom?.commit?.slice(0, 7)
+    ?? null;
   const runningCustomAuthor = metaCustom?.author ?? null;
   const runningCustomMessage = metaCustom?.message ?? null;
   const runningCustomDate = metaCustom?.date ?? null;

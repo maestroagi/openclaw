@@ -17,8 +17,8 @@ import {
   handleContextCommand,
   handleHelpCommand,
   handleStatusCommand,
-  handleVersionCommand,
   handleUpdateToLatestCommand,
+  handleVersionCommand,
   handleWhoamiCommand,
 } from "./commands-info.js";
 import { handleModelsCommand } from "./commands-models.js";
@@ -56,9 +56,7 @@ export async function handleCommands(params: HandleCommandsParams): Promise<Comm
       handleAllowlistCommand,
       handleApproveCommand,
       handleContextCommand,
-      handleVersionCommand,
-  handleUpdateToLatestCommand,
-  handleWhoamiCommand,
+      handleWhoamiCommand,
       handleSubagentsCommand,
       handleConfigCommand,
       handleDebugCommand,
