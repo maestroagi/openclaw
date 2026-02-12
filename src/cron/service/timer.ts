@@ -8,6 +8,7 @@ import {
   computeJobNextRunAtMs,
   nextWakeAtMs,
   recomputeNextRuns,
+  recomputeNextRunsForMaintenance,
   resolveJobPayloadTextForMain,
 } from "./jobs.js";
 import { locked } from "./locked.js";
@@ -187,7 +188,10 @@ export async function onTimer(state: CronServiceState) {
       const due = findDueJobs(state);
 
       if (due.length === 0) {
-        const changed = recomputeNextRuns(state);
+        // Use maintenance-only recompute to avoid advancing past-due nextRunAtMs
+        // values without execution. This prevents jobs from being silently skipped
+        // when the timer wakes up but findDueJobs returns empty (see #13992).
+        const changed = recomputeNextRunsForMaintenance(state);
         if (changed) {
           await persist(state);
         }
@@ -369,7 +373,10 @@ export async function runMissedJobs(state: CronServiceState) {
       return false;
     }
     const next = j.state.nextRunAtMs;
-    if (j.schedule.kind === "at" && j.state.lastStatus === "ok") {
+    if (j.schedule.kind === "at" && j.state.lastStatus) {
+      // Any terminal status (ok, error, skipped) means the job already
+      // ran at least once.  Don't re-fire it on restart — applyJobResult
+      // disables one-shot jobs, but guard here defensively (#13845).
       return false;
     }
     return typeof next === "number" && now >= next;
