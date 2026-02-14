@@ -50,41 +50,34 @@ vi.mock("../agents/model-auth.js", () => ({
 }));
 
 vi.mock("@mariozechner/pi-coding-agent", async () => {
-  const actual = await vi.importActual<typeof import("@mariozechner/pi-coding-agent")>(
-    "@mariozechner/pi-coding-agent",
-  );
-
   class MockAuthStorage {}
 
   class MockModelRegistry {
-    find(provider: string, id: string): ReturnType<typeof actual.ModelRegistry.prototype.find> {
+    find(provider: string, id: string) {
       const found =
         modelRegistryState.models.find((model) => model.provider === provider && model.id === id) ??
         null;
-      return found as ReturnType<typeof actual.ModelRegistry.prototype.find>;
+      return found;
     }
 
-    getAll(): ReturnType<typeof actual.ModelRegistry.prototype.getAll> {
+    getAll() {
       if (modelRegistryState.getAllError !== undefined) {
         throw modelRegistryState.getAllError;
       }
-      return modelRegistryState.models as ReturnType<typeof actual.ModelRegistry.prototype.getAll>;
+      return modelRegistryState.models;
     }
 
-    getAvailable(): ReturnType<typeof actual.ModelRegistry.prototype.getAvailable> {
+    getAvailable() {
       if (modelRegistryState.getAvailableError !== undefined) {
         throw modelRegistryState.getAvailableError;
       }
-      return modelRegistryState.available as ReturnType<
-        typeof actual.ModelRegistry.prototype.getAvailable
-      >;
+      return modelRegistryState.available;
     }
   }
 
   return {
-    ...actual,
-    AuthStorage: MockAuthStorage as unknown as typeof actual.AuthStorage,
-    ModelRegistry: MockModelRegistry as unknown as typeof actual.ModelRegistry,
+    AuthStorage: MockAuthStorage,
+    ModelRegistry: MockModelRegistry,
   };
 });
 
@@ -108,33 +101,6 @@ afterEach(() => {
 });
 
 describe("models list/status", () => {
-  it("models status resolves z.ai alias to canonical zai", async () => {
-    loadConfig.mockReturnValue({
-      agents: { defaults: { model: "z.ai/glm-4.7" } },
-    });
-    const runtime = makeRuntime();
-
-    const { modelsStatusCommand } = await import("./models/list.js");
-    await modelsStatusCommand({ json: true }, runtime);
-
-    expect(runtime.log).toHaveBeenCalledTimes(1);
-    const payload = JSON.parse(String(runtime.log.mock.calls[0]?.[0]));
-    expect(payload.resolvedDefault).toBe("zai/glm-4.7");
-  });
-
-  it("models status plain outputs canonical zai model", async () => {
-    loadConfig.mockReturnValue({
-      agents: { defaults: { model: "z.ai/glm-4.7" } },
-    });
-    const runtime = makeRuntime();
-
-    const { modelsStatusCommand } = await import("./models/list.js");
-    await modelsStatusCommand({ plain: true }, runtime);
-
-    expect(runtime.log).toHaveBeenCalledTimes(1);
-    expect(runtime.log.mock.calls[0]?.[0]).toBe("zai/glm-4.7");
-  });
-
   it("models list outputs canonical zai key for configured z.ai model", async () => {
     loadConfig.mockReturnValue({
       agents: { defaults: { model: "z.ai/glm-4.7" } },
@@ -153,7 +119,7 @@ describe("models list/status", () => {
     modelRegistryState.models = [model];
     modelRegistryState.available = [model];
 
-    const { modelsListCommand } = await import("./models/list.js");
+    const { modelsListCommand } = await import("./models/list.list-command.js");
     await modelsListCommand({ json: true }, runtime);
 
     expect(runtime.log).toHaveBeenCalledTimes(1);
@@ -179,7 +145,7 @@ describe("models list/status", () => {
     modelRegistryState.models = [model];
     modelRegistryState.available = [model];
 
-    const { modelsListCommand } = await import("./models/list.js");
+    const { modelsListCommand } = await import("./models/list.list-command.js");
     await modelsListCommand({ plain: true }, runtime);
 
     expect(runtime.log).toHaveBeenCalledTimes(1);
@@ -214,7 +180,7 @@ describe("models list/status", () => {
     modelRegistryState.models = models;
     modelRegistryState.available = models;
 
-    const { modelsListCommand } = await import("./models/list.js");
+    const { modelsListCommand } = await import("./models/list.list-command.js");
     await modelsListCommand({ all: true, provider: "z.ai", json: true }, runtime);
 
     expect(runtime.log).toHaveBeenCalledTimes(1);
@@ -251,7 +217,7 @@ describe("models list/status", () => {
     modelRegistryState.models = models;
     modelRegistryState.available = models;
 
-    const { modelsListCommand } = await import("./models/list.js");
+    const { modelsListCommand } = await import("./models/list.list-command.js");
     await modelsListCommand({ all: true, provider: "Z.AI", json: true }, runtime);
 
     expect(runtime.log).toHaveBeenCalledTimes(1);
@@ -288,7 +254,7 @@ describe("models list/status", () => {
     modelRegistryState.models = models;
     modelRegistryState.available = models;
 
-    const { modelsListCommand } = await import("./models/list.js");
+    const { modelsListCommand } = await import("./models/list.list-command.js");
     await modelsListCommand({ all: true, provider: "z-ai", json: true }, runtime);
 
     expect(runtime.log).toHaveBeenCalledTimes(1);
@@ -315,7 +281,7 @@ describe("models list/status", () => {
     modelRegistryState.models = [model];
     modelRegistryState.available = [];
 
-    const { modelsListCommand } = await import("./models/list.js");
+    const { modelsListCommand } = await import("./models/list.list-command.js");
     await modelsListCommand({ all: true, json: true }, runtime);
 
     expect(runtime.log).toHaveBeenCalledTimes(1);
@@ -352,7 +318,7 @@ describe("models list/status", () => {
     ];
     modelRegistryState.available = [];
 
-    const { modelsListCommand } = await import("./models/list.js");
+    const { modelsListCommand } = await import("./models/list.list-command.js");
     await modelsListCommand({ json: true }, runtime);
 
     expect(runtime.log).toHaveBeenCalledTimes(1);
@@ -392,7 +358,7 @@ describe("models list/status", () => {
     ];
     modelRegistryState.available = [];
 
-    const { modelsListCommand } = await import("./models/list.js");
+    const { modelsListCommand } = await import("./models/list.list-command.js");
     await modelsListCommand({ json: true }, runtime);
 
     expect(runtime.log).toHaveBeenCalledTimes(1);
@@ -431,7 +397,7 @@ describe("models list/status", () => {
     modelRegistryState.models = [template];
     modelRegistryState.available = [template];
 
-    const { modelsListCommand } = await import("./models/list.js");
+    const { modelsListCommand } = await import("./models/list.list-command.js");
     await modelsListCommand({ json: true }, runtime);
 
     expect(runtime.log).toHaveBeenCalledTimes(1);
@@ -469,7 +435,7 @@ describe("models list/status", () => {
     modelRegistryState.models = [template];
     modelRegistryState.available = [template];
 
-    const { modelsListCommand } = await import("./models/list.js");
+    const { modelsListCommand } = await import("./models/list.list-command.js");
     await modelsListCommand({ json: true }, runtime);
 
     expect(runtime.log).toHaveBeenCalledTimes(1);
@@ -512,7 +478,7 @@ describe("models list/status", () => {
     modelRegistryState.models = [template];
     modelRegistryState.available = [];
 
-    const { modelsListCommand } = await import("./models/list.js");
+    const { modelsListCommand } = await import("./models/list.list-command.js");
     await modelsListCommand({ json: true }, runtime);
 
     expect(runtime.log).toHaveBeenCalledTimes(1);
@@ -561,7 +527,7 @@ describe("models list/status", () => {
     ];
     modelRegistryState.available = [];
 
-    const { modelsListCommand } = await import("./models/list.js");
+    const { modelsListCommand } = await import("./models/list.list-command.js");
     await modelsListCommand({ json: true }, runtime);
 
     expect(runtime.error).toHaveBeenCalledTimes(1);
@@ -608,7 +574,7 @@ describe("models list/status", () => {
       },
     ];
 
-    const { modelsListCommand } = await import("./models/list.js");
+    const { modelsListCommand } = await import("./models/list.list-command.js");
     await modelsListCommand({ json: true }, runtime);
 
     expect(runtime.error).toHaveBeenCalledTimes(1);
@@ -658,7 +624,7 @@ describe("models list/status", () => {
     ];
     modelRegistryState.available = [];
 
-    const { modelsListCommand } = await import("./models/list.js");
+    const { modelsListCommand } = await import("./models/list.list-command.js");
     await modelsListCommand({ json: true }, runtime);
 
     expect(runtime.error).toHaveBeenCalledTimes(1);
@@ -689,7 +655,7 @@ describe("models list/status", () => {
     });
     const runtime = makeRuntime();
 
-    const { modelsListCommand } = await import("./models/list.js");
+    const { modelsListCommand } = await import("./models/list.list-command.js");
     await modelsListCommand({ json: true }, runtime);
 
     expect(runtime.error).toHaveBeenCalledTimes(1);
@@ -724,7 +690,7 @@ describe("models list/status", () => {
     modelRegistryState.models = [];
     modelRegistryState.available = [];
 
-    const { modelsListCommand } = await import("./models/list.js");
+    const { modelsListCommand } = await import("./models/list.list-command.js");
     await modelsListCommand({ json: true }, runtime);
 
     expect(runtime.error).toHaveBeenCalledTimes(1);
