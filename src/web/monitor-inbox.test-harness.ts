@@ -5,6 +5,10 @@ import path from "node:path";
 import { afterEach, beforeEach, vi } from "vitest";
 import { resetLogger, setLoggerOverride } from "../logging.js";
 
+// Avoid exporting vitest mock types (TS2742 under pnpm + d.ts emit).
+// oxlint-disable-next-line typescript/no-explicit-any
+type AnyMockFn = any;
+
 export const DEFAULT_ACCOUNT_ID = "default";
 
 export const DEFAULT_WEB_INBOX_CONFIG = {
@@ -20,16 +24,30 @@ export const DEFAULT_WEB_INBOX_CONFIG = {
   },
 } as const;
 
-export const mockLoadConfig = vi.fn().mockReturnValue(DEFAULT_WEB_INBOX_CONFIG);
+export const mockLoadConfig: AnyMockFn = vi.fn().mockReturnValue(DEFAULT_WEB_INBOX_CONFIG);
 
-export const readAllowFromStoreMock = vi.fn().mockResolvedValue([]);
-export const upsertPairingRequestMock = vi
+export const readAllowFromStoreMock: AnyMockFn = vi.fn().mockResolvedValue([]);
+export const upsertPairingRequestMock: AnyMockFn = vi
   .fn()
   .mockResolvedValue({ code: "PAIRCODE", created: true });
 
-export type MockSock = ReturnType<typeof createMockSock>;
+export type MockSock = {
+  ev: EventEmitter;
+  ws: { close: AnyMockFn };
+  sendPresenceUpdate: AnyMockFn;
+  sendMessage: AnyMockFn;
+  readMessages: AnyMockFn;
+  updateMediaMessage: AnyMockFn;
+  logger: Record<string, unknown>;
+  signalRepository: {
+    lidMapping: {
+      getPNForLID: AnyMockFn;
+    };
+  };
+  user: { id: string };
+};
 
-function createMockSock() {
+function createMockSock(): MockSock {
   const ev = new EventEmitter();
   return {
     ev,

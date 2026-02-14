@@ -3,6 +3,7 @@ import {
   flush,
   getCloseResolve,
   getConfigMock,
+  getReadAllowFromStoreMock,
   getNotificationHandler,
   getReplyMock,
   getSendMock,
@@ -20,8 +21,12 @@ beforeAll(async () => {
   ({ monitorIMessageProvider } = await import("./monitor.js"));
 });
 
+function startMonitor() {
+  return monitorIMessageProvider();
+}
 const replyMock = getReplyMock();
 const sendMock = getSendMock();
+const readAllowFromStoreMock = getReadAllowFromStoreMock();
 const upsertPairingRequestMock = getUpsertPairingRequestMock();
 
 type TestConfig = {
@@ -35,24 +40,38 @@ function getConfig(): TestConfig {
   return getConfigMock() as unknown as TestConfig;
 }
 
+function notifyMessage(message: unknown) {
+  getNotificationHandler()?.({
+    method: "message",
+    params: { message },
+  });
+}
+
+async function closeMonitor() {
+  for (let i = 0; i < 20; i += 1) {
+    const close = getCloseResolve();
+    if (close) {
+      close();
+      return;
+    }
+    await flush();
+  }
+  throw new Error("imessage test harness: closeResolve not set");
+}
+
 describe("monitorIMessageProvider", () => {
   it("ignores malformed rpc message payloads", async () => {
-    const run = monitorIMessageProvider();
+    const run = startMonitor();
     await waitForSubscribe();
 
-    notificationHandler?.({
-      method: "message",
-      params: {
-        message: {
-          id: 1,
-          sender: { nested: "not-a-string" },
-          text: "hello",
-        },
-      },
+    notifyMessage({
+      id: 1,
+      sender: { nested: "not-a-string" },
+      text: "hello",
     });
 
     await flush();
-    closeResolve?.();
+    await closeMonitor();
     await run;
 
     expect(replyMock).not.toHaveBeenCalled();
@@ -60,7 +79,7 @@ describe("monitorIMessageProvider", () => {
   });
 
   it("skips group messages without a mention by default", async () => {
-    const run = monitorIMessageProvider();
+    const run = startMonitor();
     await waitForSubscribe();
 
     getNotificationHandler()?.({
@@ -78,7 +97,7 @@ describe("monitorIMessageProvider", () => {
     });
 
     await flush();
-    getCloseResolve()?.();
+    await closeMonitor();
     await run;
 
     expect(replyMock).not.toHaveBeenCalled();
@@ -98,7 +117,7 @@ describe("monitorIMessageProvider", () => {
         },
       },
     });
-    const run = monitorIMessageProvider();
+    const run = startMonitor();
     await waitForSubscribe();
 
     getNotificationHandler()?.({
@@ -116,7 +135,7 @@ describe("monitorIMessageProvider", () => {
     });
 
     await flush();
-    getCloseResolve()?.();
+    await closeMonitor();
     await run;
 
     expect(replyMock).toHaveBeenCalled();
@@ -136,7 +155,7 @@ describe("monitorIMessageProvider", () => {
         },
       },
     });
-    const run = monitorIMessageProvider();
+    const run = startMonitor();
     await waitForSubscribe();
 
     getNotificationHandler()?.({
@@ -154,7 +173,7 @@ describe("monitorIMessageProvider", () => {
     });
 
     await flush();
-    getCloseResolve()?.();
+    await closeMonitor();
     await run;
 
     expect(replyMock).toHaveBeenCalled();
@@ -172,7 +191,7 @@ describe("monitorIMessageProvider", () => {
         },
       },
     });
-    const run = monitorIMessageProvider();
+    const run = startMonitor();
     await waitForSubscribe();
 
     getNotificationHandler()?.({
@@ -190,7 +209,7 @@ describe("monitorIMessageProvider", () => {
     });
 
     await flush();
-    getCloseResolve()?.();
+    await closeMonitor();
     await run;
 
     expect(replyMock).not.toHaveBeenCalled();
@@ -212,7 +231,7 @@ describe("monitorIMessageProvider", () => {
       },
     });
 
-    const run = monitorIMessageProvider();
+    const run = startMonitor();
     await waitForSubscribe();
 
     getNotificationHandler()?.({
@@ -230,7 +249,7 @@ describe("monitorIMessageProvider", () => {
     });
 
     await flush();
-    getCloseResolve()?.();
+    await closeMonitor();
     await run;
 
     expect(replyMock).toHaveBeenCalled();
@@ -249,7 +268,7 @@ describe("monitorIMessageProvider", () => {
       messages: { responsePrefix: "PFX" },
     });
     replyMock.mockResolvedValue({ text: "final reply" });
-    const run = monitorIMessageProvider();
+    const run = startMonitor();
     await waitForSubscribe();
 
     getNotificationHandler()?.({
@@ -267,7 +286,7 @@ describe("monitorIMessageProvider", () => {
     });
 
     await flush();
-    getCloseResolve()?.();
+    await closeMonitor();
     await run;
 
     expect(sendMock).toHaveBeenCalledTimes(1);
@@ -288,7 +307,7 @@ describe("monitorIMessageProvider", () => {
         },
       },
     });
-    const run = monitorIMessageProvider();
+    const run = startMonitor();
     await waitForSubscribe();
 
     getNotificationHandler()?.({
@@ -306,7 +325,7 @@ describe("monitorIMessageProvider", () => {
     });
 
     await flush();
-    getCloseResolve()?.();
+    await closeMonitor();
     await run;
 
     expect(replyMock).not.toHaveBeenCalled();
@@ -320,7 +339,7 @@ describe("monitorIMessageProvider", () => {
 
   it("delivers group replies when mentioned", async () => {
     replyMock.mockResolvedValueOnce({ text: "yo" });
-    const run = monitorIMessageProvider();
+    const run = startMonitor();
     await waitForSubscribe();
 
     getNotificationHandler()?.({
@@ -340,7 +359,7 @@ describe("monitorIMessageProvider", () => {
     });
 
     await flush();
-    getCloseResolve()?.();
+    await closeMonitor();
     await run;
 
     expect(replyMock).toHaveBeenCalledOnce();
@@ -370,7 +389,7 @@ describe("monitorIMessageProvider", () => {
         },
       },
     });
-    const run = monitorIMessageProvider();
+    const run = startMonitor();
     await waitForSubscribe();
 
     getNotificationHandler()?.({
@@ -388,7 +407,7 @@ describe("monitorIMessageProvider", () => {
     });
 
     await flush();
-    getCloseResolve()?.();
+    await closeMonitor();
     await run;
 
     expect(replyMock).not.toHaveBeenCalled();
@@ -396,39 +415,35 @@ describe("monitorIMessageProvider", () => {
   });
 
   it("does not allow group sender from pairing store when groupPolicy is allowlist", async () => {
-    config = {
+    const config = getConfig();
+    setConfigMock({
       ...config,
       channels: {
         ...config.channels,
         imessage: {
-          ...config.channels?.imessage,
+          ...config.channels.imessage,
           dmPolicy: "pairing",
           allowFrom: [],
           groupPolicy: "allowlist",
           groupAllowFrom: [],
         },
       },
-    };
+    });
     readAllowFromStoreMock.mockResolvedValue(["+15550003333"]);
-    const run = monitorIMessageProvider();
+    const run = startMonitor();
     await waitForSubscribe();
 
-    notificationHandler?.({
-      method: "message",
-      params: {
-        message: {
-          id: 30,
-          chat_id: 909,
-          sender: "+15550003333",
-          is_from_me: false,
-          text: "@openclaw hi from paired sender",
-          is_group: true,
-        },
-      },
+    notifyMessage({
+      id: 30,
+      chat_id: 909,
+      sender: "+15550003333",
+      is_from_me: false,
+      text: "@openclaw hi from paired sender",
+      is_group: true,
     });
 
     await flush();
-    closeResolve?.();
+    await closeMonitor();
     await run;
 
     expect(replyMock).not.toHaveBeenCalled();
@@ -436,39 +451,35 @@ describe("monitorIMessageProvider", () => {
   });
 
   it("does not allow sender from pairing store when groupAllowFrom is restricted to a different chat_id", async () => {
-    config = {
+    const config = getConfig();
+    setConfigMock({
       ...config,
       channels: {
         ...config.channels,
         imessage: {
-          ...config.channels?.imessage,
+          ...config.channels.imessage,
           dmPolicy: "pairing",
           allowFrom: [],
           groupPolicy: "allowlist",
           groupAllowFrom: ["chat_id:101"],
         },
       },
-    };
+    });
     readAllowFromStoreMock.mockResolvedValue(["+15550003333"]);
-    const run = monitorIMessageProvider();
+    const run = startMonitor();
     await waitForSubscribe();
 
-    notificationHandler?.({
-      method: "message",
-      params: {
-        message: {
-          id: 31,
-          chat_id: 202,
-          sender: "+15550003333",
-          is_from_me: false,
-          text: "@openclaw hi from paired sender",
-          is_group: true,
-        },
-      },
+    notifyMessage({
+      id: 31,
+      chat_id: 202,
+      sender: "+15550003333",
+      is_from_me: false,
+      text: "@openclaw hi from paired sender",
+      is_group: true,
     });
 
     await flush();
-    closeResolve?.();
+    await closeMonitor();
     await run;
 
     expect(replyMock).not.toHaveBeenCalled();
@@ -476,39 +487,35 @@ describe("monitorIMessageProvider", () => {
   });
 
   it("does not authorize control command via pairing-store sender in non-allowlisted chat", async () => {
-    config = {
+    const config = getConfig();
+    setConfigMock({
       ...config,
       channels: {
         ...config.channels,
         imessage: {
-          ...config.channels?.imessage,
+          ...config.channels.imessage,
           dmPolicy: "pairing",
           allowFrom: [],
           groupPolicy: "allowlist",
           groupAllowFrom: ["chat_id:101"],
         },
       },
-    };
+    });
     readAllowFromStoreMock.mockResolvedValue(["+15550003333"]);
-    const run = monitorIMessageProvider();
+    const run = startMonitor();
     await waitForSubscribe();
 
-    notificationHandler?.({
-      method: "message",
-      params: {
-        message: {
-          id: 32,
-          chat_id: 202,
-          sender: "+15550003333",
-          is_from_me: false,
-          text: "/status",
-          is_group: true,
-        },
-      },
+    notifyMessage({
+      id: 32,
+      chat_id: 202,
+      sender: "+15550003333",
+      is_from_me: false,
+      text: "/status",
+      is_group: true,
     });
 
     await flush();
-    closeResolve?.();
+    await closeMonitor();
     await run;
 
     expect(replyMock).not.toHaveBeenCalled();
@@ -527,7 +534,7 @@ describe("monitorIMessageProvider", () => {
         },
       },
     });
-    const run = monitorIMessageProvider();
+    const run = startMonitor();
     await waitForSubscribe();
 
     getNotificationHandler()?.({
@@ -545,14 +552,14 @@ describe("monitorIMessageProvider", () => {
     });
 
     await flush();
-    getCloseResolve()?.();
+    await closeMonitor();
     await run;
 
     expect(replyMock).not.toHaveBeenCalled();
   });
 
   it("prefixes group message bodies with sender", async () => {
-    const run = monitorIMessageProvider();
+    const run = startMonitor();
     await waitForSubscribe();
 
     getNotificationHandler()?.({
@@ -572,7 +579,7 @@ describe("monitorIMessageProvider", () => {
     });
 
     await flush();
-    getCloseResolve()?.();
+    await closeMonitor();
     await run;
 
     expect(replyMock).toHaveBeenCalled();
@@ -583,7 +590,7 @@ describe("monitorIMessageProvider", () => {
   });
 
   it("includes reply context when imessage reply metadata is present", async () => {
-    const run = monitorIMessageProvider();
+    const run = startMonitor();
     await waitForSubscribe();
 
     getNotificationHandler()?.({
@@ -604,7 +611,7 @@ describe("monitorIMessageProvider", () => {
     });
 
     await flush();
-    getCloseResolve()?.();
+    await closeMonitor();
     await run;
 
     expect(replyMock).toHaveBeenCalled();
