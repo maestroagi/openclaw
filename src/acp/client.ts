@@ -10,24 +10,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import * as readline from "node:readline";
 import { Readable, Writable } from "node:stream";
 import { ensureOpenClawCliOnPath } from "../infra/path-env.js";
-
-/**
- * Tools that require explicit user approval in ACP sessions.
- * These tools can execute arbitrary code, modify the filesystem,
- * or access sensitive resources.
- */
-const DANGEROUS_ACP_TOOLS = new Set([
-  "exec",
-  "spawn",
-  "shell",
-  "sessions_spawn",
-  "sessions_send",
-  "gateway",
-  "fs_write",
-  "fs_delete",
-  "fs_move",
-  "apply_patch",
-]);
+import { DANGEROUS_ACP_TOOLS } from "../security/dangerous-tools.js";
 
 const SAFE_AUTO_APPROVE_KINDS = new Set(["read", "search"]);
 
@@ -96,11 +79,17 @@ function resolveToolKindForPermission(
   }
   const normalized = name.toLowerCase();
 
-  // Prefer a conservative classifier: if in doubt, return "other" (prompt-required).
-  if (normalized === "read" || normalized.includes("read")) {
+  const hasToken = (token: string) => {
+    // Tool names tend to be snake_case. Avoid substring heuristics (ex: "thread" contains "read").
+    const re = new RegExp(`(?:^|[._-])${token}(?:$|[._-])`);
+    return re.test(normalized);
+  };
+
+  // Prefer a conservative classifier: only classify safe kinds when confident.
+  if (normalized === "read" || hasToken("read")) {
     return "read";
   }
-  if (normalized === "search" || normalized.includes("search") || normalized.includes("find")) {
+  if (normalized === "search" || hasToken("search") || hasToken("find")) {
     return "search";
   }
   if (normalized.includes("fetch") || normalized.includes("http")) {
