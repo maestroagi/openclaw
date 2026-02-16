@@ -334,6 +334,20 @@ export type MemorySearchConfig = {
       textWeight?: number;
       /** Multiplier for candidate pool size (default: 4). */
       candidateMultiplier?: number;
+      /** Optional MMR re-ranking for result diversity. */
+      mmr?: {
+        /** Enable MMR re-ranking (default: false). */
+        enabled?: boolean;
+        /** Lambda: 0 = max diversity, 1 = max relevance (default: 0.7). */
+        lambda?: number;
+      };
+      /** Optional temporal decay to boost recency in hybrid scoring. */
+      temporalDecay?: {
+        /** Enable temporal decay (default: false). */
+        enabled?: boolean;
+        /** Half-life in days for exponential decay (default: 30). */
+        halfLifeDays?: number;
+      };
     };
   };
   /** Index cache behavior. */
@@ -355,6 +369,8 @@ export type ToolsConfig = {
   /** Optional tool policy overrides keyed by provider id or "provider/model". */
   byProvider?: Record<string, ToolPolicyConfig>;
   web?: {
+    /** Optional URL/domain allowlist for web tools. When configured, only URLs matching these patterns are allowed. */
+    urlAllowlist?: string[];
     search?: {
       /** Enable web search tool (default: true when API key is present). */
       enabled?: boolean;
