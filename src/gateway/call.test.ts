@@ -10,6 +10,7 @@ let lastClientOptions: {
   url?: string;
   token?: string;
   password?: string;
+  scopes?: string[];
   onHelloOk?: () => void | Promise<void>;
   onClose?: (code: number, reason: string) => void;
 } | null = null;
@@ -54,6 +55,7 @@ vi.mock("./client.js", () => ({
       url?: string;
       token?: string;
       password?: string;
+      scopes?: string[];
       onHelloOk?: () => void | Promise<void>;
       onClose?: (code: number, reason: string) => void;
     }) {
@@ -73,7 +75,8 @@ vi.mock("./client.js", () => ({
   },
 }));
 
-const { buildGatewayConnectionDetails, callGateway } = await import("./call.js");
+const { buildGatewayConnectionDetails, callGateway, callGatewayCli, callGatewayScoped } =
+  await import("./call.js");
 
 function resetGatewayCallMocks() {
   loadConfig.mockReset();
@@ -194,6 +197,42 @@ describe("callGateway url resolution", () => {
 
     expect(lastClientOptions?.url).toBe("wss://override.example/ws");
     expect(lastClientOptions?.token).toBe("explicit-token");
+  });
+
+  it("uses least-privilege scopes by default for non-CLI callers", async () => {
+    loadConfig.mockReturnValue({ gateway: { mode: "local", bind: "loopback" } });
+    resolveGatewayPort.mockReturnValue(18789);
+    pickPrimaryTailnetIPv4.mockReturnValue(undefined);
+
+    await callGateway({ method: "health" });
+
+    expect(lastClientOptions?.scopes).toEqual(["operator.read"]);
+  });
+
+  it("keeps legacy admin scopes for explicit CLI callers", async () => {
+    loadConfig.mockReturnValue({ gateway: { mode: "local", bind: "loopback" } });
+    resolveGatewayPort.mockReturnValue(18789);
+    pickPrimaryTailnetIPv4.mockReturnValue(undefined);
+
+    await callGatewayCli({ method: "health" });
+
+    expect(lastClientOptions?.scopes).toEqual([
+      "operator.admin",
+      "operator.approvals",
+      "operator.pairing",
+    ]);
+  });
+
+  it("passes explicit scopes through, including empty arrays", async () => {
+    loadConfig.mockReturnValue({ gateway: { mode: "local", bind: "loopback" } });
+    resolveGatewayPort.mockReturnValue(18789);
+    pickPrimaryTailnetIPv4.mockReturnValue(undefined);
+
+    await callGatewayScoped({ method: "health", scopes: ["operator.read"] });
+    expect(lastClientOptions?.scopes).toEqual(["operator.read"]);
+
+    await callGatewayScoped({ method: "health", scopes: [] });
+    expect(lastClientOptions?.scopes).toEqual([]);
   });
 });
 
