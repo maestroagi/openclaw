@@ -147,7 +147,8 @@ describe("buildInlineKeyboard", () => {
       },
     ];
     for (const testCase of cases) {
-      expect(buildInlineKeyboard(testCase.input), testCase.name).toEqual(testCase.expected);
+      const input = testCase.input?.map((row) => row.map((button) => ({ ...button })));
+      expect(buildInlineKeyboard(input), testCase.name).toEqual(testCase.expected);
     }
   });
 });
@@ -595,13 +596,22 @@ describe("sendMessageTelegram", () => {
         fileName: "video.mp4",
       });
 
-      await sendMessageTelegram(chatId, testCase.text, {
+      const sendOptions: NonNullable<Parameters<typeof sendMessageTelegram>[2]> = {
         token: "tok",
         api,
         mediaUrl: "https://example.com/video.mp4",
         asVideoNote: true,
-        ...testCase.options,
-      });
+      };
+      if (
+        "replyToMessageId" in testCase.options &&
+        testCase.options.replyToMessageId !== undefined
+      ) {
+        sendOptions.replyToMessageId = testCase.options.replyToMessageId;
+      }
+      if ("buttons" in testCase.options && testCase.options.buttons) {
+        sendOptions.buttons = testCase.options.buttons;
+      }
+      await sendMessageTelegram(chatId, testCase.text, sendOptions);
 
       expect(sendVideoNote).toHaveBeenCalledWith(
         chatId,
@@ -779,11 +789,11 @@ describe("sendMessageTelegram", () => {
         token: "tok",
         api,
         mediaUrl: testCase.mediaUrl,
-        ...(testCase.asVoice ? { asVoice: true } : {}),
-        ...(testCase.messageThreadId !== undefined
+        ...("asVoice" in testCase && testCase.asVoice ? { asVoice: true } : {}),
+        ...("messageThreadId" in testCase && testCase.messageThreadId !== undefined
           ? { messageThreadId: testCase.messageThreadId }
           : {}),
-        ...(testCase.replyToMessageId !== undefined
+        ...("replyToMessageId" in testCase && testCase.replyToMessageId !== undefined
           ? { replyToMessageId: testCase.replyToMessageId }
           : {}),
       });
@@ -1071,26 +1081,46 @@ describe("sendStickerTelegram", () => {
     botCtorSpy.mockReset();
   });
 
-  it("sends a sticker by file_id", async () => {
-    const chatId = "123";
-    const fileId = "CAACAgIAAxkBAAI...sticker_file_id";
-    const sendSticker = vi.fn().mockResolvedValue({
-      message_id: 100,
-      chat: { id: chatId },
-    });
-    const api = { sendSticker } as unknown as {
-      sendSticker: typeof sendSticker;
-    };
+  const positiveSendCases = [
+    {
+      name: "sends a sticker by file_id",
+      fileId: "CAACAgIAAxkBAAI...sticker_file_id",
+      expectedFileId: "CAACAgIAAxkBAAI...sticker_file_id",
+      expectedMessageId: 100,
+      assertResult: true,
+    },
+    {
+      name: "trims whitespace from fileId",
+      fileId: "  fileId123  ",
+      expectedFileId: "fileId123",
+      expectedMessageId: 106,
+      assertResult: false,
+    },
+  ] as const;
 
-    const res = await sendStickerTelegram(chatId, fileId, {
-      token: "tok",
-      api,
-    });
+  for (const testCase of positiveSendCases) {
+    it(testCase.name, async () => {
+      const chatId = "123";
+      const sendSticker = vi.fn().mockResolvedValue({
+        message_id: testCase.expectedMessageId,
+        chat: { id: chatId },
+      });
+      const api = { sendSticker } as unknown as {
+        sendSticker: typeof sendSticker;
+      };
 
-    expect(sendSticker).toHaveBeenCalledWith(chatId, fileId, undefined);
-    expect(res.messageId).toBe("100");
-    expect(res.chatId).toBe(chatId);
-  });
+      const res = await sendStickerTelegram(chatId, testCase.fileId, {
+        token: "tok",
+        api,
+      });
+
+      expect(sendSticker).toHaveBeenCalledWith(chatId, testCase.expectedFileId, undefined);
+      if (testCase.assertResult) {
+        expect(res.messageId).toBe(String(testCase.expectedMessageId));
+        expect(res.chatId).toBe(chatId);
+      }
+    });
+  }
 
   it("throws error when fileId is blank", async () => {
     for (const fileId of ["", "   "]) {
@@ -1126,100 +1156,98 @@ describe("sendStickerTelegram", () => {
     expect(sendSticker).toHaveBeenNthCalledWith(2, chatId, "fileId123", undefined);
     expect(res.messageId).toBe("109");
   });
-
-  it("trims whitespace from fileId", async () => {
-    const chatId = "123";
-    const sendSticker = vi.fn().mockResolvedValue({
-      message_id: 106,
-      chat: { id: chatId },
-    });
-    const api = { sendSticker } as unknown as {
-      sendSticker: typeof sendSticker;
-    };
-
-    await sendStickerTelegram(chatId, "  fileId123  ", {
-      token: "tok",
-      api,
-    });
-
-    expect(sendSticker).toHaveBeenCalledWith(chatId, "fileId123", undefined);
-  });
 });
 
 describe("shared send behaviors", () => {
   it("includes reply_to_message_id for threaded replies", async () => {
-    {
-      const chatId = "123";
-      const sendMessage = vi.fn().mockResolvedValue({
-        message_id: 56,
-        chat: { id: chatId },
-      });
-      const api = { sendMessage } as unknown as {
-        sendMessage: typeof sendMessage;
-      };
+    const cases = [
+      {
+        name: "message send",
+        run: async () => {
+          const chatId = "123";
+          const sendMessage = vi.fn().mockResolvedValue({
+            message_id: 56,
+            chat: { id: chatId },
+          });
+          const api = { sendMessage } as unknown as {
+            sendMessage: typeof sendMessage;
+          };
+          await sendMessageTelegram(chatId, "reply text", {
+            token: "tok",
+            api,
+            replyToMessageId: 100,
+          });
+          expect(sendMessage).toHaveBeenCalledWith(chatId, "reply text", {
+            parse_mode: "HTML",
+            reply_to_message_id: 100,
+          });
+        },
+      },
+      {
+        name: "sticker send",
+        run: async () => {
+          const chatId = "123";
+          const fileId = "CAACAgIAAxkBAAI...sticker_file_id";
+          const sendSticker = vi.fn().mockResolvedValue({
+            message_id: 102,
+            chat: { id: chatId },
+          });
+          const api = { sendSticker } as unknown as {
+            sendSticker: typeof sendSticker;
+          };
+          await sendStickerTelegram(chatId, fileId, {
+            token: "tok",
+            api,
+            replyToMessageId: 500,
+          });
+          expect(sendSticker).toHaveBeenCalledWith(chatId, fileId, {
+            reply_to_message_id: 500,
+          });
+        },
+      },
+    ] as const;
 
-      await sendMessageTelegram(chatId, "reply text", {
-        token: "tok",
-        api,
-        replyToMessageId: 100,
-      });
-
-      expect(sendMessage).toHaveBeenCalledWith(chatId, "reply text", {
-        parse_mode: "HTML",
-        reply_to_message_id: 100,
-      });
-    }
-
-    {
-      const chatId = "123";
-      const fileId = "CAACAgIAAxkBAAI...sticker_file_id";
-      const sendSticker = vi.fn().mockResolvedValue({
-        message_id: 102,
-        chat: { id: chatId },
-      });
-      const api = { sendSticker } as unknown as {
-        sendSticker: typeof sendSticker;
-      };
-
-      await sendStickerTelegram(chatId, fileId, {
-        token: "tok",
-        api,
-        replyToMessageId: 500,
-      });
-
-      expect(sendSticker).toHaveBeenCalledWith(chatId, fileId, {
-        reply_to_message_id: 500,
-      });
+    for (const testCase of cases) {
+      await testCase.run();
     }
   });
 
   it("wraps chat-not-found with actionable context", async () => {
-    {
-      const chatId = "123";
-      const err = new Error("400: Bad Request: chat not found");
-      const sendMessage = vi.fn().mockRejectedValue(err);
-      const api = { sendMessage } as unknown as {
-        sendMessage: typeof sendMessage;
-      };
+    const cases = [
+      {
+        name: "message send",
+        run: async () => {
+          const chatId = "123";
+          const err = new Error("400: Bad Request: chat not found");
+          const sendMessage = vi.fn().mockRejectedValue(err);
+          const api = { sendMessage } as unknown as {
+            sendMessage: typeof sendMessage;
+          };
+          await expectChatNotFoundWithChatId(
+            sendMessageTelegram(chatId, "hi", { token: "tok", api }),
+            chatId,
+          );
+        },
+      },
+      {
+        name: "sticker send",
+        run: async () => {
+          const chatId = "123";
+          const err = new Error("400: Bad Request: chat not found");
+          const sendSticker = vi.fn().mockRejectedValue(err);
+          const api = { sendSticker } as unknown as {
+            sendSticker: typeof sendSticker;
+          };
+          await expectChatNotFoundWithChatId(
+            sendStickerTelegram(chatId, "fileId123", { token: "tok", api }),
+            chatId,
+          );
+        },
+      },
+    ] as const;
 
-      await expectChatNotFoundWithChatId(
-        sendMessageTelegram(chatId, "hi", { token: "tok", api }),
-        chatId,
-      );
-    }
-
-    {
-      const chatId = "123";
-      const err = new Error("400: Bad Request: chat not found");
-      const sendSticker = vi.fn().mockRejectedValue(err);
-      const api = { sendSticker } as unknown as {
-        sendSticker: typeof sendSticker;
-      };
-
-      await expectChatNotFoundWithChatId(
-        sendStickerTelegram(chatId, "fileId123", { token: "tok", api }),
-        chatId,
-      );
+    for (const testCase of cases) {
+      await testCase.run();
     }
   });
 });
@@ -1282,7 +1310,7 @@ describe("editMessageTelegram", () => {
       await editMessageTelegram("123", 1, input.text, {
         token: "tok",
         cfg: {},
-        buttons: input.buttons,
+        buttons: input.buttons ? input.buttons.map((row) => [...row]) : input.buttons,
       });
 
       expect(botCtorSpy, testCase.name).toHaveBeenCalledTimes(1);
@@ -1294,16 +1322,16 @@ describe("editMessageTelegram", () => {
         unknown
       >;
       expect(firstParams, testCase.name).toEqual(expect.objectContaining({ parse_mode: "HTML" }));
-      if (testCase.firstExpectNoReplyMarkup) {
+      if ("firstExpectNoReplyMarkup" in testCase && testCase.firstExpectNoReplyMarkup) {
         expect(firstParams, testCase.name).not.toHaveProperty("reply_markup");
       }
-      if (testCase.firstExpectReplyMarkup) {
+      if ("firstExpectReplyMarkup" in testCase && testCase.firstExpectReplyMarkup) {
         expect(firstParams, testCase.name).toEqual(
           expect.objectContaining({ reply_markup: testCase.firstExpectReplyMarkup }),
         );
       }
 
-      if (testCase.secondExpectReplyMarkup) {
+      if ("secondExpectReplyMarkup" in testCase && testCase.secondExpectReplyMarkup) {
         const secondParams = (botApi.editMessageText.mock.calls[1] ?? [])[3] as Record<
           string,
           unknown
@@ -1416,43 +1444,54 @@ describe("sendPollTelegram", () => {
 });
 
 describe("createForumTopicTelegram", () => {
-  it("uses base chat id when target includes topic suffix", async () => {
-    const createForumTopic = vi.fn().mockResolvedValue({
-      message_thread_id: 272,
-      name: "Build Updates",
-    });
-    const api = { createForumTopic } as unknown as Bot["api"];
+  const cases = [
+    {
+      name: "uses base chat id when target includes topic suffix",
+      target: "telegram:group:-1001234567890:topic:271",
+      title: "x",
+      response: { message_thread_id: 272, name: "Build Updates" },
+      expectedCall: ["-1001234567890", "x", undefined] as const,
+      expectedResult: {
+        topicId: 272,
+        name: "Build Updates",
+        chatId: "-1001234567890",
+      },
+    },
+    {
+      name: "forwards optional icon fields",
+      target: "-1001234567890",
+      title: "Roadmap",
+      response: { message_thread_id: 300, name: "Roadmap" },
+      options: {
+        iconColor: 0x6fb9f0,
+        iconCustomEmojiId: "  1234567890  ",
+      },
+      expectedCall: [
+        "-1001234567890",
+        "Roadmap",
+        { icon_color: 0x6fb9f0, icon_custom_emoji_id: "1234567890" },
+      ] as const,
+      expectedResult: {
+        topicId: 300,
+        name: "Roadmap",
+        chatId: "-1001234567890",
+      },
+    },
+  ] as const;
 
-    const result = await createForumTopicTelegram("telegram:group:-1001234567890:topic:271", "x", {
-      token: "tok",
-      api,
-    });
+  for (const testCase of cases) {
+    it(testCase.name, async () => {
+      const createForumTopic = vi.fn().mockResolvedValue(testCase.response);
+      const api = { createForumTopic } as unknown as Bot["api"];
 
-    expect(createForumTopic).toHaveBeenCalledWith("-1001234567890", "x", undefined);
-    expect(result).toEqual({
-      topicId: 272,
-      name: "Build Updates",
-      chatId: "-1001234567890",
-    });
-  });
+      const result = await createForumTopicTelegram(testCase.target, testCase.title, {
+        token: "tok",
+        api,
+        ...("options" in testCase ? testCase.options : {}),
+      });
 
-  it("forwards optional icon fields", async () => {
-    const createForumTopic = vi.fn().mockResolvedValue({
-      message_thread_id: 300,
-      name: "Roadmap",
+      expect(createForumTopic).toHaveBeenCalledWith(...testCase.expectedCall);
+      expect(result).toEqual(testCase.expectedResult);
     });
-    const api = { createForumTopic } as unknown as Bot["api"];
-
-    await createForumTopicTelegram("-1001234567890", "Roadmap", {
-      token: "tok",
-      api,
-      iconColor: 0x6fb9f0,
-      iconCustomEmojiId: "  1234567890  ",
-    });
-
-    expect(createForumTopic).toHaveBeenCalledWith("-1001234567890", "Roadmap", {
-      icon_color: 0x6fb9f0,
-      icon_custom_emoji_id: "1234567890",
-    });
-  });
+  }
 });
