@@ -2,6 +2,8 @@ import Foundation
 import Testing
 @testable import OpenClaw
 
+/// These cases cover optional `security=allowlist` behavior.
+/// Default install posture remains deny-by-default for exec on macOS node-host.
 struct ExecAllowlistTests {
     @Test func matchUsesResolvedPath() {
         let entry = ExecAllowlistEntry(pattern: "/opt/homebrew/bin/rg")
@@ -14,7 +16,7 @@ struct ExecAllowlistTests {
         #expect(match?.pattern == entry.pattern)
     }
 
-    @Test func matchUsesBasenameForSimplePattern() {
+    @Test func matchIgnoresBasenamePattern() {
         let entry = ExecAllowlistEntry(pattern: "rg")
         let resolution = ExecCommandResolution(
             rawExecutable: "rg",
@@ -22,7 +24,18 @@ struct ExecAllowlistTests {
             executableName: "rg",
             cwd: nil)
         let match = ExecAllowlistMatcher.match(entries: [entry], resolution: resolution)
-        #expect(match?.pattern == entry.pattern)
+        #expect(match == nil)
+    }
+
+    @Test func matchIgnoresBasenameForRelativeExecutable() {
+        let entry = ExecAllowlistEntry(pattern: "echo")
+        let resolution = ExecCommandResolution(
+            rawExecutable: "./echo",
+            resolvedPath: "/tmp/oc-basename/echo",
+            executableName: "echo",
+            cwd: "/tmp/oc-basename")
+        let match = ExecAllowlistMatcher.match(entries: [entry], resolution: resolution)
+        #expect(match == nil)
     }
 
     @Test func matchIsCaseInsensitive() {
@@ -75,6 +88,26 @@ struct ExecAllowlistTests {
         let resolutions = ExecCommandResolution.resolveForAllowlist(
             command: command,
             rawCommand: "echo $(/usr/bin/touch /tmp/openclaw-allowlist-test-subst)",
+            cwd: nil,
+            env: ["PATH": "/usr/bin:/bin"])
+        #expect(resolutions.isEmpty)
+    }
+
+    @Test func resolveForAllowlistFailsClosedOnQuotedCommandSubstitution() {
+        let command = ["/bin/sh", "-lc", "echo \"ok $(/usr/bin/touch /tmp/openclaw-allowlist-test-quoted-subst)\""]
+        let resolutions = ExecCommandResolution.resolveForAllowlist(
+            command: command,
+            rawCommand: "echo \"ok $(/usr/bin/touch /tmp/openclaw-allowlist-test-quoted-subst)\"",
+            cwd: nil,
+            env: ["PATH": "/usr/bin:/bin"])
+        #expect(resolutions.isEmpty)
+    }
+
+    @Test func resolveForAllowlistFailsClosedOnQuotedBackticks() {
+        let command = ["/bin/sh", "-lc", "echo \"ok `/usr/bin/id`\""]
+        let resolutions = ExecCommandResolution.resolveForAllowlist(
+            command: command,
+            rawCommand: "echo \"ok `/usr/bin/id`\"",
             cwd: nil,
             env: ["PATH": "/usr/bin:/bin"])
         #expect(resolutions.isEmpty)
