@@ -996,6 +996,42 @@ describe("initSessionState preserves behavior overrides across /new and /reset",
     expect(result.sessionEntry.reasoningLevel).toBe("low");
   });
 
+  it("/new preserves session label from previous session", async () => {
+    const storePath = await createStorePath("openclaw-reset-label-");
+    const sessionKey = "agent:main:telegram:dm:user-label";
+    const existingSessionId = "existing-session-label";
+    await seedSessionStoreWithOverrides({
+      storePath,
+      sessionKey,
+      sessionId: existingSessionId,
+      overrides: { label: "telegram-priority" },
+    });
+
+    const cfg = {
+      session: { store: storePath, idleMinutes: 999 },
+    } as OpenClawConfig;
+
+    const result = await initSessionState({
+      ctx: {
+        Body: "/new",
+        RawBody: "/new",
+        CommandBody: "/new",
+        From: "user-label",
+        To: "bot",
+        ChatType: "direct",
+        SessionKey: sessionKey,
+        Provider: "telegram",
+        Surface: "telegram",
+      },
+      cfg,
+      commandAuthorized: true,
+    });
+
+    expect(result.isNewSession).toBe(true);
+    expect(result.resetTriggered).toBe(true);
+    expect(result.sessionEntry.label).toBe("telegram-priority");
+  });
+
   it("/new in a new session does not preserve overrides", async () => {
     const storePath = await createStorePath("openclaw-new-no-preserve-");
     const sessionKey = "agent:main:telegram:dm:user3";
@@ -1369,5 +1405,74 @@ describe("initSessionState stale threadId fallback", () => {
       commandAuthorized: true,
     });
     expect(result.sessionEntry.lastThreadId).toBe(99);
+  });
+});
+
+describe("initSessionState internal channel routing preservation", () => {
+  it("keeps persisted external lastChannel when OriginatingChannel is internal webchat", async () => {
+    const storePath = await createStorePath("preserve-external-channel-");
+    const sessionKey = "agent:main:telegram:group:12345";
+    await saveSessionStore(storePath, {
+      [sessionKey]: {
+        sessionId: "sess-1",
+        updatedAt: Date.now(),
+        lastChannel: "telegram",
+        lastTo: "group:12345",
+        deliveryContext: {
+          channel: "telegram",
+          to: "group:12345",
+        },
+      },
+    });
+    const cfg = { session: { store: storePath } } as OpenClawConfig;
+
+    const result = await initSessionState({
+      ctx: {
+        Body: "internal follow-up",
+        SessionKey: sessionKey,
+        OriginatingChannel: "webchat",
+      },
+      cfg,
+      commandAuthorized: true,
+    });
+
+    expect(result.sessionEntry.lastChannel).toBe("telegram");
+    expect(result.sessionEntry.deliveryContext?.channel).toBe("telegram");
+  });
+
+  it("uses session key channel hint when first turn is internal webchat", async () => {
+    const storePath = await createStorePath("session-key-channel-hint-");
+    const sessionKey = "agent:main:telegram:group:98765";
+    const cfg = { session: { store: storePath } } as OpenClawConfig;
+
+    const result = await initSessionState({
+      ctx: {
+        Body: "hello",
+        SessionKey: sessionKey,
+        OriginatingChannel: "webchat",
+      },
+      cfg,
+      commandAuthorized: true,
+    });
+
+    expect(result.sessionEntry.lastChannel).toBe("telegram");
+    expect(result.sessionEntry.deliveryContext?.channel).toBe("telegram");
+  });
+
+  it("keeps webchat channel for webchat/main sessions", async () => {
+    const storePath = await createStorePath("preserve-webchat-main-");
+    const cfg = { session: { store: storePath } } as OpenClawConfig;
+
+    const result = await initSessionState({
+      ctx: {
+        Body: "hello",
+        SessionKey: "agent:main:main",
+        OriginatingChannel: "webchat",
+      },
+      cfg,
+      commandAuthorized: true,
+    });
+
+    expect(result.sessionEntry.lastChannel).toBe("webchat");
   });
 });

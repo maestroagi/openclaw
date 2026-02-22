@@ -159,12 +159,12 @@ Unit tests:
 
 E2E targets:
 
-- `pnpm test:e2e src/agents/cli-runner.e2e.test.ts`
+- `pnpm vitest src/agents/cli-runner.test.ts`
 - `pnpm vitest run src/agents/bash-tools.exec.pty-fallback.test.ts src/agents/bash-tools.exec.background-abort.test.ts src/agents/bash-tools.process.send-keys.test.ts`
 
 Typecheck note:
 
-- `pnpm tsgo` currently fails in this repo due to a pre-existing UI typing dependency issue (`@vitest/browser-playwright` resolution), unrelated to this process supervision work.
+- Use `pnpm build` (and `pnpm check` for full lint/docs gate) in this repo. Older notes that mention `pnpm tsgo` are obsolete.
 
 ## 8. Operational guarantees preserved
 
