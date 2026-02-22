@@ -174,6 +174,13 @@ export function renderApp(state: AppViewState) {
             aria-pressed=${state.streamMode}
           >
             ${state.streamMode ? icons.eye : icons.eyeOff}
+            ${
+              state.streamMode
+                ? html`
+                    <span class="topbar-redact__label">Stream Mode</span>
+                  `
+                : nothing
+            }
           </button>
           <span class="topbar-divider"></span>
           <div class="topbar-connection ${state.connected ? "topbar-connection--ok" : ""}">
@@ -471,6 +478,7 @@ export function renderApp(state: AppViewState) {
         ${
           state.tab === "agents"
             ? renderAgents({
+                basePath: state.basePath,
                 loading: state.agentsLoading,
                 error: state.agentsError,
                 agentsList: state.agentsList,
