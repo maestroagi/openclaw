@@ -2,7 +2,13 @@ import type { HeartbeatRunResult } from "../../infra/heartbeat-wake.js";
 import { DEFAULT_AGENT_ID } from "../../routing/session-key.js";
 import { resolveCronDeliveryPlan } from "../delivery.js";
 import { sweepCronRunSessions } from "../session-reaper.js";
-import type { CronJob, CronRunOutcome, CronRunStatus, CronRunTelemetry } from "../types.js";
+import type {
+  CronDeliveryStatus,
+  CronJob,
+  CronRunOutcome,
+  CronRunStatus,
+  CronRunTelemetry,
+} from "../types.js";
 import {
   computeJobNextRunAtMs,
   nextWakeAtMs,
@@ -29,7 +35,7 @@ const MIN_REFIRE_GAP_MS = 2_000;
  * on top of the per-provider / per-agent timeouts to prevent one stuck job
  * from wedging the entire cron lane.
  */
-const DEFAULT_JOB_TIMEOUT_MS = 10 * 60_000; // 10 minutes
+export const DEFAULT_JOB_TIMEOUT_MS = 10 * 60_000; // 10 minutes
 
 type TimedCronRunOutcome = CronRunOutcome &
   CronRunTelemetry & {
@@ -63,12 +69,22 @@ function errorBackoffMs(consecutiveErrors: number): number {
   return ERROR_BACKOFF_SCHEDULE_MS[Math.max(0, idx)];
 }
 
+function resolveDeliveryStatus(params: { job: CronJob; delivered?: boolean }): CronDeliveryStatus {
+  if (params.delivered === true) {
+    return "delivered";
+  }
+  if (params.delivered === false) {
+    return "not-delivered";
+  }
+  return resolveCronDeliveryPlan(params.job).requested ? "unknown" : "not-requested";
+}
+
 /**
  * Apply the result of a job execution to the job's state.
  * Handles consecutive error tracking, exponential backoff, one-shot disable,
  * and nextRunAtMs computation. Returns `true` if the job should be deleted.
  */
-function applyJobResult(
+export function applyJobResult(
   state: CronServiceState,
   job: CronJob,
   result: {
@@ -81,10 +97,15 @@ function applyJobResult(
 ): boolean {
   job.state.runningAtMs = undefined;
   job.state.lastRunAtMs = result.startedAt;
+  job.state.lastRunStatus = result.status;
   job.state.lastStatus = result.status;
   job.state.lastDurationMs = Math.max(0, result.endedAt - result.startedAt);
   job.state.lastError = result.error;
   job.state.lastDelivered = result.delivered;
+  const deliveryStatus = resolveDeliveryStatus({ job, delivered: result.delivered });
+  job.state.lastDeliveryStatus = deliveryStatus;
+  job.state.lastDeliveryError =
+    deliveryStatus === "not-delivered" && result.error ? result.error : undefined;
   job.updatedAtMs = result.endedAt;
 
   // Track consecutive errors for backoff / auto-disable.
@@ -221,6 +242,17 @@ export function armTimer(state: CronServiceState) {
   );
 }
 
+function armRunningRecheckTimer(state: CronServiceState) {
+  if (state.timer) {
+    clearTimeout(state.timer);
+  }
+  state.timer = setTimeout(() => {
+    void onTimer(state).catch((err) => {
+      state.deps.log.error({ err: String(err) }, "cron: timer tick failed");
+    });
+  }, MAX_TIMER_DELAY_MS);
+}
+
 export async function onTimer(state: CronServiceState) {
   if (state.running) {
     // Re-arm the timer so the scheduler keeps ticking even when a job is
@@ -233,17 +265,13 @@ export async function onTimer(state: CronServiceState) {
     // zero-delay hot-loop when past-due jobs are waiting for the current
     // execution to finish.
     // See: https://github.com/openclaw/openclaw/issues/12025
-    if (state.timer) {
-      clearTimeout(state.timer);
-    }
-    state.timer = setTimeout(() => {
-      void onTimer(state).catch((err) => {
-        state.deps.log.error({ err: String(err) }, "cron: timer tick failed");
-      });
-    }, MAX_TIMER_DELAY_MS);
+    armRunningRecheckTimer(state);
     return;
   }
   state.running = true;
+  // Keep a watchdog timer armed while a tick is executing. If execution hangs
+  // (for example in a provider call), the scheduler still wakes to re-check.
+  armRunningRecheckTimer(state);
   try {
     const dueJobs = await locked(state, async () => {
       await ensureLoaded(state, { forceReload: true, skipRecompute: true });
@@ -556,7 +584,7 @@ export async function runDueJobs(state: CronServiceState) {
   }
 }
 
-async function executeJobCore(
+export async function executeJobCore(
   state: CronServiceState,
   job: CronJob,
   abortSignal?: AbortSignal,
@@ -741,6 +769,8 @@ function emitJobFinished(
     error: result.error,
     summary: result.summary,
     delivered: result.delivered,
+    deliveryStatus: job.state.lastDeliveryStatus,
+    deliveryError: job.state.lastDeliveryError,
     sessionId: result.sessionId,
     sessionKey: result.sessionKey,
     runAtMs,
