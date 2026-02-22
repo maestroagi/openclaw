@@ -17,6 +17,7 @@ import {
   PAIRING_APPROVED_MESSAGE,
   resolveChannelMediaMaxBytes,
   resolveDefaultSignalAccountId,
+  resolveAllowlistProviderRuntimeGroupPolicy,
   resolveSignalAccount,
   setAccountEnabledInConfigSection,
   signalOnboardingAdapter,
@@ -124,7 +125,11 @@ export const signalPlugin: ChannelPlugin<ResolvedSignalAccount> = {
     },
     collectWarnings: ({ account, cfg }) => {
       const defaultGroupPolicy = cfg.channels?.defaults?.groupPolicy;
-      const groupPolicy = account.config.groupPolicy ?? defaultGroupPolicy ?? "allowlist";
+      const { groupPolicy } = resolveAllowlistProviderRuntimeGroupPolicy({
+        providerConfigPresent: cfg.channels?.signal !== undefined,
+        groupPolicy: account.config.groupPolicy,
+        defaultGroupPolicy,
+      });
       if (groupPolicy !== "open") {
         return [];
       }

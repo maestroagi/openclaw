@@ -3,6 +3,10 @@ import { DEFAULT_GROUP_HISTORY_LIMIT, type HistoryEntry } from "../auto-reply/re
 import type { ReplyPayload } from "../auto-reply/types.js";
 import type { OpenClawConfig } from "../config/config.js";
 import { loadConfig } from "../config/config.js";
+import {
+  resolveAllowlistProviderRuntimeGroupPolicy,
+  warnMissingProviderGroupPolicyFallbackOnce,
+} from "../config/runtime-group-policy.js";
 import type { SignalReactionNotificationMode } from "../config/types.js";
 import { waitForTransportReady } from "../infra/transport-ready.js";
 import { saveMediaBuffer } from "../media/store.js";
@@ -345,7 +349,18 @@ export async function monitorSignalProvider(opts: MonitorSignalOpts = {}): Promi
         : []),
   );
   const defaultGroupPolicy = cfg.channels?.defaults?.groupPolicy;
-  const groupPolicy = accountInfo.config.groupPolicy ?? defaultGroupPolicy ?? "allowlist";
+  const { groupPolicy, providerMissingFallbackApplied } =
+    resolveAllowlistProviderRuntimeGroupPolicy({
+      providerConfigPresent: cfg.channels?.signal !== undefined,
+      groupPolicy: accountInfo.config.groupPolicy,
+      defaultGroupPolicy,
+    });
+  warnMissingProviderGroupPolicyFallbackOnce({
+    providerMissingFallbackApplied,
+    providerKey: "signal",
+    accountId: accountInfo.accountId,
+    log: (message) => runtime.log?.(message),
+  });
   const reactionMode = accountInfo.config.reactionNotifications ?? "own";
   const reactionAllowlist = normalizeAllowList(accountInfo.config.reactionAllowlist);
   const mediaMaxBytes = (opts.mediaMaxMb ?? accountInfo.config.mediaMaxMb ?? 8) * 1024 * 1024;

@@ -6,6 +6,7 @@ import {
   formatPairingApproveHint,
   normalizeAccountId,
   PAIRING_APPROVED_MESSAGE,
+  resolveAllowlistProviderRuntimeGroupPolicy,
   setAccountEnabledInConfigSection,
   type ChannelPlugin,
 } from "openclaw/plugin-sdk";
@@ -170,7 +171,11 @@ export const matrixPlugin: ChannelPlugin<ResolvedMatrixAccount> = {
     },
     collectWarnings: ({ account, cfg }) => {
       const defaultGroupPolicy = (cfg as CoreConfig).channels?.defaults?.groupPolicy;
-      const groupPolicy = account.config.groupPolicy ?? defaultGroupPolicy ?? "allowlist";
+      const { groupPolicy } = resolveAllowlistProviderRuntimeGroupPolicy({
+        providerConfigPresent: (cfg as CoreConfig).channels?.matrix !== undefined,
+        groupPolicy: account.config.groupPolicy,
+        defaultGroupPolicy,
+      });
       if (groupPolicy !== "open") {
         return [];
       }

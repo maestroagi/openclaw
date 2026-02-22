@@ -5,9 +5,11 @@ import {
   readJsonBodyWithLimit,
   registerWebhookTarget,
   rejectNonPostWebhookRequest,
+  resolveAllowlistProviderRuntimeGroupPolicy,
   resolveSingleWebhookTargetAsync,
   resolveWebhookPath,
   resolveWebhookTargets,
+  warnMissingProviderGroupPolicyFallbackOnce,
   requestBodyErrorToText,
   resolveMentionGatingWithBypass,
 } from "openclaw/plugin-sdk";
@@ -427,7 +429,19 @@ async function processMessageWithPipeline(params: {
   }
 
   const defaultGroupPolicy = config.channels?.defaults?.groupPolicy;
-  const groupPolicy = account.config.groupPolicy ?? defaultGroupPolicy ?? "allowlist";
+  const { groupPolicy, providerMissingFallbackApplied } =
+    resolveAllowlistProviderRuntimeGroupPolicy({
+      providerConfigPresent: config.channels?.googlechat !== undefined,
+      groupPolicy: account.config.groupPolicy,
+      defaultGroupPolicy,
+    });
+  warnMissingProviderGroupPolicyFallbackOnce({
+    providerMissingFallbackApplied,
+    providerKey: "googlechat",
+    accountId: account.accountId,
+    blockedLabel: "space messages",
+    log: (message) => logVerbose(core, runtime, message),
+  });
   const groupConfigResolved = resolveGroupConfig({
     groupId: spaceId,
     groupName: space.displayName ?? null,

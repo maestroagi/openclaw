@@ -2,6 +2,8 @@ import {
   createReplyPrefixOptions,
   logInboundDrop,
   resolveControlCommandGate,
+  resolveAllowlistProviderRuntimeGroupPolicy,
+  warnMissingProviderGroupPolicyFallbackOnce,
   type OpenClawConfig,
   type RuntimeEnv,
 } from "openclaw/plugin-sdk";
@@ -84,12 +86,26 @@ export async function handleNextcloudTalkInbound(params: {
   statusSink?.({ lastInboundAt: message.timestamp });
 
   const dmPolicy = account.config.dmPolicy ?? "pairing";
-  const defaultGroupPolicy = (config.channels as Record<string, unknown> | undefined)?.defaults as
-    | { groupPolicy?: string }
-    | undefined;
-  const groupPolicy = (account.config.groupPolicy ??
-    defaultGroupPolicy?.groupPolicy ??
-    "allowlist") as GroupPolicy;
+  const defaultGroupPolicy = (
+    (config.channels as Record<string, unknown> | undefined)?.defaults as
+      | { groupPolicy?: string }
+      | undefined
+  )?.groupPolicy as GroupPolicy | undefined;
+  const { groupPolicy, providerMissingFallbackApplied } =
+    resolveAllowlistProviderRuntimeGroupPolicy({
+      providerConfigPresent:
+        ((config.channels as Record<string, unknown> | undefined)?.["nextcloud-talk"] ??
+          undefined) !== undefined,
+      groupPolicy: account.config.groupPolicy as GroupPolicy | undefined,
+      defaultGroupPolicy,
+    });
+  warnMissingProviderGroupPolicyFallbackOnce({
+    providerMissingFallbackApplied,
+    providerKey: "nextcloud-talk",
+    accountId: account.accountId,
+    blockedLabel: "room messages",
+    log: (message) => runtime.log?.(message),
+  });
 
   const configAllowFrom = normalizeNextcloudTalkAllowlist(account.config.allowFrom);
   const configGroupAllowFrom = normalizeNextcloudTalkAllowlist(account.config.groupAllowFrom);
