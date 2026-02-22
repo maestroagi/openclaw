@@ -70,6 +70,7 @@ export async function handleSystemRunInvoke(opts: {
       success?: boolean;
     };
   }) => Promise<void>;
+  preferMacAppExecHost: boolean;
 }): Promise<void> {
   const command = resolveSystemRunCommand({
     command: opts.params.command,
@@ -165,8 +166,39 @@ export async function handleSystemRunInvoke(opts: {
   const cmdInvocation = shellCommand
     ? opts.isCmdExeInvocation(segments[0]?.argv ?? [])
     : opts.isCmdExeInvocation(argv);
+  const policy = evaluateSystemRunPolicy({
+    security,
+    ask,
+    analysisOk,
+    allowlistSatisfied,
+    approvalDecision,
+    approved: opts.params.approved === true,
+    isWindows,
+    cmdInvocation,
+    shellWrapperInvocation: shellCommand !== null,
+  });
+  analysisOk = policy.analysisOk;
+  allowlistSatisfied = policy.allowlistSatisfied;
+  if (!policy.allowed) {
+    await opts.sendNodeEvent(
+      opts.client,
+      "exec.denied",
+      opts.buildExecEventPayload({
+        sessionKey,
+        runId,
+        host: "node",
+        command: cmdText,
+        reason: policy.eventReason,
+      }),
+    );
+    await opts.sendInvokeResult({
+      ok: false,
+      error: { code: "UNAVAILABLE", message: policy.errorMessage },
+    });
+    return;
+  }
 
-  const useMacAppExec = process.platform === "darwin";
+  const useMacAppExec = opts.preferMacAppExecHost;
   if (useMacAppExec) {
     const execRequest: ExecHostRequest = {
       command: argv,
@@ -229,37 +261,6 @@ export async function handleSystemRunInvoke(opts: {
       });
       return;
     }
-  }
-
-  const policy = evaluateSystemRunPolicy({
-    security,
-    ask,
-    analysisOk,
-    allowlistSatisfied,
-    approvalDecision,
-    approved: opts.params.approved === true,
-    isWindows,
-    cmdInvocation,
-  });
-  analysisOk = policy.analysisOk;
-  allowlistSatisfied = policy.allowlistSatisfied;
-  if (!policy.allowed) {
-    await opts.sendNodeEvent(
-      opts.client,
-      "exec.denied",
-      opts.buildExecEventPayload({
-        sessionKey,
-        runId,
-        host: "node",
-        command: cmdText,
-        reason: policy.eventReason,
-      }),
-    );
-    await opts.sendInvokeResult({
-      ok: false,
-      error: { code: "UNAVAILABLE", message: policy.errorMessage },
-    });
-    return;
   }
 
   if (policy.approvalDecision === "allow-always" && security === "allowlist") {

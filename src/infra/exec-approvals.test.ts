@@ -195,8 +195,8 @@ describe("exec approvals safe shell command builder", () => {
     expect(res.ok).toBe(true);
     // Preserve non-safeBins segment raw (glob stays unquoted)
     expect(res.command).toContain("rg foo src/*.ts");
-    // SafeBins segment is fully quoted
-    expect(res.command).toContain("'head' '-n' '5'");
+    // SafeBins segment is fully quoted and pinned to its resolved absolute path.
+    expect(res.command).toMatch(/'[^']*\/head' '-n' '5'/);
   });
 });
 
@@ -342,6 +342,14 @@ describe("exec approvals shell parsing", () => {
       {
         command: "/usr/bin/echo first line\n/usr/bin/echo second line",
         reason: "unsupported shell token: \n",
+      },
+      {
+        command: 'echo "ok $\\\n(id -u)"',
+        reason: "unsupported shell token: newline",
+      },
+      {
+        command: 'echo "ok $\\\r\n(id -u)"',
+        reason: "unsupported shell token: newline",
       },
       {
         command: "ping 127.0.0.1 -n 1 & whoami",
@@ -547,6 +555,17 @@ describe("exec approvals shell allowlist (chained commands)", () => {
       expect(result.analysisOk).toBe(true);
       expect(result.allowlistSatisfied).toBe(true);
     }
+  });
+
+  it("fails allowlist analysis for shell line continuations", () => {
+    const result = evaluateShellAllowlist({
+      command: 'echo "ok $\\\n(id -u)"',
+      allowlist: [{ pattern: "/usr/bin/echo" }],
+      safeBins: new Set(),
+      cwd: "/tmp",
+    });
+    expect(result.analysisOk).toBe(false);
+    expect(result.allowlistSatisfied).toBe(false);
   });
 });
 
@@ -916,6 +935,30 @@ describe("exec approvals safe bins", () => {
       cwd: "/tmp",
     });
     expect(allowed.allowlistSatisfied).toBe(true);
+  });
+
+  it("does not auto-trust PATH-shadowed safe bins without explicit trusted dirs", () => {
+    if (process.platform === "win32") {
+      return;
+    }
+    const tmp = makeTempDir();
+    const fakeDir = path.join(tmp, "fake-bin");
+    fs.mkdirSync(fakeDir, { recursive: true });
+    const fakeHead = path.join(fakeDir, "head");
+    fs.writeFileSync(fakeHead, "#!/bin/sh\nexit 0\n");
+    fs.chmodSync(fakeHead, 0o755);
+
+    const result = evaluateShellAllowlist({
+      command: "head -n 1",
+      allowlist: [],
+      safeBins: normalizeSafeBins(["head"]),
+      env: makePathEnv(fakeDir),
+      cwd: tmp,
+    });
+    expect(result.analysisOk).toBe(true);
+    expect(result.allowlistSatisfied).toBe(false);
+    expect(result.segmentSatisfiedBy).toEqual([null]);
+    expect(result.segments[0]?.resolution?.resolvedPath).toBe(fakeHead);
   });
 });
 

@@ -317,7 +317,7 @@ export type ShellChainPart = {
 };
 
 const DISALLOWED_PIPELINE_TOKENS = new Set([">", "<", "`", "\n", "\r", "(", ")"]);
-const DOUBLE_QUOTE_ESCAPES = new Set(["\\", '"', "$", "`", "\n", "\r"]);
+const DOUBLE_QUOTE_ESCAPES = new Set(["\\", '"', "$", "`"]);
 const WINDOWS_UNSUPPORTED_TOKENS = new Set([
   "&",
   "|",
@@ -334,6 +334,10 @@ const WINDOWS_UNSUPPORTED_TOKENS = new Set([
 
 function isDoubleQuoteEscape(next: string | undefined): next is string {
   return Boolean(next && DOUBLE_QUOTE_ESCAPES.has(next));
+}
+
+function isEscapedLineContinuation(next: string | undefined): next is string {
+  return next === "\n" || next === "\r";
 }
 
 function splitShellPipeline(command: string): { ok: boolean; reason?: string; segments: string[] } {
@@ -485,6 +489,9 @@ function splitShellPipeline(command: string): { ok: boolean; reason?: string; se
       continue;
     }
     if (inDouble) {
+      if (ch === "\\" && isEscapedLineContinuation(next)) {
+        return { ok: false, reason: "unsupported shell token: newline", segments: [] };
+      }
       if (ch === "\\" && isDoubleQuoteEscape(next)) {
         buf += ch;
         buf += next;
@@ -749,6 +756,10 @@ export function splitCommandChainWithOperators(command: string): ShellChainPart[
       continue;
     }
     if (inDouble) {
+      if (ch === "\\" && isEscapedLineContinuation(next)) {
+        invalidChain = true;
+        break;
+      }
       if (ch === "\\" && isDoubleQuoteEscape(next)) {
         buf += ch;
         buf += next;
@@ -871,6 +882,15 @@ function renderQuotedArgv(argv: string[]): string {
   return argv.map((token) => shellEscapeSingleArg(token)).join(" ");
 }
 
+function renderSafeBinSegmentArgv(segment: ExecCommandSegment): string {
+  if (segment.argv.length === 0) {
+    return "";
+  }
+  const resolvedExecutable = segment.resolution?.resolvedPath?.trim();
+  const argv = resolvedExecutable ? [resolvedExecutable, ...segment.argv.slice(1)] : segment.argv;
+  return renderQuotedArgv(argv);
+}
+
 /**
  * Rebuilds a shell command and selectively single-quotes argv tokens for segments that
  * must be treated as literal (safeBins hardening) while preserving the rest of the
@@ -909,7 +929,7 @@ export function buildSafeBinsShellCommand(params: {
         return { ok: false, reason: "segment mapping failed" };
       }
       const needsLiteral = by === "safeBins";
-      rendered.push(needsLiteral ? renderQuotedArgv(seg.argv) : raw.trim());
+      rendered.push(needsLiteral ? renderSafeBinSegmentArgv(seg) : raw.trim());
       segIndex += 1;
     }
 
