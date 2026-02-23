@@ -604,6 +604,30 @@ describe("Agent-specific tool filtering", () => {
     expect(resultDetails?.status).toBe("completed");
   });
 
+  it("keeps sandbox as the implicit exec host default without forcing gateway approvals", async () => {
+    const tools = createOpenClawCodingTools({
+      config: {},
+      sessionKey: "agent:main:main",
+      workspaceDir: "/tmp/test-main-implicit-sandbox",
+      agentDir: "/tmp/agent-main-implicit-sandbox",
+    });
+    const execTool = tools.find((tool) => tool.name === "exec");
+    expect(execTool).toBeDefined();
+
+    const result = await execTool!.execute("call-implicit-sandbox-default", {
+      command: "echo done",
+    });
+    const details = result?.details as { status?: string } | undefined;
+    expect(details?.status).toBe("completed");
+
+    await expect(
+      execTool!.execute("call-implicit-sandbox-gateway", {
+        command: "echo done",
+        host: "gateway",
+      }),
+    ).rejects.toThrow("exec host not allowed");
+  });
+
   it("fails closed when exec host=sandbox is requested without sandbox runtime", async () => {
     const tools = createOpenClawCodingTools({
       config: {},
@@ -618,7 +642,7 @@ describe("Agent-specific tool filtering", () => {
         command: "echo done",
         host: "sandbox",
       }),
-    ).rejects.toThrow("exec host not allowed");
+    ).rejects.toThrow("exec host=sandbox is configured");
   });
 
   it("should apply agent-specific exec host defaults over global defaults", async () => {

@@ -507,6 +507,104 @@ describe("Cron issue regressions", () => {
     cron.stop();
   });
 
+  it("does not double-run a job when cron.run overlaps a due timer tick", async () => {
+    const store = await makeStorePath();
+    const runStarted = createDeferred<void>();
+    const runFinished = createDeferred<void>();
+    const runResolvers: Array<
+      (value: { status: "ok" | "error" | "skipped"; summary?: string; error?: string }) => void
+    > = [];
+    const runIsolatedAgentJob = vi.fn(async () => {
+      if (runIsolatedAgentJob.mock.calls.length === 1) {
+        runStarted.resolve();
+      }
+      return await new Promise<{ status: "ok" | "error" | "skipped"; summary?: string }>(
+        (resolve) => {
+          runResolvers.push(resolve);
+        },
+      );
+    });
+
+    let targetJobId = "";
+    const cron = await startCronForStore({
+      storePath: store.storePath,
+      runIsolatedAgentJob,
+      onEvent: (evt: CronEvent) => {
+        if (evt.jobId === targetJobId && evt.action === "finished") {
+          runFinished.resolve();
+        }
+      },
+    });
+
+    const dueAt = Date.now() + 100;
+    const job = await cron.add({
+      name: "manual-overlap-no-double-run",
+      enabled: true,
+      schedule: { kind: "at", at: new Date(dueAt).toISOString() },
+      sessionTarget: "isolated",
+      wakeMode: "next-heartbeat",
+      payload: { kind: "agentTurn", message: "overlap" },
+      delivery: { mode: "none" },
+    });
+    targetJobId = job.id;
+
+    const manualRun = cron.run(job.id, "force");
+    await runStarted.promise;
+    expect(runIsolatedAgentJob).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(120);
+    await Promise.resolve();
+    expect(runIsolatedAgentJob).toHaveBeenCalledTimes(1);
+
+    runResolvers[0]?.({ status: "ok", summary: "done" });
+    await manualRun;
+    await runFinished.promise;
+    // Barrier for final persistence before cleanup.
+    await cron.list({ includeDisabled: true });
+    cron.stop();
+  });
+
+  it("does not advance unrelated due jobs after manual cron.run", async () => {
+    const store = await makeStorePath();
+    const nowMs = Date.now();
+    const dueNextRunAtMs = nowMs - 1_000;
+
+    await writeCronJobs(store.storePath, [
+      createIsolatedRegressionJob({
+        id: "manual-target",
+        name: "manual target",
+        scheduledAt: nowMs,
+        schedule: { kind: "at", at: new Date(nowMs + 3_600_000).toISOString() },
+        payload: { kind: "agentTurn", message: "manual target" },
+        state: { nextRunAtMs: nowMs + 3_600_000 },
+      }),
+      createIsolatedRegressionJob({
+        id: "unrelated-due",
+        name: "unrelated due",
+        scheduledAt: nowMs,
+        schedule: { kind: "cron", expr: "*/5 * * * *", tz: "UTC" },
+        payload: { kind: "agentTurn", message: "unrelated due" },
+        state: { nextRunAtMs: dueNextRunAtMs },
+      }),
+    ]);
+
+    const cron = await startCronForStore({
+      storePath: store.storePath,
+      cronEnabled: false,
+      runIsolatedAgentJob: createDefaultIsolatedRunner(),
+    });
+
+    const runResult = await cron.run("manual-target", "force");
+    expect(runResult).toEqual({ ok: true, ran: true });
+
+    const jobs = await cron.list({ includeDisabled: true });
+    const unrelated = jobs.find((entry) => entry.id === "unrelated-due");
+    expect(unrelated).toBeDefined();
+    expect(unrelated?.state.nextRunAtMs).toBe(dueNextRunAtMs);
+
+    cron.stop();
+  });
+
   it("#13845: one-shot jobs with terminal statuses do not re-fire on restart", async () => {
     const store = await makeStorePath();
     const pastAt = Date.parse("2026-02-06T09:00:00.000Z");
