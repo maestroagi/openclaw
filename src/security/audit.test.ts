@@ -15,6 +15,13 @@ const windowsAuditEnv = {
   USERNAME: "Tester",
   USERDOMAIN: "DESKTOP-TEST",
 };
+const execDockerRawUnavailable: NonNullable<SecurityAuditOptions["execDockerRawFn"]> = async () => {
+  return {
+    stdout: Buffer.alloc(0),
+    stderr: Buffer.from("docker unavailable"),
+    code: 1,
+  };
+};
 
 function stubChannelPlugin(params: {
   id: "discord" | "slack" | "telegram";
@@ -142,6 +149,8 @@ describe("security audit", () => {
   let channelSecurityStateDir = "";
   let sharedCodeSafetyStateDir = "";
   let sharedCodeSafetyWorkspaceDir = "";
+  let sharedExtensionsStateDir = "";
+  let sharedInstallMetadataStateDir = "";
 
   const makeTmpDir = async (label: string) => {
     const dir = path.join(fixtureRoot, `case-${caseId++}-${label}`);
@@ -209,6 +218,13 @@ description: test skill
     const codeSafetyFixture = await createSharedCodeSafetyFixture();
     sharedCodeSafetyStateDir = codeSafetyFixture.stateDir;
     sharedCodeSafetyWorkspaceDir = codeSafetyFixture.workspaceDir;
+    sharedExtensionsStateDir = path.join(fixtureRoot, "shared-extensions-state");
+    await fs.mkdir(path.join(sharedExtensionsStateDir, "extensions", "some-plugin"), {
+      recursive: true,
+      mode: 0o700,
+    });
+    sharedInstallMetadataStateDir = path.join(fixtureRoot, "shared-install-metadata-state");
+    await fs.mkdir(sharedInstallMetadataStateDir, { recursive: true });
   });
 
   afterAll(async () => {
@@ -609,6 +625,7 @@ description: test skill
       platform: "win32",
       env: windowsAuditEnv,
       execIcacls,
+      execDockerRawFn: execDockerRawUnavailable,
     });
 
     const forbidden = new Set([
@@ -655,6 +672,7 @@ description: test skill
       platform: "win32",
       env: windowsAuditEnv,
       execIcacls,
+      execDockerRawFn: execDockerRawUnavailable,
     });
 
     expect(
@@ -2332,50 +2350,45 @@ description: test skill
     await fs.writeFile(configPath, `{ "$include": "./extra.json5" }\n`, "utf-8");
     await fs.chmod(configPath, 0o600);
 
-    try {
-      const cfg: OpenClawConfig = { logging: { redactSensitive: "off" } };
-      const user = "DESKTOP-TEST\\Tester";
-      const execIcacls = isWindows
-        ? async (_cmd: string, args: string[]) => {
-            const target = args[0];
-            if (target === includePath) {
-              return {
-                stdout: `${target} NT AUTHORITY\\SYSTEM:(F)\n BUILTIN\\Users:(W)\n ${user}:(F)\n`,
-                stderr: "",
-              };
-            }
+    const cfg: OpenClawConfig = { logging: { redactSensitive: "off" } };
+    const user = "DESKTOP-TEST\\Tester";
+    const execIcacls = isWindows
+      ? async (_cmd: string, args: string[]) => {
+          const target = args[0];
+          if (target === includePath) {
             return {
-              stdout: `${target} NT AUTHORITY\\SYSTEM:(F)\n ${user}:(F)\n`,
+              stdout: `${target} NT AUTHORITY\\SYSTEM:(F)\n BUILTIN\\Users:(W)\n ${user}:(F)\n`,
               stderr: "",
             };
           }
-        : undefined;
-      const res = await runSecurityAudit({
-        config: cfg,
-        includeFilesystem: true,
-        includeChannelSecurity: false,
-        stateDir,
-        configPath,
-        platform: isWindows ? "win32" : undefined,
-        env: isWindows
-          ? { ...process.env, USERNAME: "Tester", USERDOMAIN: "DESKTOP-TEST" }
-          : undefined,
-        execIcacls,
-      });
+          return {
+            stdout: `${target} NT AUTHORITY\\SYSTEM:(F)\n ${user}:(F)\n`,
+            stderr: "",
+          };
+        }
+      : undefined;
+    const res = await runSecurityAudit({
+      config: cfg,
+      includeFilesystem: true,
+      includeChannelSecurity: false,
+      stateDir,
+      configPath,
+      platform: isWindows ? "win32" : undefined,
+      env: isWindows
+        ? { ...process.env, USERNAME: "Tester", USERDOMAIN: "DESKTOP-TEST" }
+        : undefined,
+      execIcacls,
+    });
 
-      const expectedCheckId = isWindows
-        ? "fs.config_include.perms_writable"
-        : "fs.config_include.perms_world_readable";
+    const expectedCheckId = isWindows
+      ? "fs.config_include.perms_writable"
+      : "fs.config_include.perms_world_readable";
 
-      expect(res.findings).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ checkId: expectedCheckId, severity: "critical" }),
-        ]),
-      );
-    } finally {
-      // Clean up temp directory with world-writable file
-      await fs.rm(tmp, { recursive: true, force: true });
-    }
+    expect(res.findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ checkId: expectedCheckId, severity: "critical" }),
+      ]),
+    );
   });
 
   it("flags extensions without plugins.allow", async () => {
@@ -2387,12 +2400,7 @@ description: test skill
     delete process.env.TELEGRAM_BOT_TOKEN;
     delete process.env.SLACK_BOT_TOKEN;
     delete process.env.SLACK_APP_TOKEN;
-    const tmp = await makeTmpDir("extensions-no-allowlist");
-    const stateDir = path.join(tmp, "state");
-    await fs.mkdir(path.join(stateDir, "extensions", "some-plugin"), {
-      recursive: true,
-      mode: 0o700,
-    });
+    const stateDir = sharedExtensionsStateDir;
 
     try {
       const cfg: OpenClawConfig = {};
@@ -2434,10 +2442,6 @@ description: test skill
   });
 
   it("warns on unpinned npm install specs and missing integrity metadata", async () => {
-    const tmp = await makeTmpDir("install-metadata-warns");
-    const stateDir = path.join(tmp, "state");
-    await fs.mkdir(stateDir, { recursive: true });
-
     const cfg: OpenClawConfig = {
       plugins: {
         installs: {
@@ -2463,8 +2467,8 @@ description: test skill
       config: cfg,
       includeFilesystem: true,
       includeChannelSecurity: false,
-      stateDir,
-      configPath: path.join(stateDir, "openclaw.json"),
+      stateDir: sharedInstallMetadataStateDir,
+      configPath: path.join(sharedInstallMetadataStateDir, "openclaw.json"),
     });
 
     expect(hasFinding(res, "plugins.installs_unpinned_npm_specs", "warn")).toBe(true);
@@ -2474,10 +2478,6 @@ description: test skill
   });
 
   it("does not warn on pinned npm install specs with integrity metadata", async () => {
-    const tmp = await makeTmpDir("install-metadata-clean");
-    const stateDir = path.join(tmp, "state");
-    await fs.mkdir(stateDir, { recursive: true });
-
     const cfg: OpenClawConfig = {
       plugins: {
         installs: {
@@ -2505,8 +2505,8 @@ description: test skill
       config: cfg,
       includeFilesystem: true,
       includeChannelSecurity: false,
-      stateDir,
-      configPath: path.join(stateDir, "openclaw.json"),
+      stateDir: sharedInstallMetadataStateDir,
+      configPath: path.join(sharedInstallMetadataStateDir, "openclaw.json"),
     });
 
     expect(hasFinding(res, "plugins.installs_unpinned_npm_specs")).toBe(false);
@@ -2571,12 +2571,7 @@ description: test skill
   });
 
   it("flags enabled extensions when tool policy can expose plugin tools", async () => {
-    const tmp = await makeTmpDir("plugins-reachable");
-    const stateDir = path.join(tmp, "state");
-    await fs.mkdir(path.join(stateDir, "extensions", "some-plugin"), {
-      recursive: true,
-      mode: 0o700,
-    });
+    const stateDir = sharedExtensionsStateDir;
 
     const cfg: OpenClawConfig = {
       plugins: { allow: ["some-plugin"] },
@@ -2600,12 +2595,7 @@ description: test skill
   });
 
   it("does not flag plugin tool reachability when profile is restrictive", async () => {
-    const tmp = await makeTmpDir("plugins-restrictive");
-    const stateDir = path.join(tmp, "state");
-    await fs.mkdir(path.join(stateDir, "extensions", "some-plugin"), {
-      recursive: true,
-      mode: 0o700,
-    });
+    const stateDir = sharedExtensionsStateDir;
 
     const cfg: OpenClawConfig = {
       plugins: { allow: ["some-plugin"] },
@@ -2627,12 +2617,7 @@ description: test skill
   it("flags unallowlisted extensions as critical when native skill commands are exposed", async () => {
     const prevDiscordToken = process.env.DISCORD_BOT_TOKEN;
     delete process.env.DISCORD_BOT_TOKEN;
-    const tmp = await makeTmpDir("extensions-critical");
-    const stateDir = path.join(tmp, "state");
-    await fs.mkdir(path.join(stateDir, "extensions", "some-plugin"), {
-      recursive: true,
-      mode: 0o700,
-    });
+    const stateDir = sharedExtensionsStateDir;
 
     try {
       const cfg: OpenClawConfig = {
@@ -2673,6 +2658,7 @@ description: test skill
       includeChannelSecurity: false,
       deep: false,
       stateDir: sharedCodeSafetyStateDir,
+      execDockerRawFn: execDockerRawUnavailable,
     });
     expect(nonDeepRes.findings.some((f) => f.checkId === "plugins.code_safety")).toBe(false);
 
@@ -2687,6 +2673,7 @@ description: test skill
       deep: true,
       stateDir: sharedCodeSafetyStateDir,
       probeGatewayFn: async (opts) => successfulProbeResult(opts.url),
+      execDockerRawFn: execDockerRawUnavailable,
     });
 
     const pluginFinding = deepRes.findings.find(
