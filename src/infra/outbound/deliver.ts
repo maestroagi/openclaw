@@ -18,7 +18,14 @@ import {
   resolveMirroredTranscriptText,
 } from "../../config/sessions.js";
 import type { sendMessageDiscord } from "../../discord/send.js";
+import { fireAndForgetHook } from "../../hooks/fire-and-forget.js";
 import { createInternalHookEvent, triggerInternalHook } from "../../hooks/internal-hooks.js";
+import {
+  buildCanonicalSentMessageHookContext,
+  toInternalMessageSentContext,
+  toPluginMessageContext,
+  toPluginMessageSentEvent,
+} from "../../hooks/message-hook-mappers.js";
 import type { sendMessageIMessage } from "../../imessage/send.js";
 import { createSubsystemLogger } from "../../logging/subsystem.js";
 import { getAgentScopedMediaLocalRoots } from "../../media/local-roots.js";
@@ -220,6 +227,10 @@ type DeliverOutboundPayloadsCoreParams = {
     agentId?: string;
     text?: string;
     mediaUrls?: string[];
+    /** Whether this message is being sent in a group/channel context */
+    isGroup?: boolean;
+    /** Group or channel identifier for correlation with received events */
+    groupId?: string;
   };
   silent?: boolean;
 };
@@ -478,6 +489,8 @@ async function deliverOutboundPayloadsCore(
     });
   const hookRunner = getGlobalHookRunner();
   const sessionKeyForInternalHooks = params.mirror?.sessionKey ?? params.session?.key;
+  const mirrorIsGroup = params.mirror?.isGroup;
+  const mirrorGroupId = params.mirror?.groupId;
   if (
     hookRunner?.hasHooks("message_sent") &&
     params.session?.agentId &&
@@ -504,38 +517,47 @@ async function deliverOutboundPayloadsCore(
       error?: string;
       messageId?: string;
     }) => {
+      const canonical = buildCanonicalSentMessageHookContext({
+        to,
+        content: params.content,
+        success: params.success,
+        error: params.error,
+        channelId: channel,
+        accountId: accountId ?? undefined,
+        conversationId: to,
+        messageId: params.messageId,
+        isGroup: mirrorIsGroup,
+        groupId: mirrorGroupId,
+      });
       if (hookRunner?.hasHooks("message_sent")) {
-        void hookRunner
-          .runMessageSent(
-            {
-              to,
-              content: params.content,
-              success: params.success,
-              ...(params.error ? { error: params.error } : {}),
-            },
-            {
-              channelId: channel,
-              accountId: accountId ?? undefined,
-              conversationId: to,
-            },
-          )
-          .catch(() => {});
+        fireAndForgetHook(
+          hookRunner.runMessageSent(
+            toPluginMessageSentEvent(canonical),
+            toPluginMessageContext(canonical),
+          ),
+          "deliverOutboundPayloads: message_sent plugin hook failed",
+          (message) => {
+            log.warn(message);
+          },
+        );
       }
       if (!sessionKeyForInternalHooks) {
         return;
       }
-      void triggerInternalHook(
-        createInternalHookEvent("message", "sent", sessionKeyForInternalHooks, {
-          to,
-          content: params.content,
-          success: params.success,
-          ...(params.error ? { error: params.error } : {}),
-          channelId: channel,
-          accountId: accountId ?? undefined,
-          conversationId: to,
-          messageId: params.messageId,
-        }),
-      ).catch(() => {});
+      fireAndForgetHook(
+        triggerInternalHook(
+          createInternalHookEvent(
+            "message",
+            "sent",
+            sessionKeyForInternalHooks,
+            toInternalMessageSentContext(canonical),
+          ),
+        ),
+        "deliverOutboundPayloads: message:sent internal hook failed",
+        (message) => {
+          log.warn(message);
+        },
+      );
     };
     try {
       throwIfAborted(abortSignal);
