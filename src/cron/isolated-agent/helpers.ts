@@ -87,20 +87,25 @@ export function pickLastDeliverablePayload(payloads: DeliveryPayload[]) {
 }
 
 /**
- * Check if all payloads are just heartbeat ack responses (HEARTBEAT_OK).
- * Returns true if delivery should be skipped because there's no real content.
+ * Check if delivery should be skipped because the agent signaled no user-visible update.
+ * Returns true when any payload is a heartbeat ack token and no payload contains media.
  */
 export function isHeartbeatOnlyResponse(payloads: DeliveryPayload[], ackMaxChars: number) {
   if (payloads.length === 0) {
     return true;
   }
-  return payloads.every((payload) => {
-    // If there's media, we should deliver regardless of text content.
-    const hasMedia = (payload.mediaUrls?.length ?? 0) > 0 || Boolean(payload.mediaUrl);
-    if (hasMedia) {
-      return false;
-    }
-    // Use heartbeat mode to check if text is just HEARTBEAT_OK or short ack.
+  // If any payload has media, deliver regardless — there's real content.
+  const hasAnyMedia = payloads.some(
+    (payload) => (payload.mediaUrls?.length ?? 0) > 0 || Boolean(payload.mediaUrl),
+  );
+  if (hasAnyMedia) {
+    return false;
+  }
+  // An agent may emit multiple text payloads (narration, tool summaries)
+  // before a final HEARTBEAT_OK. If *any* payload is a heartbeat ack token,
+  // the agent is signaling "nothing needs attention" — the preceding text
+  // payloads are just internal narration and should not be delivered.
+  return payloads.some((payload) => {
     const result = stripHeartbeatToken(payload.text, {
       mode: "heartbeat",
       maxAckChars: ackMaxChars,
