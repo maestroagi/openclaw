@@ -10,6 +10,8 @@ import {
 import { withTempHome } from "./test-helpers.js";
 import type { OpenClawConfig } from "./types.js";
 
+const IS_WINDOWS = process.platform === "win32";
+
 describe("config backup rotation", () => {
   it("keeps a 5-deep backup ring for config writes", async () => {
     await withTempHome(async () => {
@@ -55,7 +57,8 @@ describe("config backup rotation", () => {
     });
   });
 
-  it("hardenBackupPermissions sets 0o600 on all backup files", async () => {
+  // chmod is a no-op on Windows — 0o600 can never be observed there.
+  it.skipIf(IS_WINDOWS)("hardenBackupPermissions sets 0o600 on all backup files", async () => {
     await withTempHome(async () => {
       const stateDir = process.env.OPENCLAW_STATE_DIR?.trim();
       if (!stateDir) {
@@ -72,7 +75,6 @@ describe("config backup rotation", () => {
       const bakStat = await fs.stat(`${configPath}.bak`);
       const bak1Stat = await fs.stat(`${configPath}.bak.1`);
 
-      // Owner-only permissions (0o600)
       expect(bakStat.mode & 0o777).toBe(0o600);
       expect(bak1Stat.mode & 0o777).toBe(0o600);
     });
@@ -133,9 +135,12 @@ describe("config backup rotation", () => {
       );
       // Prior primary backup gets rotated into ring slot 1.
       await expect(fs.readFile(`${configPath}.bak.1`, "utf-8")).resolves.toBe("previous");
-      // Mode hardening still applies.
-      const primaryBackupStat = await fs.stat(`${configPath}.bak`);
-      expect(primaryBackupStat.mode & 0o777).toBe(0o600);
+      // Windows cannot validate POSIX chmod bits, but all other compose assertions
+      // should still run there.
+      if (!IS_WINDOWS) {
+        const primaryBackupStat = await fs.stat(`${configPath}.bak`);
+        expect(primaryBackupStat.mode & 0o777).toBe(0o600);
+      }
       // Out-of-ring orphan gets pruned.
       await expect(fs.stat(`${configPath}.bak.orphan`)).rejects.toThrow();
     });
