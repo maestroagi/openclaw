@@ -5,7 +5,9 @@ import {
   createScopedPairingAccess,
   createReplyPrefixOptions,
   readJsonBodyWithLimit,
+  registerPluginHttpRoute,
   registerWebhookTarget,
+  registerPluginHttpRoute,
   rejectNonPostWebhookRequest,
   isDangerousNameMatchingEnabled,
   resolveAllowlistProviderRuntimeGroupPolicy,
@@ -100,7 +102,24 @@ function warnDeprecatedUsersEmailEntries(
 }
 
 export function registerGoogleChatWebhookTarget(target: WebhookTarget): () => void {
-  return registerWebhookTarget(webhookTargets, target).unregister;
+  return registerWebhookTarget(webhookTargets, target, {
+    onFirstPathTarget: ({ path }) =>
+      registerPluginHttpRoute({
+        path,
+        pluginId: "googlechat",
+        source: "googlechat-webhook",
+        accountId: target.account.accountId,
+        log: target.runtime.log,
+        handler: async (req, res) => {
+          const handled = await handleGoogleChatWebhookRequest(req, res);
+          if (!handled && !res.headersSent) {
+            res.statusCode = 404;
+            res.setHeader("Content-Type", "text/plain; charset=utf-8");
+            res.end("Not Found");
+          }
+        },
+      }),
+  }).unregister;
 }
 
 function normalizeAudienceType(value?: string | null): GoogleChatAudienceType | undefined {
@@ -951,7 +970,7 @@ export function monitorGoogleChatProvider(options: GoogleChatMonitorOptions): ()
   const audience = options.account.config.audience?.trim();
   const mediaMaxMb = options.account.config.mediaMaxMb ?? 20;
 
-  const unregister = registerGoogleChatWebhookTarget({
+  const unregisterTarget = registerGoogleChatWebhookTarget({
     account: options.account,
     config: options.config,
     runtime: options.runtime,
@@ -962,8 +981,20 @@ export function monitorGoogleChatProvider(options: GoogleChatMonitorOptions): ()
     statusSink: options.statusSink,
     mediaMaxMb,
   });
+  const unregisterRoute = registerPluginHttpRoute({
+    path: webhookPath,
+    auth: "plugin",
+    match: "exact",
+    pluginId: "googlechat",
+    accountId: options.account.accountId,
+    log: (message) => logVerbose(core, options.runtime, message),
+    handler: handleGoogleChatWebhookRequest,
+  });
 
-  return unregister;
+  return () => {
+    unregisterTarget();
+    unregisterRoute();
+  };
 }
 
 export async function startGoogleChatMonitor(
