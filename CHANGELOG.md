@@ -12,6 +12,8 @@ Docs: https://docs.openclaw.ai
 ### Fixes
 
 - Telegram/DM draft finalization reliability: require verified final-text draft emission before treating preview finalization as delivered, and fall back to normal payload send when final draft delivery is not confirmed (preventing missing final responses and preserving media/button delivery). (#32118) Thanks @OpenCils.
+- Discord/audit wildcard warnings: ignore "*" wildcard keys when counting unresolved guild channels so doctor/status no longer warns on allow-all configs. (#33125) Thanks @thewilloftheshadow.
+- Discord/channel resolution: default bare numeric recipients to channels, harden allowlist numeric ID handling with safe fallbacks, and avoid inbound WS heartbeat stalls. (#33142) Thanks @thewilloftheshadow.
 - Exec heartbeat routing: scope exec-triggered heartbeat wakes to agent session keys so unrelated agents are no longer awakened by exec events, while preserving legacy unscoped behavior for non-canonical session keys. (#32724) thanks @altaywtf
 - macOS/Tailscale remote gateway discovery: add a Tailscale Serve fallback peer probe path (`wss://<peer>.ts.net`) when Bonjour and wide-area DNS-SD discovery return no gateways, and refresh both discovery paths from macOS onboarding. (#32860) Thanks @ngutman.
 - Telegram/multi-account default routing clarity: warn only for ambiguous (2+) account setups without an explicit default, add `openclaw doctor` warnings for missing/invalid multi-account defaults across channels, and document explicit-default guidance for channel routing and Telegram config. (#32544) thanks @Sid-Qin.
@@ -122,6 +124,7 @@ Docs: https://docs.openclaw.ai
 - Plugin SDK/runtime hardening: add package export verification in CI/release checks to catch missing runtime exports before publish-time regressions. (#28575) Thanks @bmendonca3.
 - Media/MIME normalization: normalize parameterized/case-variant MIME strings in `kindFromMime` (for example `Audio/Ogg; codecs=opus`) so WhatsApp voice notes are classified as audio and routed through transcription correctly. (#32280) Thanks @Lucenx9.
 - Discord/audio preflight mentions: detect audio attachments via Discord `content_type` and gate preflight transcription on typed text (not media placeholders), so guild voice-note mentions are transcribed and matched correctly. (#32136) Thanks @jnMetaCode.
+- Discord/acp inline actions: prefer autocomplete for `/acp` action inline values and ignore bound-thread bot system messages to prevent ACP loops. (#33136) Thanks @thewilloftheshadow.
 - Feishu/topic session routing: use `thread_id` as topic session scope fallback when `root_id` is absent, keep first-turn topic keys stable across thread creation, and force thread replies when inbound events already carry topic/thread context. (#29788) Thanks @songyaolun.
 - Gateway/Webchat NO_REPLY streaming: suppress assistant lead-fragment deltas that are prefixes of `NO_REPLY` and keep final-message buffering in sync, preventing partial `NO` leaks on silent-response runs while preserving legitimate short replies. (#32073) Thanks @liuxiaopai-ai.
 - Telegram/models picker callbacks: keep long model buttons selectable by falling back to compact callback payloads and resolving provider ids on selection (with provider re-prompt on ambiguity), avoiding Telegram 64-byte callback truncation failures. (#31857) Thanks @bmendonca3.
