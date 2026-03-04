@@ -8,11 +8,14 @@ Docs: https://docs.openclaw.ai
 
 - Discord/allowBots mention gating: add `allowBots: "mentions"` to only accept bot-authored messages that mention the bot. Thanks @thewilloftheshadow.
 - Docs/Web search: remove outdated Brave free-tier wording and replace prescriptive AI ToS guidance with neutral compliance language in Brave setup docs. (#26860) Thanks @HenryLoenwind.
+- Tools/Web search: switch Perplexity provider to Search API with structured results plus new language/region/time filters. (#33822) Thanks @kesku.
 - Tools/Diffs guidance loading: move diffs usage guidance from unconditional prompt-hook injection to the plugin companion skill path, reducing unrelated-turn prompt noise while keeping diffs tool behavior unchanged. (#32630) thanks @sircrumpet.
 - Agents/tool-result truncation: preserve important tail diagnostics by using head+tail truncation for oversized tool results while keeping configurable truncation options. (#20076) thanks @jlwestsr.
+- Telegram/topic agent routing: support per-topic `agentId` overrides in forum groups and DM topics so topics can route to dedicated agents with isolated sessions. (#33647; based on #31513) Thanks @kesor and @Sid-Qin.
 
 ### Fixes
 
+- Sessions/subagent attachments: remove `attachments[].content.maxLength` from `sessions_spawn` schema to avoid llama.cpp GBNF repetition overflow, and preflight UTF-8 byte size before buffer allocation while keeping runtime file-size enforcement unchanged. (#33648) Thanks @anisoptera.
 - Runtime/tool-state stability: recover from dangling Anthropic `tool_use` after compaction, serialize long-running Discord handler runs without blocking new inbound events, and prevent stale busy snapshots from suppressing stuck-channel recovery. (from #33630, #33583) Thanks @kevinWangSheng and @theotarr.
 - Extensions/media local-root propagation: consistently forward `mediaLocalRoots` through extension `sendMedia` adapters (Google Chat, Slack, iMessage, Signal, WhatsApp), preserving non-local media behavior while restoring local attachment resolution from configured roots. Synthesis of #33581, #33545, #33540, #33536, #33528. Thanks @bmendonca3.
 - Gateway/security default response headers: add `Permissions-Policy: camera=(), microphone=(), geolocation=()` to baseline gateway HTTP security headers for all responses. (#30186) thanks @habakan.
@@ -20,6 +23,9 @@ Docs: https://docs.openclaw.ai
 - Build/lazy runtime boundaries: replace ineffective dynamic import sites with dedicated lazy runtime boundaries across Slack slash handling, Telegram audit, CLI send deps, memory fallback, and outbound delivery paths while preserving behavior. (#33690) thanks @gumadeiras.
 - Config/heartbeat legacy-path handling: auto-migrate top-level `heartbeat` into `agents.defaults.heartbeat` (with merge semantics that preserve explicit defaults), and keep startup failures on non-migratable legacy entries in the detailed invalid-config path instead of generic migration-failed errors. (#32706) thanks @xiwan.
 - Plugins/SDK subpath parity: add channel-specific plugin SDK subpaths for Discord, Slack, Signal, iMessage, WhatsApp, and LINE; migrate bundled plugin entrypoints to scoped subpaths/core with CI guardrails; and keep `openclaw/plugin-sdk` root import compatibility for existing external plugins. (#33737) thanks @gumadeiras.
+- Routing/session duplicate suppression synthesis: align shared session delivery-context inheritance, channel-paired route-field merges, and reply-surface target matching so dmScope=main turns avoid cross-surface duplicate replies while thread-aware forwarding keeps intended routing semantics. (from #33629, #26889, #17337, #33250) Thanks @Yuandiaodiaodiao, @kevinwildenradt, @Glucksberg, and @bmendonca3.
+- Routing/legacy session route inheritance: preserve external route metadata inheritance for legacy channel session keys (`agent:<agent>:<channel>:<peer>` and `...:thread:<id>`) so `chat.send` does not incorrectly fall back to webchat when valid delivery context exists. Follow-up to #33786.
+- Routing/legacy route guard tightening: require legacy session-key channel hints to match the saved delivery channel before inheriting external routing metadata, preventing custom namespaced keys like `agent:<agent>:work:<ticket>` from inheriting stale non-webchat routes.
 - Security/auth labels: remove token and API-key snippets from user-facing auth status labels so `/status` and `/models` do not expose credential fragments. (#33262) thanks @cu1ch3n.
 - Auth/credential semantics: align profile eligibility + probe diagnostics with SecretRef/expiry rules and harden browser download atomic writes. (#33733) thanks @joshavant.
 - Security/audit denyCommands guidance: suggest likely exact node command IDs for unknown `gateway.nodes.denyCommands` entries so ineffective denylist entries are easier to correct. (#29713) thanks @liquidhorizon88-bot.
