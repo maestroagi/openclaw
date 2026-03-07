@@ -39,6 +39,8 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Security/Config: fail closed when `loadConfig()` hits validation or read errors so invalid configs cannot silently fall back to permissive runtime defaults. (#9040) Thanks @joetomasone.
+- Memory/Hybrid search: preserve negative FTS5 BM25 relevance ordering in `bm25RankToScore()` so stronger keyword matches rank above weaker ones instead of collapsing or reversing scores. (#33757) Thanks @lsdcc01.
 - LINE/`requireMention` group gating: align inbound and reply-stage LINE group policy resolution across raw, `group:`, and `room:` keys (including account-scoped group config), preserve plugin-backed reply-stage fallback behavior, and add regression coverage for prefixed-only group/room config plus reply-stage policy resolution. (#35847) Thanks @kirisame-wang.
 - Onboarding/local setup: default unset local `tools.profile` to `coding` instead of `messaging`, restoring file/runtime tools for fresh local installs while preserving explicit user-set profiles. (from #38241, overlap with #34958) Thanks @cgdusek.
 - Gateway/Telegram stale-socket restart guard: only apply stale-socket restarts to channels that publish event-liveness timestamps, preventing Telegram providers from being misclassified as stale solely due to long uptime and avoiding restart/pairing storms after upgrade. (openclaw#38464)
@@ -78,6 +80,8 @@ Docs: https://docs.openclaw.ai
 - Control UI/iMessage duplicate reply routing: keep internal webchat turns on dispatcher delivery (instead of origin-channel reroute) so Control UI chats do not duplicate replies into iMessage, while preserving webchat-provider relayed routing for external surfaces. Fixes #33483. Thanks @alicexmolt.
 - Sessions/daily reset transcript archival: archive prior transcript files during stale-session scheduled/daily resets by capturing the previous session entry before rollover, preventing orphaned transcript files on disk. (#35493) Thanks @byungsker.
 - Feishu/group slash command detection: normalize group mention wrappers before command-authorization probing so mention-prefixed commands (for example `@Bot/model` and `@Bot /reset`) are recognized as gateway commands instead of being forwarded to the agent. (#35994) Thanks @liuxiaopai-ai.
+- Control UI/auth token separation: keep the shared gateway token in browser auth validation while reserving cached device tokens for signed device payloads, preventing false `device token mismatch` disconnects after restart/rotation. Landed from contributor PR #37382 by @FradSer. Thanks @FradSer.
+- Gateway/browser auth reconnect hardening: stop counting missing token/password submissions as auth rate-limit failures, and stop auto-reconnecting Control UI clients on non-recoverable auth errors so misconfigured browser tabs no longer lock out healthy sessions. Landed from contributor PR #38725 by @ademczuk. Thanks @ademczuk.
 - Agents/context pruning: guard assistant thinking/text char estimation against malformed blocks (missing `thinking`/`text` strings or null entries) so pruning no longer crashes with malformed provider content. (openclaw#35146) thanks @Sid-Qin.
 - Agents/transcript policy: set `preserveSignatures` to Anthropic-only handling in `resolveTranscriptPolicy` so Anthropic thinking signatures are preserved while non-Anthropic providers remain unchanged. (#32813) thanks @Sid-Qin.
 - Agents/schema cleaning: detect Venice + Grok model IDs as xAI-proxied targets so unsupported JSON Schema keywords are stripped before requests, preventing Venice/Grok `Invalid arguments` failures. (openclaw#35355) thanks @Sid-Qin.
@@ -287,6 +291,10 @@ Docs: https://docs.openclaw.ai
 - Daemon/Windows schtasks status normalization: derive runtime state from locale-neutral numeric `Last Run Result` codes only (without language string matching) and surface unknown when numeric result data is unavailable, preventing locale-specific misclassification drift. (#39153) Thanks @scoootscooob.
 - Telegram/polling conflict recovery: reset the polling `webhookCleared` latch on `getUpdates` 409 conflicts so webhook cleanup re-runs on restart cycles and polling avoids infinite conflict loops. (#39205) Thanks @amittell.
 - Heartbeat/requests-in-flight scheduling: stop advancing `nextDueMs` and avoid immediate `scheduleNext()` timer overrides on requests-in-flight skips, so wake-layer retry cooldowns are honored and heartbeat cadence no longer drifts under sustained contention. (#39182) Thanks @MumuTW.
+- Memory/SQLite contention resilience: re-apply `PRAGMA busy_timeout` on every sync-store and QMD connection open so process restarts/reopens no longer revert to immediate `SQLITE_BUSY` failures under lock contention. (#39183) Thanks @MumuTW.
+- Gateway/webchat route safety: block webchat/control-ui clients from inheriting stored external delivery routes on channel-scoped sessions (while preserving route inheritance for UI/TUI clients), preventing cross-channel leakage from scoped chats. (#39175) Thanks @widingmarcus-cyber.
+- Telegram error-surface resilience: return a user-visible fallback reply when dispatch/debounce processing fails instead of going silent, while preserving draft-stream cleanup and best-effort thread-scoped fallback delivery. (#39209) Thanks @riftzen-bit.
+- Gateway/password auth startup diagnostics: detect unresolved provider-reference objects in `gateway.auth.password` and fail with a specific bootstrap-secrets error message instead of generic misconfiguration output. (#39230) Thanks @ademczuk.
 
 ## 2026.3.2
 
