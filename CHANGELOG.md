@@ -262,6 +262,10 @@ Docs: https://docs.openclaw.ai
 - Models/provider apiKey persistence hardening: when a provider `apiKey` value equals a known provider env var value, persist the canonical env var name into `models.json` instead of resolved plaintext secrets. (#38889) Thanks @gambletan.
 - Discord/model picker persistence check: add a short post-dispatch settle delay before reading back session model state so picker confirmations stop reporting false mismatch warnings after successful model switches. (#39105) Thanks @akropp.
 - Agents/OpenAI WS compat store flag: omit `store` from `response.create` payloads when model compat sets `supportsStore: false`, preventing strict OpenAI-compatible providers from rejecting websocket requests with unknown-field errors. (#39113) Thanks @scoootscooob.
+- Config/validation log sanitization: sanitize config-validation issue paths/messages before logging so control characters and ANSI escape sequences cannot inject misleading terminal output from crafted config content. (#39116) Thanks @powermaster888.
+- Agents/compaction counter accuracy: count successful overflow-triggered auto-compactions (`willRetry=true`) in the compaction counter while still excluding aborted/no-result events, so `/status` reflects actual safeguard compaction activity. (#39123) Thanks @MumuTW.
+- Gateway/chat delta ordering: flush buffered assistant deltas before emitting tool `start` events so pre-tool text is delivered to Control UI before tool cards, avoiding transient text/tool ordering artifacts in streaming. (#39128) Thanks @0xtangping.
+- Voice-call plugin schema parity: add missing manifest `configSchema` fields (`webhookSecurity`, `streaming.preStartTimeoutMs|maxPendingConnections|maxPendingConnectionsPerIp|maxConnections`, `staleCallReaperSeconds`) so gateway AJV validation accepts already-supported runtime config instead of failing with `additionalProperties` errors. (#38892) Thanks @giumex.
 
 ## 2026.3.2
 
