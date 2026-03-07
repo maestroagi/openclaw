@@ -39,6 +39,7 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- LINE/`requireMention` group gating: align inbound and reply-stage LINE group policy resolution across raw, `group:`, and `room:` keys (including account-scoped group config), preserve plugin-backed reply-stage fallback behavior, and add regression coverage for prefixed-only group/room config plus reply-stage policy resolution. (#35847) Thanks @kirisame-wang.
 - Onboarding/local setup: default unset local `tools.profile` to `coding` instead of `messaging`, restoring file/runtime tools for fresh local installs while preserving explicit user-set profiles. (from #38241, overlap with #34958) Thanks @cgdusek.
 - Gateway/Telegram stale-socket restart guard: only apply stale-socket restarts to channels that publish event-liveness timestamps, preventing Telegram providers from being misclassified as stale solely due to long uptime and avoiding restart/pairing storms after upgrade. (openclaw#38464)
 - Onboarding/headless Linux daemon probe hardening: treat `systemctl --user is-enabled` probe failures as non-fatal during daemon install flow so onboarding no longer crashes on SSH/headless VPS environments before showing install guidance. (#37297) Thanks @acarbajal-web.
@@ -119,6 +120,7 @@ Docs: https://docs.openclaw.ai
 - Runtime/tool-state stability: recover from dangling Anthropic `tool_use` after compaction, serialize long-running Discord handler runs without blocking new inbound events, and prevent stale busy snapshots from suppressing stuck-channel recovery. (from #33630, #33583) Thanks @kevinWangSheng and @theotarr.
 - ACP/Discord startup hardening: clean up stuck ACP worker children on gateway restart, unbind stale ACP thread bindings during Discord startup reconciliation, and add per-thread listener watchdog timeouts so wedged turns cannot block later messages. (#33699) Thanks @dutifulbob.
 - Extensions/media local-root propagation: consistently forward `mediaLocalRoots` through extension `sendMedia` adapters (Google Chat, Slack, iMessage, Signal, WhatsApp), preserving non-local media behavior while restoring local attachment resolution from configured roots. Synthesis of #33581, #33545, #33540, #33536, #33528. Thanks @bmendonca3.
+- Gateway/plugin HTTP auth hardening: require gateway auth when any overlapping matched route needs it, block mixed-auth fallthrough at dispatch, and reject mixed-auth exact/prefix route overlaps during plugin registration.
 - Feishu/video media send contract: keep mp4-like outbound payloads on `msg_type: "media"` (including reply and reply-in-thread paths) so videos render as media instead of degrading to file-link behavior, while preserving existing non-video file subtype handling. (from #33720, #33808, #33678) Thanks @polooooo, @dingjianrui, and @kevinWangSheng.
 - Gateway/security default response headers: add `Permissions-Policy: camera=(), microphone=(), geolocation=()` to baseline gateway HTTP security headers for all responses. (#30186) thanks @habakan.
 - Plugins/startup loading: lazily initialize plugin runtime, split startup-critical plugin SDK imports into `openclaw/plugin-sdk/core` and `openclaw/plugin-sdk/telegram`, and preserve `api.runtime` reflection semantics for plugin compatibility. (#28620) thanks @hmemcpy.
@@ -266,6 +268,9 @@ Docs: https://docs.openclaw.ai
 - Agents/compaction counter accuracy: count successful overflow-triggered auto-compactions (`willRetry=true`) in the compaction counter while still excluding aborted/no-result events, so `/status` reflects actual safeguard compaction activity. (#39123) Thanks @MumuTW.
 - Gateway/chat delta ordering: flush buffered assistant deltas before emitting tool `start` events so pre-tool text is delivered to Control UI before tool cards, avoiding transient text/tool ordering artifacts in streaming. (#39128) Thanks @0xtangping.
 - Voice-call plugin schema parity: add missing manifest `configSchema` fields (`webhookSecurity`, `streaming.preStartTimeoutMs|maxPendingConnections|maxPendingConnectionsPerIp|maxConnections`, `staleCallReaperSeconds`) so gateway AJV validation accepts already-supported runtime config instead of failing with `additionalProperties` errors. (#38892) Thanks @giumex.
+- Agents/OpenAI WS reconnect retry accounting: avoid double retry scheduling when reconnect failures emit both `error` and `close`, so retry budgets track actual reconnect attempts instead of exhausting early. (#39133) Thanks @scoootscooob.
+- Daemon/Windows schtasks runtime detection: use locale-invariant `Last Run Result` running codes (`0x41301`/`267009`) as the primary running signal so `openclaw node status` no longer misreports active tasks as stopped on non-English Windows locales. (#39076) Thanks @ademczuk.
+- Usage/token count formatting: round near-million token counts to millions (`1.0m`) instead of `1000k`, with explicit boundary coverage for `999_499` and `999_500`. (#39129) Thanks @CurryMessi.
 
 ## 2026.3.2
 
@@ -623,6 +628,7 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Cron/announce delivery: stop duplicate completion announces when cron early-return paths already handled delivery, and replace descendant followup polling with push-based waits so cron summaries arrive without the old busy-loop fallback. (#39089) Thanks @tyler6204.
 - Dashboard/macOS auth handling: switch the macOS “Open Dashboard” flow from query-string token injection to URL fragments, stop persisting Control UI gateway tokens in browser localStorage, and scrub legacy stored tokens on load. Thanks @JNX03 for reporting.
 - Models/provider config precedence: prefer exact `models.providers.<name>` matches before normalized provider aliases in embedded model resolution, preventing alias/canonical key collisions from applying the wrong provider `api`, `baseUrl`, or headers. (#35934) thanks @RealKai42.
 - Hooks/auth throttling: reject non-`POST` `/hooks/*` requests before auth-failure accounting so unsupported methods can no longer burn the hook auth lockout budget and block legitimate webhook delivery. Thanks @JNX03 for reporting.
