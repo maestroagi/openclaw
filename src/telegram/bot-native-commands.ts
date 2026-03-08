@@ -14,6 +14,7 @@ import { finalizeInboundContext } from "../auto-reply/reply/inbound-context.js";
 import { dispatchReplyWithBufferedBlockDispatcher } from "../auto-reply/reply/provider-dispatcher.js";
 import { listSkillCommandsForAgents } from "../auto-reply/skill-commands.js";
 import { resolveCommandAuthorizedFromAuthorizers } from "../channels/command-gating.js";
+import { resolveNativeCommandSessionTargets } from "../channels/native-command-session-targets.js";
 import { createReplyPrefixOptions } from "../channels/reply-prefix.js";
 import { recordInboundSessionMetaSafe } from "../channels/session-meta.js";
 import type { OpenClawConfig } from "../config/config.js";
@@ -285,9 +286,17 @@ async function resolveTelegramCommandAuth(params: {
     senderId,
     senderUsername,
   });
+  const groupSenderAllowed = isGroup
+    ? isSenderAllowed({ allow: effectiveGroupAllow, senderId, senderUsername })
+    : false;
   const commandAuthorized = resolveCommandAuthorizedFromAuthorizers({
     useAccessGroups,
-    authorizers: [{ configured: dmAllow.hasEntries, allowed: senderAllowed }],
+    authorizers: [
+      { configured: dmAllow.hasEntries, allowed: senderAllowed },
+      ...(isGroup
+        ? [{ configured: effectiveGroupAllow.hasEntries, allowed: groupSenderAllowed }]
+        : []),
+    ],
     modeWhenAccessGroupsOff: "configured",
   });
   if (requireAuth && !commandAuthorized) {
@@ -630,6 +639,13 @@ export const registerTelegramNativeCommands = ({
             groupConfig,
             topicConfig,
           });
+          const { sessionKey: commandSessionKey, commandTargetSessionKey } =
+            resolveNativeCommandSessionTargets({
+              agentId: route.agentId,
+              sessionPrefix: "telegram:slash",
+              userId: String(senderId || chatId),
+              targetSessionKey: sessionKey,
+            });
           const conversationLabel = isGroup
             ? msg.chat.title
               ? `${msg.chat.title} id:${chatId}`
@@ -657,9 +673,9 @@ export const registerTelegramNativeCommands = ({
             WasMentioned: true,
             CommandAuthorized: commandAuthorized,
             CommandSource: "native" as const,
-            SessionKey: `agent:${route.agentId}:telegram:slash:${senderId || chatId}`,
+            SessionKey: commandSessionKey,
             AccountId: route.accountId,
-            CommandTargetSessionKey: sessionKey,
+            CommandTargetSessionKey: commandTargetSessionKey,
             MessageThreadId: threadSpec.id,
             IsForum: isForum,
             // Originating context for sub-agent announce routing
