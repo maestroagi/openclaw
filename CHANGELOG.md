@@ -54,6 +54,7 @@ Docs: https://docs.openclaw.ai
 ### Fixes
 
 - Models/MiniMax: stop advertising removed `MiniMax-M2.5-Lightning` in built-in provider catalogs, onboarding metadata, and docs; keep the supported fast-tier model as `MiniMax-M2.5-highspeed`.
+- Models/Vercel AI Gateway: synthesize the built-in `vercel-ai-gateway` provider from `AI_GATEWAY_API_KEY` and auto-discover the live `/v1/models` catalog so `/models vercel-ai-gateway` exposes current refs including `openai/gpt-5.4`.
 - Security/Config: fail closed when `loadConfig()` hits validation or read errors so invalid configs cannot silently fall back to permissive runtime defaults. (#9040) Thanks @joetomasone.
 - Memory/Hybrid search: preserve negative FTS5 BM25 relevance ordering in `bm25RankToScore()` so stronger keyword matches rank above weaker ones instead of collapsing or reversing scores. (#33757) Thanks @lsdcc01.
 - LINE/`requireMention` group gating: align inbound and reply-stage LINE group policy resolution across raw, `group:`, and `room:` keys (including account-scoped group config), preserve plugin-backed reply-stage fallback behavior, and add regression coverage for prefixed-only group/room config plus reply-stage policy resolution. (#35847) Thanks @kirisame-wang.
@@ -725,6 +726,7 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Gateway/macOS restart: remove self-issued `launchctl kickstart -k` from launchd supervised restart path to prevent race with launchd's async bootout state machine that permanently unloads the LaunchAgent. With `ThrottleInterval=1` (current default), `exit(0)` + `KeepAlive=true` restarts the service within ~1s without the race condition. (#39760) Landed from contributor PR #39763 by @daymade. Thanks @daymade.
 - Exec/system.run env sanitization: block dangerous override-only env pivots such as `GIT_SSH_COMMAND`, editor/pager hooks, and `GIT_CONFIG_` / `NPM_CONFIG_` override prefixes so allowlisted tools cannot smuggle helper command execution through subprocess environment overrides. Thanks @tdjackey and @SnailSploit for reporting.
 - Network/fetch guard redirect auth stripping: switch cross-origin redirect handling in `fetchWithSsrFGuard` from a narrow sensitive-header denylist to a safe-header allowlist so custom auth headers like `X-Api-Key` and `Private-Token` no longer leak on origin changes. Thanks @Rickidevs for reporting.
 - Security/Sandbox media reads: eliminate sandbox media TOCTOU symlink-retarget escapes by enforcing root-scoped boundary-safe reads at attachment/image load time and consolidating shared safe-read helpers across sandbox media callsites. This ships in the next npm release. Thanks @tdjackey for reporting.
