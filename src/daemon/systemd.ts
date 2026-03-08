@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { parseStrictInteger, parseStrictPositiveInteger } from "../infra/parse-finite-number.js";
 import { splitArgsPreservingQuotes } from "./arg-split.js";
 import {
   LEGACY_GATEWAY_SYSTEMD_SERVICE_NAMES,
@@ -231,15 +232,15 @@ export function parseSystemdShow(output: string): SystemdServiceInfo {
   }
   const mainPidValue = entries.mainpid;
   if (mainPidValue) {
-    const pid = Number.parseInt(mainPidValue, 10);
-    if (Number.isFinite(pid) && pid > 0) {
+    const pid = parseStrictPositiveInteger(mainPidValue);
+    if (pid !== undefined) {
       info.mainPid = pid;
     }
   }
   const execMainStatusValue = entries.execmainstatus;
   if (execMainStatusValue) {
-    const status = Number.parseInt(execMainStatusValue, 10);
-    if (Number.isFinite(status)) {
+    const status = parseStrictInteger(execMainStatusValue);
+    if (status !== undefined) {
       info.execMainStatus = status;
     }
   }
@@ -303,6 +304,19 @@ function isSystemctlBusUnavailable(detail: string): boolean {
     normalized.includes("dbus_session_bus_address") ||
     normalized.includes("xdg_runtime_dir") ||
     normalized.includes("no medium found")
+  );
+}
+
+function isSystemdUserScopeUnavailable(detail: string): boolean {
+  if (!detail) {
+    return false;
+  }
+  const normalized = detail.toLowerCase();
+  return (
+    isSystemctlMissing(normalized) ||
+    isSystemctlBusUnavailable(normalized) ||
+    normalized.includes("not been booted") ||
+    normalized.includes("not supported")
   );
 }
 
@@ -409,26 +423,11 @@ export async function isSystemdUserServiceAvailable(
   if (res.code === 0) {
     return true;
   }
-  const detail = `${res.stderr} ${res.stdout}`.toLowerCase();
+  const detail = `${res.stderr} ${res.stdout}`.trim();
   if (!detail) {
     return false;
   }
-  if (detail.includes("not found")) {
-    return false;
-  }
-  if (detail.includes("failed to connect")) {
-    return false;
-  }
-  if (detail.includes("not been booted")) {
-    return false;
-  }
-  if (detail.includes("no such file or directory")) {
-    return false;
-  }
-  if (detail.includes("not supported")) {
-    return false;
-  }
-  return false;
+  return !isSystemdUserScopeUnavailable(detail);
 }
 
 async function assertSystemdAvailable(env: GatewayServiceEnv = process.env as GatewayServiceEnv) {
@@ -439,6 +438,12 @@ async function assertSystemdAvailable(env: GatewayServiceEnv = process.env as Ga
   const detail = readSystemctlDetail(res);
   if (isSystemctlMissing(detail)) {
     throw new Error("systemctl not available; systemd user services are required on Linux.");
+  }
+  if (!detail) {
+    throw new Error("systemctl --user unavailable: unknown error");
+  }
+  if (!isSystemdUserScopeUnavailable(detail)) {
+    return;
   }
   throw new Error(`systemctl --user unavailable: ${detail || "unknown error"}`.trim());
 }
