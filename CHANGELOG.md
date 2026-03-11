@@ -27,6 +27,7 @@ Docs: https://docs.openclaw.ai
 - macOS/LaunchAgent install: tighten LaunchAgent directory and plist permissions during install so launchd bootstrap does not fail when the target home path or generated plist inherited group/world-writable modes.
 - Gateway/Control UI: keep dashboard auth tokens in session-scoped browser storage so same-tab refreshes preserve remote token auth without restoring long-lived localStorage token persistence, while scoping tokens to the selected gateway URL and fragment-only bootstrap flow. (#40892) thanks @velvet-shark.
 - Secret files: harden CLI and channel credential file reads against path-swap races by requiring direct regular files for `*File` secret inputs and rejecting symlink-backed secret files.
+- Archive extraction: harden TAR and external `tar.bz2` installs against destination symlink and pre-existing child-symlink escapes by extracting into staging first and merging into the canonical destination with safe file opens.
 - Models/Kimi Coding: send `anthropic-messages` tools in native Anthropic format again so `kimi-coding` stops degrading tool calls into XML/plain-text pseudo invocations instead of real `tool_use` blocks. (#38669, #39907, #40552) Thanks @opriz.
 - Context engine/tests: add bundled-registry regression coverage for cross-chunk resolution, plugin-sdk re-exports, and concurrent chunk registration. (#40460) thanks @dsantoreis.
 - Agents/embedded runner: bound compaction retry waiting and drain embedded runs during SIGUSR1 restart so session lanes recover instead of staying blocked behind compaction. (#40324) thanks @cgdusek.
@@ -81,6 +82,9 @@ Docs: https://docs.openclaw.ai
 - Sessions/reset model recompute: clear stale runtime model, context-token, and system-prompt metadata before session resets recompute the replacement session, so resets pick up current defaults and explicit overrides instead of reusing old runtime model state. (#41173) thanks @PonyX-lab.
 - Browser/Browserbase 429 handling: surface stable no-retry rate-limit guidance without buffering discarded HTTP 429 response bodies from remote browser services. (#40491) thanks @mvanhorn.
 - Gateway/auth: allow one trusted device-token retry on shared-token mismatch with recovery hints to prevent reconnect churn during token drift. (#42507) Thanks @joshavant.
+- Channels/allowlists: remove stale matcher caching so same-array allowlist edits and wildcard replacements take effect immediately, with regression coverage for in-place mutation cases.
+- Gateway/auth: fail closed when local `gateway.auth.*` SecretRefs are configured but unavailable, instead of silently falling back to `gateway.remote.*` credentials in local mode. Thanks @tdjackey.
+- Sandbox/fs bridge: pin staged writes to verified parent directories so temporary write files cannot materialize outside the allowed mount before atomic replace. Thanks @tdjackey.
 
 ## 2026.3.8
 
@@ -136,6 +140,7 @@ Docs: https://docs.openclaw.ai
 - Docs/Changelog: correct the contributor credit for the bundled Control UI global-install fix to @LarytheLord. (#40420) Thanks @velvet-shark.
 - Telegram/media downloads: time out only stalled body reads so polling recovers from hung file downloads without aborting slow downloads that are still streaming data. (#40098) thanks @tysoncung.
 - Docker/runtime image: prune dev dependencies, strip build-only dist metadata for smaller Docker images. (#40307) Thanks @vincentkoc.
+- Subagents/sandboxing: restrict leaf subagents to their own spawned runs and remove leaf `subagents` control access so sandboxed leaf workers can no longer steer sibling sessions. Thanks @tdjackey.
 - Gateway/restart timeout recovery: exit non-zero when restart-triggered shutdown drains time out so launchd/systemd restart the gateway instead of treating the failed restart as a clean stop. Landed from contributor PR #40380 by @dsantoreis. Thanks @dsantoreis.
 - Gateway/config restart guard: validate config before service start/restart and keep post-SIGUSR1 startup failures from crashing the gateway process, reducing invalid-config restart loops and macOS permission loss. Landed from contributor PR #38699 by @lml2468. Thanks @lml2468.
 - Gateway/launchd respawn detection: treat `XPC_SERVICE_NAME` as a launchd supervision hint so macOS restarts exit cleanly under launchd instead of attempting detached self-respawn. Landed from contributor PR #20555 by @dimat. Thanks @dimat.
