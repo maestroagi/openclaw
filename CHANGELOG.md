@@ -15,6 +15,7 @@ Docs: https://docs.openclaw.ai
 
 - Browser/existing-session: accept text-only `list_pages` and `new_page` responses from Chrome DevTools MCP so live-session tab discovery and new-tab open flows keep working when the server omits structured page metadata.
 - Ollama/reasoning visibility: stop promoting native `thinking` and `reasoning` fields into final assistant text so local reasoning models no longer leak internal thoughts in normal replies. (#45330) Thanks @xi7ang.
+- Cron/isolated sessions: route nested cron-triggered embedded runner work onto the nested lane so isolated cron jobs no longer deadlock when compaction or other queued inner work runs. Thanks @vincentkoc.
 - Windows/gateway install: bound `schtasks` calls and fall back to the Startup-folder login item when task creation hangs, so native `openclaw gateway install` fails fast instead of wedging forever on broken Scheduled Task setups.
 - Windows/gateway auth: stop attaching device identity on local loopback shared-token and password gateway calls, so native Windows agent replies no longer log stale `device signature expired` fallback noise before succeeding.
 - Telegram/media downloads: thread the same direct or proxy transport policy into SSRF-guarded file fetches so inbound attachments keep working when Telegram falls back between env-proxy and direct networking. (#44639) Thanks @obviyus.
@@ -56,6 +57,7 @@ Docs: https://docs.openclaw.ai
 - Docs/Kubernetes: Add a starter K8s install path with raw manifests, Kind setup, and deployment docs. Thanks @sallyom @dzianisv @egkristi
 - Agents/subagents: add `sessions_yield` so orchestrators can end the current turn immediately, skip queued tool work, and carry a hidden follow-up payload into the next session turn. (#36537) thanks @jriff
 - Slack/agent replies: support `channelData.slack.blocks` in the shared reply delivery path so agents can send Block Kit messages through standard Slack outbound delivery. (#44592) Thanks @vincentkoc.
+- Slack/interactive replies: add opt-in Slack button and select reply directives behind `channels.slack.capabilities.interactiveReplies`, disabled by default unless explicitly enabled. (#44607) Thanks @vincentkoc.
 
 ### Fixes
 
