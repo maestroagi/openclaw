@@ -156,7 +156,6 @@ describe("browser control server", () => {
         kind: "evaluate",
         fn: "() => 1",
       });
-
       expect(res.error).toContain("browser.evaluateEnabled=false");
       expect(pwMocks.evaluateViaPlaywright).not.toHaveBeenCalled();
     },
@@ -282,6 +281,22 @@ describe("browser control server", () => {
       });
 
       expect(batchRes.error).toContain("click delayMs exceeds maximum of 5000ms");
+      expect(pwMocks.batchViaPlaywright).not.toHaveBeenCalled();
+    },
+    slowTimeoutMs,
+  );
+
+  it(
+    "rejects oversized top-level batches before dispatch",
+    async () => {
+      const base = await startServerAndBase();
+
+      const batchRes = await postJson<{ error?: string }>(`${base}/act`, {
+        kind: "batch",
+        actions: Array.from({ length: 101 }, () => ({ kind: "press", key: "Enter" })),
+      });
+
+      expect(batchRes.error).toContain("batch exceeds maximum of 100 actions");
       expect(pwMocks.batchViaPlaywright).not.toHaveBeenCalled();
     },
     slowTimeoutMs,
