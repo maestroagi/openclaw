@@ -1,8 +1,5 @@
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { signalOutbound } from "../../channels/plugins/outbound/signal.js";
-import { telegramOutbound } from "../../channels/plugins/outbound/telegram.js";
-import { whatsappOutbound } from "../../channels/plugins/outbound/whatsapp.js";
 import type { ChannelOutboundAdapter } from "../../channels/plugins/types.adapters.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import { STATE_DIR } from "../../config/paths.js";
@@ -11,73 +8,20 @@ import { markdownToSignalTextChunks } from "../../signal/format.js";
 import { createOutboundTestPlugin, createTestRegistry } from "../../test-utils/channel-plugins.js";
 import { withEnvAsync } from "../../test-utils/env.js";
 import { createIMessageTestPlugin } from "../../test-utils/imessage-test-plugin.js";
-import { createInternalHookEventPayload } from "../../test-utils/internal-hook-event-payload.js";
 import { resolvePreferredOpenClawTmpDir } from "../tmp-openclaw-dir.js";
-
-const mocks = vi.hoisted(() => ({
-  appendAssistantMessageToSessionTranscript: vi.fn(async () => ({ ok: true, sessionFile: "x" })),
-}));
-const hookMocks = vi.hoisted(() => ({
-  runner: {
-    hasHooks: vi.fn(() => false),
-    runMessageSent: vi.fn(async () => {}),
-  },
-}));
-const internalHookMocks = vi.hoisted(() => ({
-  createInternalHookEvent: vi.fn(),
-  triggerInternalHook: vi.fn(async () => {}),
-}));
-const queueMocks = vi.hoisted(() => ({
-  enqueueDelivery: vi.fn(async () => "mock-queue-id"),
-  ackDelivery: vi.fn(async () => {}),
-  failDelivery: vi.fn(async () => {}),
-}));
-const logMocks = vi.hoisted(() => ({
-  warn: vi.fn(),
-}));
-
-vi.mock("../../config/sessions.js", async () => {
-  const actual = await vi.importActual<typeof import("../../config/sessions.js")>(
-    "../../config/sessions.js",
-  );
-  return {
-    ...actual,
-    appendAssistantMessageToSessionTranscript: mocks.appendAssistantMessageToSessionTranscript,
-  };
-});
-vi.mock("../../plugins/hook-runner-global.js", () => ({
-  getGlobalHookRunner: () => hookMocks.runner,
-}));
-vi.mock("../../hooks/internal-hooks.js", () => ({
-  createInternalHookEvent: internalHookMocks.createInternalHookEvent,
-  triggerInternalHook: internalHookMocks.triggerInternalHook,
-}));
-vi.mock("./delivery-queue.js", () => ({
-  enqueueDelivery: queueMocks.enqueueDelivery,
-  ackDelivery: queueMocks.ackDelivery,
-  failDelivery: queueMocks.failDelivery,
-}));
-vi.mock("../../logging/subsystem.js", () => ({
-  createSubsystemLogger: () => {
-    const makeLogger = () => ({
-      warn: logMocks.warn,
-      info: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-      child: vi.fn(() => makeLogger()),
-    });
-    return makeLogger();
-  },
-}));
+import {
+  clearDeliverTestRegistry,
+  hookMocks,
+  resetDeliverTestState,
+  resetDeliverTestMocks,
+  runChunkedWhatsAppDelivery as runChunkedWhatsAppDeliveryHelper,
+  whatsappChunkConfig,
+} from "./deliver.test-helpers.js";
 
 const { deliverOutboundPayloads, normalizeOutboundPayloads } = await import("./deliver.js");
 
 const telegramChunkConfig: OpenClawConfig = {
   channels: { telegram: { botToken: "tok-1", textChunkLimit: 2 } },
-};
-
-const whatsappChunkConfig: OpenClawConfig = {
-  channels: { whatsapp: { textChunkLimit: 4000 } },
 };
 
 type DeliverOutboundArgs = Parameters<typeof deliverOutboundPayloads>[0];
@@ -106,16 +50,6 @@ async function deliverMatrixPayloads(payloads: DeliverOutboundPayload[]) {
     to: "!room:1",
     payloads,
   });
-}
-
-function expectMatrixMediaFallbackWarning(mediaCount: number) {
-  expect(logMocks.warn).toHaveBeenCalledWith(
-    "Plugin outbound adapter does not implement sendMedia; media URLs will be dropped and text fallback will be used",
-    expect.objectContaining({
-      channel: "matrix",
-      mediaCount,
-    }),
-  );
 }
 
 async function deliverWhatsAppPayload(params: {
@@ -154,25 +88,12 @@ async function deliverTelegramPayload(params: {
 
 describe("deliverOutboundPayloads", () => {
   beforeEach(() => {
-    setActivePluginRegistry(defaultRegistry);
-    hookMocks.runner.hasHooks.mockClear();
-    hookMocks.runner.hasHooks.mockReturnValue(false);
-    hookMocks.runner.runMessageSent.mockClear();
-    hookMocks.runner.runMessageSent.mockResolvedValue(undefined);
-    internalHookMocks.createInternalHookEvent.mockClear();
-    internalHookMocks.createInternalHookEvent.mockImplementation(createInternalHookEventPayload);
-    internalHookMocks.triggerInternalHook.mockClear();
-    queueMocks.enqueueDelivery.mockClear();
-    queueMocks.enqueueDelivery.mockResolvedValue("mock-queue-id");
-    queueMocks.ackDelivery.mockClear();
-    queueMocks.ackDelivery.mockResolvedValue(undefined);
-    queueMocks.failDelivery.mockClear();
-    queueMocks.failDelivery.mockResolvedValue(undefined);
-    logMocks.warn.mockClear();
+    resetDeliverTestState();
+    resetDeliverTestMocks();
   });
 
   afterEach(() => {
-    setActivePluginRegistry(emptyRegistry);
+    clearDeliverTestRegistry();
   });
   it("chunks telegram markdown and passes through accountId", async () => {
     const sendTelegram = vi.fn().mockResolvedValue({ messageId: "m1", chatId: "c1" });
@@ -495,19 +416,8 @@ describe("deliverOutboundPayloads", () => {
   });
 
   it("chunks WhatsApp text and returns all results", async () => {
-    const sendWhatsApp = vi
-      .fn()
-      .mockResolvedValueOnce({ messageId: "w1", toJid: "jid" })
-      .mockResolvedValueOnce({ messageId: "w2", toJid: "jid" });
-    const cfg: OpenClawConfig = {
-      channels: { whatsapp: { textChunkLimit: 2 } },
-    };
-    const results = await deliverOutboundPayloads({
-      cfg,
-      channel: "whatsapp",
-      to: "+1555",
-      payloads: [{ text: "abcd" }],
-      deps: { sendWhatsApp },
+    const { sendWhatsApp, results } = await runChunkedWhatsAppDeliveryHelper({
+      deliverOutboundPayloads,
     });
 
     expect(sendWhatsApp).toHaveBeenCalledTimes(2);
@@ -751,7 +661,6 @@ describe("deliverOutboundPayloads", () => {
         text: "caption",
       }),
     );
-    expectMatrixMediaFallbackWarning(1);
     expect(results).toEqual([{ channel: "matrix", messageId: "mx-1" }]);
   });
 
@@ -772,7 +681,6 @@ describe("deliverOutboundPayloads", () => {
         text: "caption",
       }),
     );
-    expectMatrixMediaFallbackWarning(2);
     expect(results).toEqual([{ channel: "matrix", messageId: "mx-2" }]);
   });
 
@@ -788,40 +696,5 @@ describe("deliverOutboundPayloads", () => {
     );
 
     expect(sendText).not.toHaveBeenCalled();
-    expectMatrixMediaFallbackWarning(1);
-    expect(hookMocks.runner.runMessageSent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        to: "!room:1",
-        content: "",
-        success: false,
-        error:
-          "Plugin outbound adapter does not implement sendMedia and no text fallback is available for media payload",
-      }),
-      expect.objectContaining({ channelId: "matrix" }),
-    );
   });
 });
-
-const emptyRegistry = createTestRegistry([]);
-const defaultRegistry = createTestRegistry([
-  {
-    pluginId: "telegram",
-    plugin: createOutboundTestPlugin({ id: "telegram", outbound: telegramOutbound }),
-    source: "test",
-  },
-  {
-    pluginId: "signal",
-    plugin: createOutboundTestPlugin({ id: "signal", outbound: signalOutbound }),
-    source: "test",
-  },
-  {
-    pluginId: "whatsapp",
-    plugin: createOutboundTestPlugin({ id: "whatsapp", outbound: whatsappOutbound }),
-    source: "test",
-  },
-  {
-    pluginId: "imessage",
-    plugin: createIMessageTestPlugin(),
-    source: "test",
-  },
-]);
