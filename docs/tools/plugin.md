@@ -1373,28 +1373,35 @@ Notes:
 - `meta.preferOver` lists channel ids to skip auto-enable when both are configured.
 - `meta.detailLabel` and `meta.systemImage` let UIs show richer channel labels/icons.
 
-### Channel onboarding hooks
+### Channel setup hooks
 
-Channel plugins can define optional onboarding hooks on `plugin.onboarding`:
+Preferred setup split:
 
-- `configure(ctx)` is the baseline setup flow.
-- `configureInteractive(ctx)` can fully own interactive setup for both configured and unconfigured states.
-- `configureWhenConfigured(ctx)` can override behavior only for already configured channels.
+- `plugin.setup` owns account-id normalization, validation, and config writes.
+- `plugin.setupWizard` lets the host run the common wizard flow while the channel only supplies status, credential, DM allowlist, and channel-access descriptors.
 
-Hook precedence in the wizard:
+Use `plugin.onboarding` only when the host-owned setup wizard cannot express the flow and the
+channel needs to fully own prompting.
 
-1. `configureInteractive` (if present)
-2. `configureWhenConfigured` (only when channel status is already configured)
-3. fallback to `configure`
+Wizard precedence:
 
-Context details:
+1. `plugin.setupWizard` (preferred, host-owned prompts)
+2. `plugin.onboarding.configureInteractive`
+3. `plugin.onboarding.configureWhenConfigured` (already-configured channel only)
+4. `plugin.onboarding.configure`
 
-- `configureInteractive` and `configureWhenConfigured` receive:
-  - `configured` (`true` or `false`)
-  - `label` (user-facing channel name used by prompts)
-  - plus the shared config/runtime/prompter/options fields
-- Returning `"skip"` leaves selection and account tracking unchanged.
-- Returning `{ cfg, accountId? }` applies config updates and records account selection.
+`plugin.setupWizard` is best for channels that fit the shared pattern:
+
+- one account picker driven by `plugin.config.listAccountIds`
+- optional env-shortcut prompt for bundled credential sets (for example paired bot/app tokens)
+- one or more credential prompts, with each step either writing through `plugin.setup.applyAccountConfig` or a channel-owned partial patch
+- optional channel/group access allowlist prompts resolved by the host
+- optional DM allowlist resolution (for example `@username` -> numeric id)
+
+`plugin.onboarding` hooks still return the same values as before:
+
+- `"skip"` leaves selection and account tracking unchanged.
+- `{ cfg, accountId? }` applies config updates and records account selection.
 
 ### Write a new messaging channel (step‑by‑step)
 
@@ -1421,7 +1428,7 @@ Model provider docs live under `/providers/*`.
 
 4. Add optional adapters as needed
 
-- `setup` (wizard), `security` (DM policy), `status` (health/diagnostics)
+- `setup` (validation + config writes), `setupWizard` (host-owned wizard), `security` (DM policy), `status` (health/diagnostics)
 - `gateway` (start/stop/login), `mentions`, `threading`, `streaming`
 - `actions` (message actions), `commands` (native command behavior)
 
