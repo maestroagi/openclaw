@@ -3,6 +3,7 @@ summary: "OpenClaw plugins/extensions: discovery, config, and safety"
 read_when:
   - Adding or modifying plugins/extensions
   - Documenting plugin install or load rules
+  - Working with Codex/Claude-compatible plugin bundles
 title: "Plugins"
 ---
 
@@ -10,8 +11,13 @@ title: "Plugins"
 
 ## Quick start (new to plugins?)
 
-A plugin is just a **small code module** that extends OpenClaw with extra
-features (commands, tools, and Gateway RPC).
+A plugin is either:
+
+- a native **OpenClaw plugin** (`openclaw.plugin.json` + runtime module), or
+- a compatible **bundle** (`.codex-plugin/plugin.json` or `.claude-plugin/plugin.json`)
+
+Both show up under `openclaw plugins`, but only native OpenClaw plugins execute
+runtime code in-process.
 
 Most of the time, you’ll use plugins when you want a feature that’s not built
 into core OpenClaw yet (or you want to keep optional features out of your main
@@ -42,6 +48,14 @@ prerelease tag such as `@beta`/`@rc` or an exact prerelease version.
 
 See [Voice Call](/plugins/voice-call) for a concrete example plugin.
 Looking for third-party listings? See [Community plugins](/plugins/community).
+Need the bundle compatibility details? See [Plugin bundles](/plugins/bundles).
+
+For compatible bundles, install from a local directory or archive:
+
+```bash
+openclaw plugins install ./my-bundle
+openclaw plugins install ./my-bundle.tgz
+```
 
 ## Architecture
 
@@ -49,14 +63,15 @@ OpenClaw's plugin system has four layers:
 
 1. **Manifest + discovery**
    OpenClaw finds candidate plugins from configured paths, workspace roots,
-   global extension roots, and bundled extensions. Discovery reads
-   `openclaw.plugin.json` plus package metadata first.
+   global extension roots, and bundled extensions. Discovery reads native
+   `openclaw.plugin.json` manifests plus supported bundle manifests first.
 2. **Enablement + validation**
    Core decides whether a discovered plugin is enabled, disabled, blocked, or
    selected for an exclusive slot such as memory.
 3. **Runtime loading**
-   Enabled plugins are loaded in-process via jiti and register capabilities into
-   a central registry.
+   Native OpenClaw plugins are loaded in-process via jiti and register
+   capabilities into a central registry. Compatible bundles are normalized into
+   registry records without importing runtime code.
 4. **Surface consumption**
    The rest of OpenClaw reads the registry to expose tools, channels, provider
    setup, hooks, HTTP routes, CLI commands, and services.
@@ -65,22 +80,68 @@ The important design boundary:
 
 - discovery + config validation should work from **manifest/schema metadata**
   without executing plugin code
-- runtime behavior comes from the plugin module's `register(api)` path
+- native runtime behavior comes from the plugin module's `register(api)` path
 
 That split lets OpenClaw validate config, explain missing/disabled plugins, and
 build UI/schema hints before the full runtime is active.
 
+## Compatible bundles
+
+OpenClaw also recognizes two compatible external bundle layouts:
+
+- Codex-style bundles: `.codex-plugin/plugin.json`
+- Claude-style bundles: `.claude-plugin/plugin.json` or the default Claude
+  component layout without a manifest
+- Cursor-style bundles: `.cursor-plugin/plugin.json`
+
+They are shown in the plugin list as `format=bundle`, with a subtype of
+`codex` or `claude` in verbose/info output.
+
+See [Plugin bundles](/plugins/bundles) for the exact detection rules, mapping
+behavior, and current support matrix.
+
+Today, OpenClaw treats these as **capability packs**, not native runtime
+plugins:
+
+- supported now: bundled `skills`
+- supported now: Claude `commands/` markdown roots, mapped into the normal
+  OpenClaw skill loader
+- supported now: Claude bundle `settings.json` defaults for embedded Pi agent
+  settings (with shell override keys sanitized)
+- supported now: Cursor `.cursor/commands/*.md` roots, mapped into the normal
+  OpenClaw skill loader
+- supported now: Codex bundle hook directories that use the OpenClaw hook-pack
+  layout (`HOOK.md` + `handler.ts`/`handler.js`)
+- detected but not wired yet: other declared bundle capabilities such as
+  agents, Claude hook automation, Cursor rules/hooks/MCP metadata, MCP/app/LSP
+  metadata, output styles
+
+That means bundle install/discovery/list/info/enablement all work, and bundle
+skills, Claude command-skills, Claude bundle settings defaults, and compatible
+Codex hook directories load when the bundle is enabled, but bundle runtime code
+is not executed in-process.
+
+Bundle hook support is limited to the normal OpenClaw hook directory format
+(`HOOK.md` plus `handler.ts`/`handler.js` under the declared hook roots).
+Vendor-specific shell/JSON hook runtimes, including Claude `hooks.json`, are
+only detected today and are not executed directly.
+
 ## Execution model
 
-Plugins run **in-process** with the Gateway. They are not sandboxed. A loaded
-plugin has the same process-level trust boundary as core code.
+Native OpenClaw plugins run **in-process** with the Gateway. They are not
+sandboxed. A loaded native plugin has the same process-level trust boundary as
+core code.
 
 Implications:
 
-- a plugin can register tools, network handlers, hooks, and services
-- a plugin bug can crash or destabilize the gateway
-- a malicious plugin is equivalent to arbitrary code execution inside the
-  OpenClaw process
+- a native plugin can register tools, network handlers, hooks, and services
+- a native plugin bug can crash or destabilize the gateway
+- a malicious native plugin is equivalent to arbitrary code execution inside
+  the OpenClaw process
+
+Compatible bundles are safer by default because OpenClaw currently treats them
+as metadata/content packs. In current releases, that mostly means bundled
+skills.
 
 Use allowlists and explicit install/load paths for non-bundled plugins. Treat
 workspace plugins as development-time code, not production defaults.
@@ -103,19 +164,36 @@ Important trust note:
 - [Nostr](/channels/nostr) — `@openclaw/nostr`
 - [Zalo](/channels/zalo) — `@openclaw/zalo`
 - [Microsoft Teams](/channels/msteams) — `@openclaw/msteams`
+- BytePlus provider catalog — bundled as `byteplus` (enabled by default)
+- Cloudflare AI Gateway provider catalog — bundled as `cloudflare-ai-gateway` (enabled by default)
 - Google Antigravity OAuth (provider auth) — bundled as `google-antigravity-auth` (disabled by default)
 - Gemini CLI OAuth (provider auth) — bundled as `google-gemini-cli-auth` (disabled by default)
 - GitHub Copilot provider runtime — bundled as `github-copilot` (enabled by default)
+- Hugging Face provider catalog — bundled as `huggingface` (enabled by default)
+- Kilo Gateway provider runtime — bundled as `kilocode` (enabled by default)
+- Kimi Coding provider catalog — bundled as `kimi-coding` (enabled by default)
+- MiniMax provider catalog — bundled as `minimax` (enabled by default)
+- MiniMax OAuth (provider auth + catalog) — bundled as `minimax-portal-auth` (enabled by default)
+- Model Studio provider catalog — bundled as `modelstudio` (enabled by default)
+- Moonshot provider runtime — bundled as `moonshot` (enabled by default)
+- NVIDIA provider catalog — bundled as `nvidia` (enabled by default)
 - OpenAI Codex provider runtime — bundled as `openai-codex` (enabled by default)
 - OpenRouter provider runtime — bundled as `openrouter` (enabled by default)
-- Qwen OAuth (provider auth) — bundled as `qwen-portal-auth` (disabled by default)
+- Qianfan provider catalog — bundled as `qianfan` (enabled by default)
+- Qwen OAuth (provider auth + catalog) — bundled as `qwen-portal-auth` (enabled by default)
+- Synthetic provider catalog — bundled as `synthetic` (enabled by default)
+- Together provider catalog — bundled as `together` (enabled by default)
+- Venice provider catalog — bundled as `venice` (enabled by default)
+- Vercel AI Gateway provider catalog — bundled as `vercel-ai-gateway` (enabled by default)
+- Volcengine provider catalog — bundled as `volcengine` (enabled by default)
+- Xiaomi provider catalog — bundled as `xiaomi` (enabled by default)
 - Copilot Proxy (provider auth) — local VS Code Copilot Proxy bridge; distinct from built-in `github-copilot` device login (bundled, disabled by default)
 
-OpenClaw plugins are **TypeScript modules** loaded at runtime via jiti. **Config
-validation does not execute plugin code**; it uses the plugin manifest and JSON
-Schema instead. See [Plugin manifest](/plugins/manifest).
+Native OpenClaw plugins are **TypeScript modules** loaded at runtime via jiti.
+**Config validation does not execute plugin code**; it uses the plugin manifest
+and JSON Schema instead. See [Plugin manifest](/plugins/manifest).
 
-Plugins can register:
+Native OpenClaw plugins can register:
 
 - Gateway RPC methods
 - Gateway HTTP routes
@@ -129,7 +207,7 @@ Plugins can register:
 - **Skills** (by listing `skills` directories in the plugin manifest)
 - **Auto-reply commands** (execute without invoking the AI agent)
 
-Plugins run **in‑process** with the Gateway, so treat them as trusted code.
+Native OpenClaw plugins run **in‑process** with the Gateway, so treat them as trusted code.
 Tool authoring guide: [Plugin agent tools](/plugins/agent-tools).
 
 ## Provider runtime hooks
@@ -262,19 +340,29 @@ api.registerProvider({
 - OpenRouter uses `capabilities`, `wrapStreamFn`, and `isCacheTtlEligible`
   to keep provider-specific request headers, routing metadata, reasoning
   patches, and prompt-cache policy out of core.
+- Moonshot uses `catalog` plus `wrapStreamFn` because it still uses the shared
+  OpenAI transport but needs provider-owned thinking payload normalization.
+- Kilocode uses `catalog`, `capabilities`, `wrapStreamFn`, and
+  `isCacheTtlEligible` because it needs provider-owned request headers,
+  reasoning payload normalization, Gemini transcript hints, and Anthropic
+  cache-TTL gating.
+- Catalog-only bundled providers such as `byteplus`, `cloudflare-ai-gateway`,
+  `huggingface`, `kimi-coding`, `minimax`, `minimax-portal`, `modelstudio`,
+  `nvidia`, `qianfan`, `qwen-portal`, `synthetic`, `together`, `venice`,
+  `vercel-ai-gateway`, `volcengine`, and `xiaomi` use `catalog` only.
 
 ## Load pipeline
 
 At startup, OpenClaw does roughly this:
 
 1. discover candidate plugin roots
-2. read `openclaw.plugin.json` and package metadata
+2. read native or compatible bundle manifests and package metadata
 3. reject unsafe candidates
 4. normalize plugin config (`plugins.enabled`, `allow`, `deny`, `entries`,
    `slots`, `load.paths`)
 5. decide enablement for each candidate
-6. load enabled modules via jiti
-7. call `register(api)` and collect registrations into the plugin registry
+6. load enabled native modules via jiti
+7. call native `register(api)` hooks and collect registrations into the plugin registry
 8. expose the registry to commands/runtime surfaces
 
 The safety gates happen **before** runtime execution. Candidates are blocked
@@ -286,13 +374,13 @@ ownership looks suspicious for non-bundled plugins.
 The manifest is the control-plane source of truth. OpenClaw uses it to:
 
 - identify the plugin
-- discover declared channels/skills/config schema
+- discover declared channels/skills/config schema or bundle capabilities
 - validate `plugins.entries.<id>.config`
 - augment Control UI labels/placeholders
 - show install/catalog metadata
 
-The runtime module is the data-plane part. It registers actual behavior such as
-hooks, tools, commands, or provider flows.
+For native plugins, the runtime module is the data-plane part. It registers
+actual behavior such as hooks, tools, commands, or provider flows.
 
 ### What the loader caches
 
@@ -500,18 +588,44 @@ OpenClaw scans, in order:
 - `~/.openclaw/extensions/*.ts`
 - `~/.openclaw/extensions/*/index.ts`
 
-4. Bundled extensions (shipped with OpenClaw, mostly disabled by default)
+4. Bundled extensions (shipped with OpenClaw; mixed default-on/default-off)
 
 - `<openclaw>/extensions/*`
 
-Most bundled plugins must be enabled explicitly via
-`plugins.entries.<id>.enabled` or `openclaw plugins enable <id>`.
+Many bundled provider plugins are enabled by default so model catalogs/runtime
+hooks stay available without extra setup. Others still require explicit
+enablement via `plugins.entries.<id>.enabled` or
+`openclaw plugins enable <id>`.
 
-Default-on bundled plugin exceptions:
+Default-on bundled plugin examples:
 
+- `byteplus`
+- `cloudflare-ai-gateway`
 - `device-pair`
+- `github-copilot`
+- `huggingface`
+- `kilocode`
+- `kimi-coding`
+- `minimax`
+- `minimax-portal-auth`
+- `modelstudio`
+- `moonshot`
+- `nvidia`
+- `ollama`
+- `openai-codex`
+- `openrouter`
 - `phone-control`
+- `qianfan`
+- `qwen-portal-auth`
+- `sglang`
+- `synthetic`
 - `talk-voice`
+- `together`
+- `venice`
+- `vercel-ai-gateway`
+- `vllm`
+- `volcengine`
+- `xiaomi`
 - active memory slot plugin (default slot: `memory-core`)
 
 Installed plugins are enabled by default, but can be disabled the same way.
@@ -529,9 +643,16 @@ Hardening notes:
   - path ownership is suspicious for non-bundled plugins (POSIX owner is neither current uid nor root).
 - Loaded non-bundled plugins without install/load-path provenance emit a warning so you can pin trust (`plugins.allow`) or install tracking (`plugins.installs`).
 
-Each plugin must include a `openclaw.plugin.json` file in its root. If a path
-points at a file, the plugin root is the file's directory and must contain the
-manifest.
+Each native OpenClaw plugin must include a `openclaw.plugin.json` file in its
+root. If a path points at a file, the plugin root is the file's directory and
+must contain the manifest.
+
+Compatible bundles may instead provide one of:
+
+- `.codex-plugin/plugin.json`
+- `.claude-plugin/plugin.json`
+
+Bundle directories are discovered from the same roots as native plugins.
 
 If multiple plugins resolve to the same id, the first match in the order above
 wins and lower-precedence copies are ignored.
@@ -560,9 +681,8 @@ Enablement is resolved after discovery:
   - channel config implicitly enables the bundled channel plugin
 - exclusive slots can force-enable the selected plugin for that slot
 
-In current core, bundled default-on ids include local/provider helpers such as
-`ollama`, `sglang`, `vllm`, plus `device-pair`, `phone-control`, and
-`talk-voice`.
+In current core, bundled default-on ids include the local/provider helpers
+above plus the active memory slot plugin.
 
 ### Package packs
 
@@ -703,8 +823,9 @@ Validation rules (strict):
 - Unknown plugin ids in `entries`, `allow`, `deny`, or `slots` are **errors**.
 - Unknown `channels.<id>` keys are **errors** unless a plugin manifest declares
   the channel id.
-- Plugin config is validated using the JSON Schema embedded in
+- Native plugin config is validated using the JSON Schema embedded in
   `openclaw.plugin.json` (`configSchema`).
+- Compatible bundles currently do not expose native OpenClaw config schemas.
 - If a plugin is disabled, its config is preserved and a **warning** is emitted.
 
 ### Disabled vs missing vs invalid
@@ -803,6 +924,10 @@ openclaw plugins enable <id>
 openclaw plugins disable <id>
 openclaw plugins doctor
 ```
+
+`openclaw plugins list` shows the top-level format as `openclaw` or `bundle`.
+Verbose list/info output also shows bundle subtype (`codex` or `claude`) plus
+detected bundle capabilities.
 
 `plugins update` only works for npm installs tracked under `plugins.installs`.
 If stored integrity metadata changes between updates, OpenClaw warns and asks for confirmation (use global `--yes` to bypass prompts).
