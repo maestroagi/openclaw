@@ -1,5 +1,5 @@
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
-import type { ChannelMessageActionContext } from "openclaw/plugin-sdk";
+import type { ChannelMessageActionContext } from "openclaw/plugin-sdk/core";
 import { parseSlackBlocksInput } from "./blocks-input.js";
 import { buildSlackInteractiveBlocks } from "./blocks-render.js";
 
@@ -187,6 +187,9 @@ export async function handleSlackMessageAction(params: {
     const channelId =
       readStringParam(actionParams, "channelId") ??
       readStringParam(actionParams, "to", { required: true });
+    if (!channelId) {
+      throw new Error("channelId required");
+    }
     return normalizeChannelId ? normalizeChannelId(channelId) : channelId;
   };
 
