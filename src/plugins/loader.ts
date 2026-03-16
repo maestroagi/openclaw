@@ -2,6 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createJiti } from "jiti";
+import type { ChannelDock } from "../channels/dock.js";
+import type { ChannelPlugin } from "../channels/plugins/types.js";
 import type { OpenClawConfig } from "../config/config.js";
 import type { PluginInstallRecord } from "../config/types.plugins.js";
 import type { GatewayRequestHandler } from "../gateway/server-methods/types.js";
@@ -50,9 +52,12 @@ export type PluginLoadOptions = {
   runtimeOptions?: CreatePluginRuntimeOptions;
   cache?: boolean;
   mode?: "full" | "validate";
+  onlyPluginIds?: string[];
+  includeSetupOnlyChannelPlugins?: boolean;
+  activate?: boolean;
 };
 
-const MAX_PLUGIN_REGISTRY_CACHE_ENTRIES = 32;
+const MAX_PLUGIN_REGISTRY_CACHE_ENTRIES = 128;
 const registryCache = new Map<string, PluginRegistry>();
 const openAllowlistWarningCache = new Set<string>();
 
@@ -241,6 +246,8 @@ function buildCacheKey(params: {
   plugins: NormalizedPluginsConfig;
   installs?: Record<string, PluginInstallRecord>;
   env: NodeJS.ProcessEnv;
+  onlyPluginIds?: string[];
+  includeSetupOnlyChannelPlugins?: boolean;
 }): string {
   const { roots, loadPaths } = resolvePluginCacheInputs({
     workspaceDir: params.workspaceDir,
@@ -263,11 +270,21 @@ function buildCacheKey(params: {
       },
     ]),
   );
+  const scopeKey = JSON.stringify(params.onlyPluginIds ?? []);
+  const setupOnlyKey = params.includeSetupOnlyChannelPlugins === true ? "setup-only" : "runtime";
   return `${roots.workspace ?? ""}::${roots.global ?? ""}::${roots.stock ?? ""}::${JSON.stringify({
     ...params.plugins,
     installs,
     loadPaths,
-  })}`;
+  })}::${scopeKey}::${setupOnlyKey}`;
+}
+
+function normalizeScopedPluginIds(ids?: string[]): string[] | undefined {
+  if (!ids) {
+    return undefined;
+  }
+  const normalized = Array.from(new Set(ids.map((id) => id.trim()).filter(Boolean))).toSorted();
+  return normalized.length > 0 ? normalized : undefined;
 }
 
 function validatePluginConfig(params: {
@@ -314,6 +331,32 @@ function resolvePluginModuleExport(moduleExport: unknown): {
   return {};
 }
 
+function resolveSetupChannelRegistration(moduleExport: unknown): {
+  plugin?: ChannelPlugin;
+  dock?: ChannelDock;
+} {
+  const resolved =
+    moduleExport &&
+    typeof moduleExport === "object" &&
+    "default" in (moduleExport as Record<string, unknown>)
+      ? (moduleExport as { default: unknown }).default
+      : moduleExport;
+  if (!resolved || typeof resolved !== "object") {
+    return {};
+  }
+  const setup = resolved as {
+    plugin?: unknown;
+    dock?: unknown;
+  };
+  if (!setup.plugin || typeof setup.plugin !== "object") {
+    return {};
+  }
+  return {
+    plugin: setup.plugin as ChannelPlugin,
+    ...(setup.dock && typeof setup.dock === "object" ? { dock: setup.dock as ChannelDock } : {}),
+  };
+}
+
 function createPluginRecord(params: {
   id: string;
   name?: string;
@@ -347,6 +390,7 @@ function createPluginRecord(params: {
     hookNames: [],
     channelIds: [],
     providerIds: [],
+    webSearchProviderIds: [],
     gatewayMethods: [],
     cliCommands: [],
     services: [],
@@ -640,6 +684,13 @@ function activatePluginRegistry(registry: PluginRegistry, cacheKey: string): voi
 }
 
 export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegistry {
+  // Snapshot (non-activating) loads must disable the cache to avoid storing a registry
+  // whose commands were never globally registered.
+  if (options.activate === false && options.cache !== false) {
+    throw new Error(
+      "loadOpenClawPlugins: activate:false requires cache:false to prevent command registry divergence",
+    );
+  }
   const env = options.env ?? process.env;
   // Test env: default-disable plugins unless explicitly configured.
   // This keeps unit/gateway suites fast and avoids loading heavyweight plugin deps by accident.
@@ -647,24 +698,39 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
   const logger = options.logger ?? defaultLogger();
   const validateOnly = options.mode === "validate";
   const normalized = normalizePluginsConfig(cfg.plugins);
+  const onlyPluginIds = normalizeScopedPluginIds(options.onlyPluginIds);
+  const onlyPluginIdSet = onlyPluginIds ? new Set(onlyPluginIds) : null;
+  const includeSetupOnlyChannelPlugins = options.includeSetupOnlyChannelPlugins === true;
+  const shouldActivate = options.activate !== false;
+  // NOTE: `activate` is intentionally excluded from the cache key. All non-activating
+  // (snapshot) callers pass `cache: false` via loadOnboardingPluginRegistry(), so they
+  // never read from or write to the cache. Including `activate` here would be misleading
+  // — it would imply mixed-activate caching is supported, when in practice it is not.
   const cacheKey = buildCacheKey({
     workspaceDir: options.workspaceDir,
     plugins: normalized,
     installs: cfg.plugins?.installs,
     env,
+    onlyPluginIds,
+    includeSetupOnlyChannelPlugins,
   });
   const cacheEnabled = options.cache !== false;
   if (cacheEnabled) {
     const cached = getCachedPluginRegistry(cacheKey);
     if (cached) {
-      activatePluginRegistry(cached, cacheKey);
+      if (shouldActivate) {
+        activatePluginRegistry(cached, cacheKey);
+      }
       return cached;
     }
   }
 
-  // Clear previously registered plugin commands before reloading
-  clearPluginCommands();
-  clearPluginInteractiveHandlers();
+  // Clear previously registered plugin commands before reloading.
+  // Skip for non-activating (snapshot) loads to avoid wiping commands from other plugins.
+  if (shouldActivate) {
+    clearPluginCommands();
+    clearPluginInteractiveHandlers();
+  }
 
   // Lazily initialize the runtime so startup paths that discover/skip plugins do
   // not eagerly load every channel runtime dependency.
@@ -703,6 +769,7 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
     logger,
     runtime,
     coreGatewayHandlers: options.coreGatewayHandlers as Record<string, GatewayRequestHandler>,
+    suppressGlobalCommands: !shouldActivate,
   });
 
   const discovery = discoverOpenClawPlugins({
@@ -725,11 +792,15 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
     pluginsEnabled: normalized.enabled,
     allow: normalized.allow,
     warningCacheKey: cacheKey,
-    discoverablePlugins: manifestRegistry.plugins.map((plugin) => ({
-      id: plugin.id,
-      source: plugin.source,
-      origin: plugin.origin,
-    })),
+    // Keep warning input scoped as well so partial snapshot loads only mention the
+    // plugins that were intentionally requested for this registry.
+    discoverablePlugins: manifestRegistry.plugins
+      .filter((plugin) => !onlyPluginIdSet || onlyPluginIdSet.has(plugin.id))
+      .map((plugin) => ({
+        id: plugin.id,
+        source: plugin.source,
+        origin: plugin.origin,
+      })),
   });
   const provenance = buildProvenanceIndex({
     config: cfg,
@@ -786,6 +857,11 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
       continue;
     }
     const pluginId = manifestRecord.id;
+    // Filter again at import time as a final guard. The earlier manifest filter keeps
+    // warnings scoped; this one prevents loading/registering anything outside the scope.
+    if (onlyPluginIdSet && !onlyPluginIdSet.has(pluginId)) {
+      continue;
+    }
     const existingOrigin = seenIds.get(pluginId);
     if (existingOrigin) {
       const record = createPluginRecord({
@@ -849,7 +925,7 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
 
     const registrationMode = enableState.enabled
       ? "full"
-      : !validateOnly && manifestRecord.channels.length > 0
+      : includeSetupOnlyChannelPlugins && !validateOnly && manifestRecord.channels.length > 0
         ? "setup-only"
         : null;
 
@@ -917,8 +993,12 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
     }
 
     const pluginRoot = safeRealpathOrResolve(candidate.rootDir);
+    const loadSource =
+      registrationMode === "setup-only" && manifestRecord.setupSource
+        ? manifestRecord.setupSource
+        : candidate.source;
     const opened = openBoundaryFileSync({
-      absolutePath: candidate.source,
+      absolutePath: loadSource,
       rootPath: pluginRoot,
       boundaryLabel: "plugin root",
       rejectHardlinks: candidate.origin !== "bundled",
@@ -947,6 +1027,31 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
         diagnosticMessagePrefix: "failed to load plugin: ",
       });
       continue;
+    }
+
+    if (registrationMode === "setup-only" && manifestRecord.setupSource) {
+      const setupRegistration = resolveSetupChannelRegistration(mod);
+      if (setupRegistration.plugin) {
+        if (setupRegistration.plugin.id && setupRegistration.plugin.id !== record.id) {
+          pushPluginLoadError(
+            `plugin id mismatch (config uses "${record.id}", setup export uses "${setupRegistration.plugin.id}")`,
+          );
+          continue;
+        }
+        const api = createApi(record, {
+          config: cfg,
+          pluginConfig: {},
+          hookPolicy: entry?.hooks,
+          registrationMode,
+        });
+        api.registerChannel({
+          plugin: setupRegistration.plugin,
+          ...(setupRegistration.dock ? { dock: setupRegistration.dock } : {}),
+        });
+        registry.plugins.push(record);
+        seenIds.set(pluginId, candidate.origin);
+        continue;
+      }
     }
 
     const resolved = resolvePluginModuleExport(mod);
@@ -1059,7 +1164,9 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
     }
   }
 
-  if (typeof memorySlot === "string" && !memorySlotMatched) {
+  // Scoped snapshot loads may intentionally omit the configured memory plugin, so only
+  // emit the missing-memory diagnostic for full registry loads.
+  if (!onlyPluginIdSet && typeof memorySlot === "string" && !memorySlotMatched) {
     registry.diagnostics.push({
       level: "warn",
       message: `memory slot plugin not found or not marked as memory: ${memorySlot}`,
@@ -1076,7 +1183,9 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
   if (cacheEnabled) {
     setCachedPluginRegistry(cacheKey, registry);
   }
-  activatePluginRegistry(registry, cacheKey);
+  if (shouldActivate) {
+    activatePluginRegistry(registry, cacheKey);
+  }
   return registry;
 }
 

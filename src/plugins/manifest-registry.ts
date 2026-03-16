@@ -48,6 +48,7 @@ export type PluginManifestRecord = {
   workspaceDir?: string;
   rootDir: string;
   source: string;
+  setupSource?: string;
   manifestPath: string;
   schemaCacheKey?: string;
   configSchema?: Record<string, unknown>;
@@ -122,6 +123,17 @@ function normalizeManifestLabel(raw: string | undefined): string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
+function isCompatiblePluginIdHint(idHint: string | undefined, manifestId: string): boolean {
+  const normalizedHint = idHint?.trim();
+  if (!normalizedHint) {
+    return true;
+  }
+  if (normalizedHint === manifestId) {
+    return true;
+  }
+  return normalizedHint === `${manifestId}-provider`;
+}
+
 function buildRecord(params: {
   manifest: PluginManifest;
   candidate: PluginCandidate;
@@ -147,6 +159,7 @@ function buildRecord(params: {
     workspaceDir: params.candidate.workspaceDir,
     rootDir: params.candidate.rootDir,
     source: params.candidate.source,
+    setupSource: params.candidate.setupSource,
     manifestPath: params.manifestPath,
     schemaCacheKey: params.schemaCacheKey,
     configSchema: params.configSchema,
@@ -304,7 +317,7 @@ export function loadPluginManifestRegistry(params: {
     }
     const manifest = manifestRes.manifest;
 
-    if (candidate.idHint && candidate.idHint !== manifest.id) {
+    if (!isCompatiblePluginIdHint(candidate.idHint, manifest.id)) {
       diagnostics.push({
         level: "warn",
         pluginId: manifest.id,

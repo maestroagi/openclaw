@@ -2,10 +2,15 @@ import { normalizeProviderId } from "../agents/model-selection.js";
 import type { OpenClawConfig } from "../config/config.js";
 import { resolvePluginProviders } from "./providers.js";
 import type {
+  ProviderAugmentModelCatalogContext,
+  ProviderBuildMissingAuthMessageContext,
+  ProviderBuiltInModelSuppressionContext,
   ProviderCacheTtlEligibilityContext,
+  ProviderFetchUsageSnapshotContext,
   ProviderPrepareExtraParamsContext,
   ProviderPrepareDynamicModelContext,
   ProviderPrepareRuntimeAuthContext,
+  ProviderResolveUsageAuthContext,
   ProviderPlugin,
   ProviderResolveDynamicModelContext,
   ProviderRuntimeModel,
@@ -23,16 +28,41 @@ function matchesProviderId(provider: ProviderPlugin, providerId: string): boolea
   return (provider.aliases ?? []).some((alias) => normalizeProviderId(alias) === normalized);
 }
 
+function resolveProviderPluginsForHooks(params: {
+  config?: OpenClawConfig;
+  workspaceDir?: string;
+  env?: NodeJS.ProcessEnv;
+  onlyPluginIds?: string[];
+}): ProviderPlugin[] {
+  return resolvePluginProviders({
+    ...params,
+    bundledProviderAllowlistCompat: true,
+    bundledProviderVitestCompat: true,
+  });
+}
+
+const GLOBAL_PROVIDER_HOOK_PLUGIN_IDS = ["openai"] as const;
+
+function resolveGlobalProviderHookPlugins(params: {
+  config?: OpenClawConfig;
+  workspaceDir?: string;
+  env?: NodeJS.ProcessEnv;
+}): ProviderPlugin[] {
+  return resolveProviderPluginsForHooks({
+    ...params,
+    onlyPluginIds: [...GLOBAL_PROVIDER_HOOK_PLUGIN_IDS],
+  });
+}
+
 export function resolveProviderRuntimePlugin(params: {
   provider: string;
   config?: OpenClawConfig;
   workspaceDir?: string;
   env?: NodeJS.ProcessEnv;
 }): ProviderPlugin | undefined {
-  return resolvePluginProviders({
-    ...params,
-    bundledProviderAllowlistCompat: true,
-  }).find((plugin) => matchesProviderId(plugin, params.provider));
+  return resolveProviderPluginsForHooks(params).find((plugin) =>
+    matchesProviderId(plugin, params.provider),
+  );
 }
 
 export function runProviderDynamicModel(params: {
@@ -113,6 +143,26 @@ export async function prepareProviderRuntimeAuth(params: {
   return await resolveProviderRuntimePlugin(params)?.prepareRuntimeAuth?.(params.context);
 }
 
+export async function resolveProviderUsageAuthWithPlugin(params: {
+  provider: string;
+  config?: OpenClawConfig;
+  workspaceDir?: string;
+  env?: NodeJS.ProcessEnv;
+  context: ProviderResolveUsageAuthContext;
+}) {
+  return await resolveProviderRuntimePlugin(params)?.resolveUsageAuth?.(params.context);
+}
+
+export async function resolveProviderUsageSnapshotWithPlugin(params: {
+  provider: string;
+  config?: OpenClawConfig;
+  workspaceDir?: string;
+  env?: NodeJS.ProcessEnv;
+  context: ProviderFetchUsageSnapshotContext;
+}) {
+  return await resolveProviderRuntimePlugin(params)?.fetchUsageSnapshot?.(params.context);
+}
+
 export function resolveProviderCacheTtlEligibility(params: {
   provider: string;
   config?: OpenClawConfig;
@@ -121,4 +171,49 @@ export function resolveProviderCacheTtlEligibility(params: {
   context: ProviderCacheTtlEligibilityContext;
 }) {
   return resolveProviderRuntimePlugin(params)?.isCacheTtlEligible?.(params.context);
+}
+
+export function buildProviderMissingAuthMessageWithPlugin(params: {
+  provider: string;
+  config?: OpenClawConfig;
+  workspaceDir?: string;
+  env?: NodeJS.ProcessEnv;
+  context: ProviderBuildMissingAuthMessageContext;
+}) {
+  const plugin = resolveGlobalProviderHookPlugins(params).find((providerPlugin) =>
+    matchesProviderId(providerPlugin, params.provider),
+  );
+  return plugin?.buildMissingAuthMessage?.(params.context) ?? undefined;
+}
+
+export function resolveProviderBuiltInModelSuppression(params: {
+  config?: OpenClawConfig;
+  workspaceDir?: string;
+  env?: NodeJS.ProcessEnv;
+  context: ProviderBuiltInModelSuppressionContext;
+}) {
+  for (const plugin of resolveGlobalProviderHookPlugins(params)) {
+    const result = plugin.suppressBuiltInModel?.(params.context);
+    if (result?.suppress) {
+      return result;
+    }
+  }
+  return undefined;
+}
+
+export async function augmentModelCatalogWithProviderPlugins(params: {
+  config?: OpenClawConfig;
+  workspaceDir?: string;
+  env?: NodeJS.ProcessEnv;
+  context: ProviderAugmentModelCatalogContext;
+}) {
+  const supplemental = [] as ProviderAugmentModelCatalogContext["entries"];
+  for (const plugin of resolveGlobalProviderHookPlugins(params)) {
+    const next = await plugin.augmentModelCatalog?.(params.context);
+    if (!next || next.length === 0) {
+      continue;
+    }
+    supplemental.push(...next);
+  }
+  return supplemental;
 }
