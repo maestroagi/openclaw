@@ -26,6 +26,7 @@ Docs: https://docs.openclaw.ai
 - Sandbox/SSH: add a core SSH sandbox backend with secret-backed key, certificate, and known_hosts inputs, move shared remote exec/filesystem tooling into core, and keep OpenShell focused on sandbox lifecycle plus optional `mirror` mode.
 - Feishu/cards: add structured interactive approval and quick-action launcher cards, preserve callback user and conversation context through routing, and keep legacy card-action fallback behavior so common actions can run without typing raw commands. (#47873)
 - Feishu/ACP: add current-conversation ACP and subagent session binding for supported DMs and topic conversations, including completion delivery back to the originating Feishu conversation. (#46819)
+- Plugins/marketplaces: add Claude marketplace registry resolution, `plugin@marketplace` installs, marketplace listing, and update support, plus Docker E2E coverage for local and official marketplace flows. Thanks @vincentkoc.
 
 ### Breaking
 
@@ -92,6 +93,7 @@ Docs: https://docs.openclaw.ai
 - Plugins/context engines: enforce owner-aware context-engine registration on both loader and public SDK paths so plugins cannot spoof privileged ownership, claim the core `legacy` engine id, or overwrite an existing engine id through direct SDK imports. (#47595) Thanks @vincentkoc.
 - Windows/gateway status: accept `schtasks` `Last Result` output as an alias for `Last Run Result`, so running scheduled-task installs no longer show `Runtime: unknown`. (#47844) Thanks @MoerAI.
 - Control UI/session routing: preserve established external delivery routes when webchat views or sends in externally originated sessions, so subagent completions still return to the original channel instead of the dashboard. (#47797) Thanks @brokemac79.
+- Google auth/Node 25: patch `gaxios` to use native fetch without injecting `globalThis.window`, while translating proxy and mTLS transport settings so Google Vertex and Google Chat auth keep working on Node 25. (#47914) Thanks @pdd-cli.
 
 ## 2026.3.13
 
