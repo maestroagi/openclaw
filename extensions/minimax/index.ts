@@ -8,17 +8,15 @@ import {
 } from "openclaw/plugin-sdk/minimax-portal-auth";
 import { ensureAuthProfileStore, listProfilesForProvider } from "../../src/agents/auth-profiles.js";
 import { MINIMAX_OAUTH_MARKER } from "../../src/agents/model-auth-markers.js";
-import {
-  buildMinimaxPortalProvider,
-  buildMinimaxProvider,
-} from "../../src/agents/models-config.providers.static.js";
-import {
-  applyMinimaxApiConfig,
-  applyMinimaxApiConfigCn,
-} from "../../src/commands/onboard-auth.config-minimax.js";
 import { fetchMinimaxUsage } from "../../src/infra/provider-usage.fetch.js";
+import {
+  minimaxPortalProvider,
+  minimaxProvider,
+} from "../../src/media-understanding/providers/minimax/index.js";
 import { createProviderApiKeyAuthMethod } from "../../src/plugins/provider-api-key-auth.js";
 import { loginMiniMaxPortalOAuth, type MiniMaxRegion } from "./oauth.js";
+import { applyMinimaxApiConfig, applyMinimaxApiConfigCn } from "./onboard.js";
+import { buildMinimaxPortalProvider, buildMinimaxProvider } from "./provider-catalog.js";
 
 const API_PROVIDER_ID = "minimax";
 const PORTAL_PROVIDER_ID = "minimax-portal";
@@ -276,6 +274,8 @@ const minimaxPlugin = {
       ],
       isModernModelRef: ({ modelId }) => isModernMiniMaxModel(modelId),
     });
+    api.registerMediaUnderstandingProvider(minimaxProvider);
+    api.registerMediaUnderstandingProvider(minimaxPortalProvider);
   },
 };
 
