@@ -25,9 +25,14 @@ export { createPluginRuntimeStore } from "./runtime-store.js";
 export { KeyedAsyncQueue } from "./keyed-async-queue.js";
 
 export {
+  createHybridChannelConfigAdapter,
+  createHybridChannelConfigBase,
   createScopedAccountConfigAccessors,
+  createScopedChannelConfigAdapter,
   createScopedChannelConfigBase,
   createScopedDmSecurityResolver,
+  createTopLevelChannelConfigAdapter,
+  createTopLevelChannelConfigBase,
   mapAllowFromEntries,
 } from "./channel-config-helpers.js";
 export { formatAllowFromLowercase, formatNormalizedAllowFromEntries } from "./allow-from.js";
@@ -40,5 +45,5 @@ export { mapAllowlistResolutionInputs } from "./allowlist-resolution.js";
 export {
   resolveBlueBubblesGroupRequireMention,
   resolveBlueBubblesGroupToolPolicy,
-} from "../channels/plugins/group-mentions.js";
+} from "../../extensions/bluebubbles/src/group-policy.js";
 export { collectBlueBubblesStatusIssues } from "../channels/plugins/status-issues/bluebubbles.js";
