@@ -77,12 +77,8 @@ function formatDiscordIntents(intents?: {
 }
 
 const discordMessageActions: ChannelMessageActionAdapter = {
-  listActions: (ctx) =>
-    getDiscordRuntime().channel.discord.messageActions?.listActions?.(ctx) ?? [],
-  getCapabilities: (ctx) =>
-    getDiscordRuntime().channel.discord.messageActions?.getCapabilities?.(ctx) ?? [],
-  getToolSchema: (ctx) =>
-    getDiscordRuntime().channel.discord.messageActions?.getToolSchema?.(ctx) ?? null,
+  describeMessageTool: (ctx) =>
+    getDiscordRuntime().channel.discord.messageActions?.describeMessageTool?.(ctx) ?? null,
   extractToolSend: (ctx) =>
     getDiscordRuntime().channel.discord.messageActions?.extractToolSend?.(ctx) ?? null,
   handleAction: async (ctx) => {
@@ -364,6 +360,7 @@ export const discordPlugin: ChannelPlugin<ResolvedDiscordAccount> = {
   },
   messaging: {
     normalizeTarget: normalizeDiscordMessagingTarget,
+    resolveSessionTarget: ({ id }) => normalizeDiscordMessagingTarget(`channel:${id}`),
     parseExplicitTarget: ({ raw }) => parseDiscordExplicitTarget(raw),
     inferTargetChatType: ({ to }) => parseDiscordExplicitTarget(to)?.chatType,
     buildCrossContextComponents: buildDiscordCrossContextComponents,
