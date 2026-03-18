@@ -2,12 +2,12 @@ import { mapAllowFromEntries } from "openclaw/plugin-sdk/channel-config-helpers"
 import {
   applyDirectoryQueryAndLimit,
   collectNormalizedDirectoryIds,
+  inspectReadOnlyChannelAccount,
   listDirectoryGroupEntriesFromMapKeys,
   toDirectoryEntries,
   type DirectoryConfigParams,
 } from "openclaw/plugin-sdk/directory-runtime";
-import { inspectReadOnlyChannelAccount } from "../../../src/channels/read-only-account-inspect.js";
-import type { InspectedTelegramAccount } from "../../../src/channels/read-only-account-inspect.telegram.runtime.js";
+import type { InspectedTelegramAccount } from "../api.js";
 
 export async function listTelegramDirectoryPeersFromConfig(params: DirectoryConfigParams) {
   const account = (await inspectReadOnlyChannelAccount({

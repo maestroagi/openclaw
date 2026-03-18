@@ -1,11 +1,11 @@
 import {
   applyDirectoryQueryAndLimit,
   collectNormalizedDirectoryIds,
+  inspectReadOnlyChannelAccount,
   toDirectoryEntries,
   type DirectoryConfigParams,
 } from "openclaw/plugin-sdk/directory-runtime";
-import type { InspectedDiscordAccount } from "../../../src/channels/read-only-account-inspect.discord.runtime.js";
-import { inspectReadOnlyChannelAccount } from "../../../src/channels/read-only-account-inspect.js";
+import type { InspectedDiscordAccount } from "../api.js";
 
 export async function listDiscordDirectoryPeersFromConfig(params: DirectoryConfigParams) {
   const account = (await inspectReadOnlyChannelAccount({
