@@ -23,7 +23,8 @@ Docs: https://docs.openclaw.ai
 - Feishu/cards: add structured interactive approval and quick-action launcher cards, preserve callback user and conversation context through routing, and keep legacy card-action fallback behavior so common actions can run without typing raw commands. (#47873) Thanks @Takhoffman.
 - Feishu/streaming: add `onReasoningStream` and `onReasoningEnd` support to streaming cards, so `/reasoning stream` renders thinking tokens as markdown blockquotes in the same card — matching the Telegram channel's reasoning lane behavior. (#46029) Thanks @day253.
 - Feishu/cards: add identity-aware structured card headers and note footers for Feishu replies and direct sends, while keeping that presentation wired through the shared outbound identity path. (#29938) Thanks @nszhsl.
-- Android/nodes: add `callLog.search` plus shared Call Log permission wiring so Android nodes can search recent call history through the gateway. (#44073) Thanks @lxk7280.
+- Android/nodes: add `callLog.search` plus shared Call Log permission wiring so Android nodes can search recent call history through the gateway. (#44073) Thanks @lixuankai.
+- Android/nodes: add `sms.search` plus shared SMS permission wiring so Android nodes can search device text messages through the gateway. (#48299) Thanks @lixuankai.
 - Plugins/MiniMax: merge the bundled MiniMax API and MiniMax OAuth plugin surfaces into a single default-on `minimax` plugin, while keeping legacy `minimax-portal-auth` config ids aliased for compatibility.
 - Telegram/actions: add `topic-edit` for forum-topic renames and icon updates while sharing the same Telegram topic-edit transport used by the plugin runtime. (#47798) Thanks @obviyus.
 - Telegram/error replies: add a default-off `channels.telegram.silentErrorReplies` setting so bot error replies can be delivered silently across regular replies, native commands, and fallback sends. (#19776) Thanks @ImLukeF.
@@ -243,6 +244,7 @@ Docs: https://docs.openclaw.ai
 - Auth/Codex CLI reuse: sync reused Codex CLI credentials into the supported `openai-codex:default` OAuth profile instead of reviving the deprecated `openai-codex:codex-cli` slot, so doctor cleanup no longer loops. (#45353) thanks @Gugu-sugar.
 - Deps/audit: bump the pinned `fast-xml-parser` override to the first patched release so `pnpm audit --prod --audit-level=high` no longer fails on the AWS Bedrock XML builder path. Thanks @vincentkoc.
 - Hooks/after_compaction: forward `sessionFile` for direct/manual compaction events and add `sessionFile` plus `sessionKey` to wired auto-compaction hook context so plugins receive the session metadata already declared in the hook types. (#40781) Thanks @jarimustonen.
+- Sessions/BlueBubbles/cron: persist outbound session routing and transcript mirroring for new targets, auto-create BlueBubbles chats before attachment sends, and only suppress isolated cron deliveries when the run started hours late instead of merely finishing late. (#50092)
 
 ### Breaking
 
