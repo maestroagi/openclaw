@@ -12,6 +12,7 @@ import { runDoctorConfigPreflight } from "./doctor-config-preflight.js";
 import { normalizeCompatibilityConfigValues } from "./doctor-legacy-config.js";
 import type { DoctorOptions } from "./doctor-prompter.js";
 import {
+  collectDiscordNumericIdWarnings,
   maybeRepairDiscordNumericIds,
   scanDiscordNumericIdEntries,
 } from "./doctor/providers/discord.js";
@@ -22,27 +23,38 @@ import {
   formatMatrixLegacyStatePreview,
 } from "./doctor/providers/matrix.js";
 import {
+  collectTelegramAllowFromUsernameWarnings,
   collectTelegramEmptyAllowlistExtraWarnings,
   maybeRepairTelegramAllowFromUsernames,
   scanTelegramAllowFromUsernameEntries,
 } from "./doctor/providers/telegram.js";
 import { maybeRepairAllowlistPolicyAllowFrom } from "./doctor/shared/allowlist-policy-repair.js";
+import { applyDoctorConfigMutation } from "./doctor/shared/config-mutation-state.js";
 import {
   collectMissingDefaultAccountBindingWarnings,
   collectMissingExplicitDefaultAccountWarnings,
 } from "./doctor/shared/default-account-warnings.js";
 import { scanEmptyAllowlistPolicyWarnings } from "./doctor/shared/empty-allowlist-scan.js";
 import {
+  collectExecSafeBinCoverageWarnings,
+  collectExecSafeBinTrustedDirHintWarnings,
   maybeRepairExecSafeBinProfiles,
   scanExecSafeBinCoverage,
   scanExecSafeBinTrustedDirHints,
 } from "./doctor/shared/exec-safe-bins.js";
 import {
+  collectLegacyToolsBySenderWarnings,
   maybeRepairLegacyToolsBySenderKeys,
   scanLegacyToolsBySenderKeys,
 } from "./doctor/shared/legacy-tools-by-sender.js";
-import { scanMutableAllowlistEntries } from "./doctor/shared/mutable-allowlist.js";
-import { maybeRepairOpenPolicyAllowFrom } from "./doctor/shared/open-policy-allowfrom.js";
+import {
+  collectMutableAllowlistWarnings,
+  scanMutableAllowlistEntries,
+} from "./doctor/shared/mutable-allowlist.js";
+import {
+  collectOpenPolicyAllowFromWarnings,
+  maybeRepairOpenPolicyAllowFrom,
+} from "./doctor/shared/open-policy-allowfrom.js";
 
 export async function loadAndMaybeMigrateDoctorConfig(params: {
   options: DoctorOptions;
@@ -56,7 +68,7 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
   let candidate = structuredClone(baseCfg);
   let pendingChanges = false;
   let shouldWriteConfig = false;
-  const fixHints: string[] = [];
+  let fixHints: string[] = [];
 
   if (snapshot.legacyIssues.length > 0) {
     note(
@@ -86,25 +98,23 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
   const normalized = normalizeCompatibilityConfigValues(candidate);
   if (normalized.changes.length > 0) {
     note(normalized.changes.join("\n"), "Doctor changes");
-    candidate = normalized.config;
-    pendingChanges = true;
-    if (shouldRepair) {
-      cfg = normalized.config;
-    } else {
-      fixHints.push(`Run "${formatCliCommand("openclaw doctor --fix")}" to apply these changes.`);
-    }
+    ({ cfg, candidate, pendingChanges, fixHints } = applyDoctorConfigMutation({
+      state: { cfg, candidate, pendingChanges, fixHints },
+      mutation: normalized,
+      shouldRepair,
+      fixHint: `Run "${formatCliCommand("openclaw doctor --fix")}" to apply these changes.`,
+    }));
   }
 
   const autoEnable = applyPluginAutoEnable({ config: candidate, env: process.env });
   if (autoEnable.changes.length > 0) {
     note(autoEnable.changes.join("\n"), "Doctor changes");
-    candidate = autoEnable.config;
-    pendingChanges = true;
-    if (shouldRepair) {
-      cfg = autoEnable.config;
-    } else {
-      fixHints.push(`Run "${formatCliCommand("openclaw doctor --fix")}" to apply these changes.`);
-    }
+    ({ cfg, candidate, pendingChanges, fixHints } = applyDoctorConfigMutation({
+      state: { cfg, candidate, pendingChanges, fixHints },
+      mutation: autoEnable,
+      shouldRepair,
+      fixHint: `Run "${formatCliCommand("openclaw doctor --fix")}" to apply these changes.`,
+    }));
   }
 
   const matrixLegacyState = detectLegacyMatrixState({
@@ -161,17 +171,21 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
     const repair = await maybeRepairTelegramAllowFromUsernames(candidate);
     if (repair.changes.length > 0) {
       note(repair.changes.join("\n"), "Doctor changes");
-      candidate = repair.config;
-      pendingChanges = true;
-      cfg = repair.config;
+      ({ cfg, candidate, pendingChanges, fixHints } = applyDoctorConfigMutation({
+        state: { cfg, candidate, pendingChanges, fixHints },
+        mutation: repair,
+        shouldRepair,
+      }));
     }
 
     const discordRepair = maybeRepairDiscordNumericIds(candidate);
     if (discordRepair.changes.length > 0) {
       note(discordRepair.changes.join("\n"), "Doctor changes");
-      candidate = discordRepair.config;
-      pendingChanges = true;
-      cfg = discordRepair.config;
+      ({ cfg, candidate, pendingChanges, fixHints } = applyDoctorConfigMutation({
+        state: { cfg, candidate, pendingChanges, fixHints },
+        mutation: discordRepair,
+        shouldRepair,
+      }));
     }
 
     const allowFromRepair = maybeRepairOpenPolicyAllowFrom(candidate);
@@ -180,17 +194,21 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
         allowFromRepair.changes.map((line) => sanitizeForLog(line)).join("\n"),
         "Doctor changes",
       );
-      candidate = allowFromRepair.config;
-      pendingChanges = true;
-      cfg = allowFromRepair.config;
+      ({ cfg, candidate, pendingChanges, fixHints } = applyDoctorConfigMutation({
+        state: { cfg, candidate, pendingChanges, fixHints },
+        mutation: allowFromRepair,
+        shouldRepair,
+      }));
     }
 
     const allowlistRepair = await maybeRepairAllowlistPolicyAllowFrom(candidate);
     if (allowlistRepair.changes.length > 0) {
       note(allowlistRepair.changes.join("\n"), "Doctor changes");
-      candidate = allowlistRepair.config;
-      pendingChanges = true;
-      cfg = allowlistRepair.config;
+      ({ cfg, candidate, pendingChanges, fixHints } = applyDoctorConfigMutation({
+        state: { cfg, candidate, pendingChanges, fixHints },
+        mutation: allowlistRepair,
+        shouldRepair,
+      }));
     }
 
     const emptyAllowlistWarnings = scanEmptyAllowlistPolicyWarnings(candidate, {
@@ -207,17 +225,21 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
     const toolsBySenderRepair = maybeRepairLegacyToolsBySenderKeys(candidate);
     if (toolsBySenderRepair.changes.length > 0) {
       note(toolsBySenderRepair.changes.join("\n"), "Doctor changes");
-      candidate = toolsBySenderRepair.config;
-      pendingChanges = true;
-      cfg = toolsBySenderRepair.config;
+      ({ cfg, candidate, pendingChanges, fixHints } = applyDoctorConfigMutation({
+        state: { cfg, candidate, pendingChanges, fixHints },
+        mutation: toolsBySenderRepair,
+        shouldRepair,
+      }));
     }
 
     const safeBinProfileRepair = maybeRepairExecSafeBinProfiles(candidate);
     if (safeBinProfileRepair.changes.length > 0) {
       note(safeBinProfileRepair.changes.join("\n"), "Doctor changes");
-      candidate = safeBinProfileRepair.config;
-      pendingChanges = true;
-      cfg = safeBinProfileRepair.config;
+      ({ cfg, candidate, pendingChanges, fixHints } = applyDoctorConfigMutation({
+        state: { cfg, candidate, pendingChanges, fixHints },
+        mutation: safeBinProfileRepair,
+        shouldRepair,
+      }));
     }
     if (safeBinProfileRepair.warnings.length > 0) {
       note(safeBinProfileRepair.warnings.join("\n"), "Doctor warnings");
@@ -225,25 +247,22 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
   } else {
     const hits = scanTelegramAllowFromUsernameEntries(candidate);
     if (hits.length > 0) {
-      const sampleEntry = sanitizeForLog(hits[0]?.entry ?? "@");
       note(
-        [
-          `- Telegram allowFrom contains ${hits.length} non-numeric entries (e.g. ${sampleEntry}); Telegram authorization requires numeric sender IDs.`,
-          `- Run "${formatCliCommand("openclaw doctor --fix")}" to auto-resolve @username entries to numeric IDs (requires a Telegram bot token).`,
-        ].join("\n"),
+        collectTelegramAllowFromUsernameWarnings({
+          hits,
+          doctorFixCommand: formatCliCommand("openclaw doctor --fix"),
+        }).join("\n"),
         "Doctor warnings",
       );
     }
 
     const discordHits = scanDiscordNumericIdEntries(candidate);
     if (discordHits.length > 0) {
-      const samplePath = sanitizeForLog(discordHits[0]?.path ?? "channels.discord.allowFrom");
-      const sampleEntry = sanitizeForLog(String(discordHits[0]?.entry ?? ""));
       note(
-        [
-          `- Discord allowlists contain ${discordHits.length} numeric entries (e.g. ${samplePath}=${sampleEntry}).`,
-          `- Discord IDs must be strings; run "${formatCliCommand("openclaw doctor --fix")}" to convert numeric IDs to quoted strings.`,
-        ].join("\n"),
+        collectDiscordNumericIdWarnings({
+          hits: discordHits,
+          doctorFixCommand: formatCliCommand("openclaw doctor --fix"),
+        }).join("\n"),
         "Doctor warnings",
       );
     }
@@ -251,10 +270,10 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
     const allowFromScan = maybeRepairOpenPolicyAllowFrom(candidate);
     if (allowFromScan.changes.length > 0) {
       note(
-        [
-          ...allowFromScan.changes.map((line) => sanitizeForLog(line)),
-          `- Run "${formatCliCommand("openclaw doctor --fix")}" to add missing allowFrom wildcards.`,
-        ].join("\n"),
+        collectOpenPolicyAllowFromWarnings({
+          changes: allowFromScan.changes,
+          doctorFixCommand: formatCliCommand("openclaw doctor --fix"),
+        }).join("\n"),
         "Doctor warnings",
       );
     }
@@ -272,101 +291,38 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
 
     const toolsBySenderHits = scanLegacyToolsBySenderKeys(candidate);
     if (toolsBySenderHits.length > 0) {
-      const sample = toolsBySenderHits[0];
-      const sampleLabel = sanitizeForLog(
-        sample ? `${sample.pathLabel}.${sample.key}` : "toolsBySender",
-      );
       note(
-        [
-          `- Found ${toolsBySenderHits.length} legacy untyped toolsBySender key${toolsBySenderHits.length === 1 ? "" : "s"} (for example ${sampleLabel}).`,
-          "- Untyped sender keys are deprecated; use explicit prefixes (id:, e164:, username:, name:).",
-          `- Run "${formatCliCommand("openclaw doctor --fix")}" to migrate legacy keys to typed id: entries.`,
-        ].join("\n"),
+        collectLegacyToolsBySenderWarnings({
+          hits: toolsBySenderHits,
+          doctorFixCommand: formatCliCommand("openclaw doctor --fix"),
+        }).join("\n"),
         "Doctor warnings",
       );
     }
 
     const safeBinCoverage = scanExecSafeBinCoverage(candidate);
     if (safeBinCoverage.length > 0) {
-      const interpreterHits = safeBinCoverage.filter((hit) => hit.isInterpreter);
-      const customHits = safeBinCoverage.filter((hit) => !hit.isInterpreter);
-      const lines: string[] = [];
-      if (interpreterHits.length > 0) {
-        for (const hit of interpreterHits.slice(0, 5)) {
-          lines.push(
-            `- ${sanitizeForLog(hit.scopePath)}.safeBins includes interpreter/runtime '${sanitizeForLog(hit.bin)}' without profile.`,
-          );
-        }
-        if (interpreterHits.length > 5) {
-          lines.push(
-            `- ${interpreterHits.length - 5} more interpreter/runtime safeBins entries are missing profiles.`,
-          );
-        }
-      }
-      if (customHits.length > 0) {
-        for (const hit of customHits.slice(0, 5)) {
-          lines.push(
-            `- ${sanitizeForLog(hit.scopePath)}.safeBins entry '${sanitizeForLog(hit.bin)}' is missing safeBinProfiles.${sanitizeForLog(hit.bin)}.`,
-          );
-        }
-        if (customHits.length > 5) {
-          lines.push(
-            `- ${customHits.length - 5} more custom safeBins entries are missing profiles.`,
-          );
-        }
-      }
-      lines.push(
-        `- Run "${formatCliCommand("openclaw doctor --fix")}" to scaffold missing custom safeBinProfiles entries.`,
+      note(
+        collectExecSafeBinCoverageWarnings({
+          hits: safeBinCoverage,
+          doctorFixCommand: formatCliCommand("openclaw doctor --fix"),
+        }).join("\n"),
+        "Doctor warnings",
       );
-      note(lines.join("\n"), "Doctor warnings");
     }
 
     const safeBinTrustedDirHints = scanExecSafeBinTrustedDirHints(candidate);
     if (safeBinTrustedDirHints.length > 0) {
-      const lines = safeBinTrustedDirHints
-        .slice(0, 5)
-        .map(
-          (hit) =>
-            `- ${sanitizeForLog(hit.scopePath)}.safeBins entry '${sanitizeForLog(hit.bin)}' resolves to '${sanitizeForLog(hit.resolvedPath)}' outside trusted safe-bin dirs.`,
-        );
-      if (safeBinTrustedDirHints.length > 5) {
-        lines.push(
-          `- ${safeBinTrustedDirHints.length - 5} more safeBins entries resolve outside trusted safe-bin dirs.`,
-        );
-      }
-      lines.push(
-        "- If intentional, add the binary directory to tools.exec.safeBinTrustedDirs (global or agent scope).",
+      note(
+        collectExecSafeBinTrustedDirHintWarnings(safeBinTrustedDirHints).join("\n"),
+        "Doctor warnings",
       );
-      note(lines.join("\n"), "Doctor warnings");
     }
   }
 
   const mutableAllowlistHits = scanMutableAllowlistEntries(candidate);
   if (mutableAllowlistHits.length > 0) {
-    const channels = Array.from(new Set(mutableAllowlistHits.map((hit) => hit.channel))).toSorted();
-    const exampleLines = mutableAllowlistHits
-      .slice(0, 8)
-      .map((hit) => `- ${sanitizeForLog(hit.path)}: ${sanitizeForLog(hit.entry)}`)
-      .join("\n");
-    const remaining =
-      mutableAllowlistHits.length > 8
-        ? `- +${mutableAllowlistHits.length - 8} more mutable allowlist entries.`
-        : null;
-    const flagPaths = Array.from(new Set(mutableAllowlistHits.map((hit) => hit.dangerousFlagPath)));
-    const flagHint =
-      flagPaths.length === 1
-        ? sanitizeForLog(flagPaths[0] ?? "")
-        : `${sanitizeForLog(flagPaths[0] ?? "")} (and ${flagPaths.length - 1} other scope flags)`;
-    note(
-      [
-        `- Found ${mutableAllowlistHits.length} mutable allowlist ${mutableAllowlistHits.length === 1 ? "entry" : "entries"} across ${channels.join(", ")} while name matching is disabled by default.`,
-        exampleLines,
-        ...(remaining ? [remaining] : []),
-        `- Option A (break-glass): enable ${flagHint}=true to keep name/email/nick matching.`,
-        "- Option B (recommended): resolve names/emails/nicks to stable sender IDs and rewrite the allowlist entries.",
-      ].join("\n"),
-      "Doctor warnings",
-    );
+    note(collectMutableAllowlistWarnings(mutableAllowlistHits).join("\n"), "Doctor warnings");
   }
 
   const unknown = stripUnknownConfigKeys(candidate);
