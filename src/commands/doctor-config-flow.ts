@@ -1330,6 +1330,16 @@ function detectEmptyAllowlistPolicy(cfg: OpenClawConfig): string[] {
     );
   };
 
+  const hasConfiguredGroups = (
+    account: Record<string, unknown>,
+    parent?: Record<string, unknown>,
+  ): boolean => {
+    const groups =
+      (account.groups as Record<string, unknown> | undefined) ??
+      (parent?.groups as Record<string, unknown> | undefined);
+    return Boolean(groups) && Object.keys(groups ?? {}).length > 0;
+  };
+
   const checkAccount = (
     account: Record<string, unknown>,
     prefix: string,
@@ -1372,6 +1382,21 @@ function detectEmptyAllowlistPolicy(cfg: OpenClawConfig): string[] {
       undefined;
 
     if (groupPolicy === "allowlist" && usesSenderBasedGroupAllowlist(channelName)) {
+      if (channelName === "telegram" && !hasConfiguredGroups(account, parent)) {
+        const effectiveDmPolicy = dmPolicy ?? "pairing";
+        const dmSetupLine =
+          effectiveDmPolicy === "pairing"
+            ? `DMs use pairing mode, so new senders must start a chat and be approved before regular messages are accepted.`
+            : effectiveDmPolicy === "allowlist"
+              ? `DMs use allowlist mode, so only sender IDs in ${prefix}.allowFrom are accepted.`
+              : effectiveDmPolicy === "open"
+                ? `DMs are open.`
+                : `DMs are disabled.`;
+        warnings.push(
+          `- ${prefix}: Telegram is in first-time setup mode. ${dmSetupLine} Group messages stay blocked until you add allowed chats under ${prefix}.groups (and optional sender IDs under ${prefix}.groupAllowFrom), or set ${prefix}.groupPolicy to "open" if you want broad group access.`,
+        );
+        return;
+      }
       const rawGroupAllowFrom =
         (account.groupAllowFrom as Array<string | number> | undefined) ??
         (parent?.groupAllowFrom as Array<string | number> | undefined);
