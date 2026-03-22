@@ -86,7 +86,7 @@ describe("OpenAI image-generation provider", () => {
       provider: "openai",
       model: "gpt-image-1.5",
       prompt: "draw a portrait",
-      aspectRatio: "9:16",
+      aspectRatio: "2:3",
       cfg: {},
       authStore: { version: 1, profiles: {} },
     });
@@ -102,6 +102,18 @@ describe("OpenAI image-generation provider", () => {
         }),
       }),
     );
+  });
+
+  it("advertises only exact aspect ratios supported by OpenAI size presets", () => {
+    const provider = buildOpenAIImageGenerationProvider();
+    const geometry = provider.capabilities.geometry;
+
+    expect(provider.capabilities.generate.supportsAspectRatio).toBe(true);
+    expect(geometry).toBeDefined();
+    if (!geometry) {
+      throw new Error("expected OpenAI image generation geometry capabilities");
+    }
+    expect(geometry.aspectRatios).toEqual(["1:1", "2:3", "3:2"]);
   });
 
   it("prefers an explicit size over aspect ratio mapping", async () => {
