@@ -6,6 +6,7 @@ Docs: https://docs.openclaw.ai
 
 ### Changes
 
+- ClawHub/install: add native `openclaw skills search|install|update` flows plus `openclaw plugins install clawhub:<package>` with tracked update metadata, gateway skill-install/update support for ClawHub-backed requests, and regression coverage/docs for the new source path.
 - Models/Anthropic Vertex: add core `anthropic-vertex` provider support for Claude via Google Vertex AI, including GCP auth/discovery and main run-path routing. (#43356) Thanks @sallyom and @yossiovadia.
 - Commands/btw: add `/btw` side questions for quick tool-less answers about the current session without changing future session context, with dismissible in-session TUI answers and explicit BTW replies on external channels. (#45444) Thanks @ngutman.
 - Gateway/docs: clarify that empty URL input allowlists are treated as unset, document `allowUrl: false` as the deny-all switch, and add regression coverage for the normalization path.
@@ -75,9 +76,11 @@ Docs: https://docs.openclaw.ai
 - Android/pairing: resolve portless secure setup URLs to `443` while preserving direct cleartext gateway defaults and explicit `:80` manual endpoints in onboarding. (#43540) Thanks @fmercurio.
 - CLI/config: make `config set --strict-json` enforce real JSON, prefer `JSON.parse` with JSON5 fallback for machine-written cron/subagent stores, and relabel raw config surfaces as `JSON/JSON5` to match actual compatibility. Related: #48415, #43127, #14529, #21332. Thanks @adhitShet and @vincentkoc.
 - CLI/Ollama onboarding: keep the interactive model picker for explicit `openclaw onboard --auth-choice ollama` runs so setup still selects a default model without reintroducing pre-picker auto-pulls. (#49249) Thanks @BruceMacD.
+- Android/location: make current-location requests drop late callbacks after timeout instead of crashing with `Already resumed`. (#52318) Thanks @Kaneki-x.
 - Plugins/bundler TDZ: fix `RESERVED_COMMANDS` temporal dead zone error that prevented device-pair, phone-control, and talk-voice plugins from registering when the bundler placed the commands module after call sites in the same output chunk. Thanks @BunsDev.
 - Plugins/imports: fix stale googlechat runtime-api import paths and signal SDK circular re-exports broken by recent plugin-sdk refactors. Thanks @BunsDev.
 - Telegram/setup: seed fresh setups with `channels.telegram.groups["*"].requireMention=true` so new bots stay mention-gated in groups unless you explicitly open them up. Thanks @vincentkoc.
+- Security/exec safe bins: remove `jq` from the default safe-bin allowlist and fail closed on the `jq` `env` builtin when operators explicitly opt `jq` back in, so `jq -n env` cannot dump host secrets without an explicit trust path. Thanks @gladiator9797 for reporting.
 - Google auth/Node 25: patch `gaxios` to use native fetch without injecting `globalThis.window`, while translating proxy and mTLS transport settings so Google Vertex and Google Chat auth keep working on Node 25. (#47914) Thanks @pdd-cli.
 - Gateway/startup: load bundled channel plugins from compiled `dist/extensions` entries in built installs, so gateway boot no longer recompiles bundled extension TypeScript on every startup and WhatsApp-class cold starts drop back to seconds instead of tens of seconds or worse. (#47560) Thanks @ngutman.
 - Agents/openai-responses: strip `prompt_cache_key` and `prompt_cache_retention` for non-OpenAI-compatible Responses endpoints while keeping them on direct OpenAI and Azure OpenAI paths, so third-party OpenAI-compatible providers no longer reject those requests with HTTP 400. (#49877) Thanks @ShaunTsai.
@@ -243,6 +246,7 @@ Docs: https://docs.openclaw.ai
 - Android/theme: switch status bar icon contrast with the active system theme so Android light mode no longer leaves unreadable light icons over the app header. (#51098) Thanks @goweii.
 - Discord/ACP: forward worker abort signals into ACP turns so timed-out Discord jobs cancel the running turn instead of silently leaving the bound ACP session working in the background.
 - Gateway/openresponses: preserve assistant commentary and session continuity across hosted-tool `/v1/responses` turns, and emit streamed tool-call payloads before finalization so client tool loops stay resumable. (#52171) Thanks @CharZhou.
+- Android/Talk: serialize `TalkModeManager` player teardown so rapid interrupt/restart cycles stop double-releasing or overlapping TTS playback. (#52310) Thanks @Kaneki-x.
 
 ### Breaking
 
