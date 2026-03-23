@@ -139,8 +139,11 @@ vi.mock("../runtime.js", () => ({
   defaultRuntime: {
     log: runtimeLog,
     error: runtimeError,
-    writeJson: runtimeWriteJson,
     exit: runtimeExit,
+    writeStdout: vi.fn((value: string) =>
+      runtimeLog(value.endsWith("\n") ? value.slice(0, -1) : value),
+    ),
+    writeJson: runtimeWriteJson,
   },
 }));
 
