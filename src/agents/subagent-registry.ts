@@ -1654,6 +1654,16 @@ export function markSubagentRunTerminated(params: {
           childSessionKey: entry.childSessionKey,
         });
       });
+      const shouldDeleteAttachments = entry.cleanup === "delete" || !entry.retainAttachmentsOnKeep;
+      if (shouldDeleteAttachments) {
+        void safeRemoveAttachmentsDir(entry);
+      }
+      completeCleanupBookkeeping({
+        runId: entry.runId,
+        entry,
+        cleanup: entry.cleanup,
+        completedAt: now,
+      });
       const cfg = loadConfig();
       ensureRuntimePluginsLoaded({
         config: cfg,
