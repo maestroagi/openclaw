@@ -9,9 +9,12 @@ Docs: https://docs.openclaw.ai
 ### Changes
 
 - ModelStudio/Qwen: add standard (pay-as-you-go) DashScope endpoints for China and global Qwen API keys alongside the existing Coding Plan endpoints, and relabel the provider group to `Qwen (Alibaba Cloud Model Studio)`. (#43878)
+- UI/clarity: consolidate button primitives (`btn--icon`, `btn--ghost`, `btn--xs`), refine the Knot theme to a black-and-red palette with WCAG 2.1 AA contrast, add config icons for Diagnostics/CLI/Secrets/ACP/MCP sections, replace the roundness slider with discrete stops, and improve accessibility with aria-labels across usage filters. (#53272) Thanks @BunsDev.
 
 ### Fixes
 
+- Plugins/ClawHub: resolve plugin API compatibility against the active runtime version at install time, and add regression coverage for current `>=2026.3.22` ClawHub package checks so installs no longer fail behind the stale `1.2.0` constant. (#53157) Thanks @futhgar.
+- CLI/channel auth: auto-select the single login-capable configured channel for `channels login`/`logout` instead of relying on the outbound message-channel resolver, so env-only or non-auth channels no longer cause false ambiguity errors. (#53254) Thanks @BunsDev.
 - Control UI/auth: preserve operator scopes through the device-auth bypass path, ignore cached under-scoped operator tokens, and show a clear `operator.read` fallback message when a connection really lacks read scope, so operator sessions stop failing or blanking on read-backed pages. (#53110) Thanks @BunsDev.
 - Plugins/uninstall: accept installed `clawhub:` specs and versionless ClawHub package names as uninstall targets, so `openclaw plugins uninstall clawhub:<package>` works again even when the recorded install was pinned to a version.
 - Auth/OpenAI tokens: stop live gateway auth-profile writes from reverting freshly saved credentials back to stale in-memory values, and make `models auth paste-token` write to the resolved agent store, so Configure, Onboard, and token-paste flows stop snapping back to expired OpenAI tokens. Fixes #53207. Related to #45516.
@@ -19,6 +22,10 @@ Docs: https://docs.openclaw.ai
 - Diagnostics/cache trace: strip credential fields from cache-trace JSONL output while preserving non-sensitive diagnostic fields and image redaction metadata.
 - Docs/Feishu: replace `botName` with `name` in the channel config examples so the docs match the strict account schema for per-account display names. (#52753) Thanks @haroldfabla2-hue.
 - Doctor/plugins: make `openclaw doctor --fix` remove stale `plugins.allow` and `plugins.entries` refs left behind after plugin removal. Thanks @sallyom
+- Agents/replay: canonicalize malformed assistant transcript content before session-history sanitization so legacy or corrupted assistant turns stop crashing Pi replay and subagent recovery paths.
+- ClawHub/skills: keep updating already-tracked legacy Unicode slugs after the ASCII-only slug hardening, so older installs do not get stuck behind `Invalid skill slug` errors during `openclaw skills update`. (#53206) Thanks @drobison00.
+- Infra/exec trust: preserve shell-multiplexer wrapper binaries for policy checks without breaking approved-command reconstruction, so BusyBox/ToyBox allowlist and audit flows bind to the real wrapper while execution plans stay coherent. (#53134) Thanks @vincentkoc.
+- LINE/runtime-api: pre-export overlapping runtime symbols before the `line-runtime` star export so jiti no longer throws `TypeError: Cannot redefine property` on startup. (#53221) Thanks @Drickon.
 
 ## 2026.3.23
 
