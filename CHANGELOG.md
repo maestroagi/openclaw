@@ -13,6 +13,7 @@ Docs: https://docs.openclaw.ai
 - Plugins/runtime: expose `runHeartbeatOnce` in the plugin runtime `system` namespace so plugins can trigger a single heartbeat cycle with an explicit delivery target override (e.g. `heartbeat: { target: "last" }`). (#40299) Thanks @loveyana.
 - Agents/compaction: surface safeguard-specific cancel reasons and relabel benign manual `/compact` no-op cases as skipped instead of failed. (#51072) Thanks @afurm.
 - Agents/compaction: preserve the post-compaction AGENTS refresh on stale-usage preflight compaction for both immediate replies and queued followups. (#49479) Thanks @jared596.
+- CLI: add `openclaw config schema` to print the generated JSON schema for `openclaw.json`. (#54523) Thanks @kvokka.
 
 ### Fixes
 
@@ -148,6 +149,8 @@ Docs: https://docs.openclaw.ai
 - Docs/IRC: fix five `json55` code-fence typos in the IRC channel examples so Mintlify applies JSON5 syntax highlighting correctly. (#50842) Thanks @Hollychou924.
 - Discord/commands: trim overlong slash-command descriptions to Discord's 100-character limit and map rejected deploy indexes from Discord validation payloads back to command names/descriptions, so deploys stop failing on long descriptions and startup logs identify the rejected commands. (#54118) thanks @huntharo
 - Agents/cooldowns: scope rate-limit cooldowns per model so one 429 no longer blocks every model on the same auth profile, replace the exponential 1 min → 1 h escalation with a stepped 30 s / 1 min / 5 min ladder, and surface a user-facing countdown message when all models are rate-limited. (#49834) Thanks @kiranvk-2011.
+- Config/web fetch: allow the documented `tools.web.fetch.maxResponseBytes` setting in runtime schema validation so valid configs no longer fail with unrecognized-key errors. (#53401) Thanks @erhhung.
+- Message tool/buttons: keep the shared `buttons` schema optional in merged tool definitions so plain `action=send` calls stop failing validation when no buttons are provided. (#54418) Thanks @adzendo.
 
 ## 2026.3.23
 
