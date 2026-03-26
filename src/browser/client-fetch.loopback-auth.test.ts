@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import type { BrowserDispatchResponse } from "./routes/dispatcher.js";
+import type { BrowserDispatchResponse } from "../../extensions/browser/src/browser/routes/dispatcher.js";
 
 function okDispatchResponse(): BrowserDispatchResponse {
   return { status: 200, body: { ok: true } };
@@ -22,34 +22,35 @@ const mocks = vi.hoisted(() => ({
   dispatch: vi.fn(async (): Promise<BrowserDispatchResponse> => okDispatchResponse()),
 }));
 
-vi.mock("../config/config.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../config/config.js")>();
+vi.mock("../../extensions/browser/src/config/config.js", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../../extensions/browser/src/config/config.js")>();
   return {
     ...actual,
     loadConfig: mocks.loadConfig,
   };
 });
 
-vi.mock("./control-service.js", () => ({
+vi.mock("../../extensions/browser/src/browser/control-service.js", () => ({
   createBrowserControlContext: vi.fn(() => ({})),
   startBrowserControlServiceFromConfig: mocks.startBrowserControlServiceFromConfig,
 }));
 
-vi.mock("./control-auth.js", () => ({
+vi.mock("../../extensions/browser/src/browser/control-auth.js", () => ({
   resolveBrowserControlAuth: mocks.resolveBrowserControlAuth,
 }));
 
-vi.mock("./bridge-auth-registry.js", () => ({
+vi.mock("../../extensions/browser/src/browser/bridge-auth-registry.js", () => ({
   getBridgeAuthForPort: mocks.getBridgeAuthForPort,
 }));
 
-vi.mock("./routes/dispatcher.js", () => ({
+vi.mock("../../extensions/browser/src/browser/routes/dispatcher.js", () => ({
   createBrowserRouteDispatcher: vi.fn(() => ({
     dispatch: mocks.dispatch,
   })),
 }));
 
-let fetchBrowserJson: typeof import("./client-fetch.js").fetchBrowserJson;
+let fetchBrowserJson: typeof import("../../extensions/browser/src/browser/client-fetch.js").fetchBrowserJson;
 
 function stubJsonFetchOk() {
   const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
@@ -87,7 +88,7 @@ async function expectThrownBrowserFetchError(
 describe("fetchBrowserJson loopback auth", () => {
   beforeAll(async () => {
     vi.resetModules();
-    ({ fetchBrowserJson } = await import("./client-fetch.js"));
+    ({ fetchBrowserJson } = await import("../../extensions/browser/src/browser/client-fetch.js"));
   });
 
   beforeEach(() => {

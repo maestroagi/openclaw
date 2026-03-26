@@ -1,10 +1,17 @@
 import fs from "node:fs";
 import path from "node:path";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import type { BrowserRouteContext, BrowserServerState } from "./server-context.js";
+import { resolveOpenClawUserDataDir } from "../../extensions/browser/src/browser/chrome.js";
+import type {
+  BrowserRouteContext,
+  BrowserServerState,
+} from "../../extensions/browser/src/browser/server-context.js";
+import { movePathToTrash } from "../../extensions/browser/src/browser/trash.js";
+import { loadConfig, writeConfigFile } from "../../extensions/browser/src/config/config.js";
 
-vi.mock("../config/config.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../config/config.js")>();
+vi.mock("../../extensions/browser/src/config/config.js", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../../extensions/browser/src/config/config.js")>();
   return {
     ...actual,
     loadConfig: vi.fn(),
@@ -12,20 +19,16 @@ vi.mock("../config/config.js", async (importOriginal) => {
   };
 });
 
-vi.mock("./trash.js", () => ({
+vi.mock("../../extensions/browser/src/browser/trash.js", () => ({
   movePathToTrash: vi.fn(async (targetPath: string) => targetPath),
 }));
 
-vi.mock("./chrome.js", () => ({
+vi.mock("../../extensions/browser/src/browser/chrome.js", () => ({
   resolveOpenClawUserDataDir: vi.fn(() => "/tmp/openclaw-test/openclaw/user-data"),
 }));
 
-import { loadConfig, writeConfigFile } from "../config/config.js";
-import { resolveOpenClawUserDataDir } from "./chrome.js";
-import { movePathToTrash } from "./trash.js";
-
-let resolveBrowserConfig: typeof import("./config.js").resolveBrowserConfig;
-let createBrowserProfilesService: typeof import("./profiles-service.js").createBrowserProfilesService;
+let resolveBrowserConfig: typeof import("../../extensions/browser/src/browser/config.js").resolveBrowserConfig;
+let createBrowserProfilesService: typeof import("../../extensions/browser/src/browser/profiles-service.js").createBrowserProfilesService;
 
 function createCtx(resolved: BrowserServerState["resolved"]) {
   const state: BrowserServerState = {
@@ -60,8 +63,9 @@ async function createWorkProfileWithConfig(params: {
 describe("BrowserProfilesService", () => {
   beforeAll(async () => {
     vi.resetModules();
-    ({ resolveBrowserConfig } = await import("./config.js"));
-    ({ createBrowserProfilesService } = await import("./profiles-service.js"));
+    ({ resolveBrowserConfig } = await import("../../extensions/browser/src/browser/config.js"));
+    ({ createBrowserProfilesService } =
+      await import("../../extensions/browser/src/browser/profiles-service.js"));
   });
 
   beforeEach(() => {

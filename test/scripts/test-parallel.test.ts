@@ -23,6 +23,12 @@ const clearPlannerShardEnv = (env) => {
   delete nextEnv.OPENCLAW_TEST_FORCE_FORKS;
   delete nextEnv.OPENCLAW_TEST_DISABLE_THREAD_EXPANSION;
   delete nextEnv.OPENCLAW_TEST_SHOW_POOL_DECISION;
+  delete nextEnv.OPENCLAW_TEST_PROFILE;
+  delete nextEnv.OPENCLAW_TEST_WORKERS;
+  delete nextEnv.OPENCLAW_TEST_SKIP_DEFAULT;
+  delete nextEnv.OPENCLAW_TEST_INCLUDE_EXTENSIONS;
+  delete nextEnv.OPENCLAW_TEST_INCLUDE_CHANNELS;
+  delete nextEnv.OPENCLAW_TEST_INCLUDE_GATEWAY;
   return nextEnv;
 };
 
@@ -262,9 +268,9 @@ describe("scripts/test-parallel lane planning", () => {
     expect(output).toMatch(/extensions(?:-batch-1)? filters=all maxWorkers=/);
   });
 
-  it("uses fewer shared extension batches on high-memory local hosts", () => {
+  it("uses higher shared extension worker counts on high-memory local hosts", () => {
     const repoRoot = path.resolve(import.meta.dirname, "../..");
-    const output = execFileSync(
+    const highMemoryOutput = execFileSync(
       "node",
       ["scripts/test-parallel.mjs", "--plan", "--surface", "extensions"],
       {
@@ -281,11 +287,30 @@ describe("scripts/test-parallel lane planning", () => {
         encoding: "utf8",
       },
     );
+    const midMemoryOutput = execFileSync(
+      "node",
+      ["scripts/test-parallel.mjs", "--plan", "--surface", "extensions"],
+      {
+        cwd: repoRoot,
+        env: {
+          ...clearPlannerShardEnv(process.env),
+          CI: "",
+          GITHUB_ACTIONS: "",
+          RUNNER_OS: "macOS",
+          OPENCLAW_TEST_HOST_CPU_COUNT: "10",
+          OPENCLAW_TEST_HOST_MEMORY_GIB: "64",
+          OPENCLAW_TEST_LOAD_AWARE: "0",
+        },
+        encoding: "utf8",
+      },
+    );
 
-    expect(output).toContain("extensions-batch-1 filters=all maxWorkers=5");
-    expect(output).toContain("extensions-batch-2 filters=all maxWorkers=5");
-    expect(output).toContain("extensions-batch-2");
-    expect(output).not.toContain("extensions-batch-3");
+    expect(midMemoryOutput).toContain("extensions-batch-1 filters=all maxWorkers=3");
+    expect(midMemoryOutput).toContain("extensions-batch-2 filters=all maxWorkers=3");
+    expect(midMemoryOutput).not.toContain("extensions-batch-3");
+    expect(highMemoryOutput).toContain("extensions-batch-1 filters=all maxWorkers=5");
+    expect(highMemoryOutput).toContain("extensions-batch-2 filters=all maxWorkers=5");
+    expect(highMemoryOutput).not.toContain("extensions-batch-3");
   });
 
   it("starts isolated channel lanes before shared extension batches on high-memory local hosts", () => {
@@ -335,9 +360,9 @@ describe("scripts/test-parallel lane planning", () => {
       },
     );
 
-    expect(output).toContain("channels-batch-1 filters=49");
-    expect(output).toContain("channels-batch-2 filters=51");
-    expect(output).not.toContain("channels-batch-3");
+    expect(output).toContain("channels-batch-1 filters=33");
+    expect(output).toContain("channels-batch-2 filters=33");
+    expect(output).toContain("channels-batch-3 filters=34");
   });
 
   it("uses targeted unit batching on high-memory local hosts", () => {
