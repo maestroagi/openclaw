@@ -32,7 +32,13 @@ import type { MediaUnderstandingProvider } from "../media-understanding/types.js
 import type { RuntimeEnv } from "../runtime.js";
 import type { RuntimeWebSearchMetadata } from "../secrets/runtime-web-tools.types.js";
 import type {
+  SpeechDirectiveTokenParseContext,
+  SpeechDirectiveTokenParseResult,
   SpeechProviderConfiguredContext,
+  SpeechProviderConfig,
+  SpeechProviderResolveConfigContext,
+  SpeechProviderResolveTalkConfigContext,
+  SpeechProviderResolveTalkOverridesContext,
   SpeechListVoicesRequest,
   SpeechProviderId,
   SpeechSynthesisRequest,
@@ -939,8 +945,15 @@ export type SpeechProviderPlugin = {
   id: SpeechProviderId;
   label: string;
   aliases?: string[];
+  autoSelectOrder?: number;
   models?: readonly string[];
   voices?: readonly string[];
+  resolveConfig?: (ctx: SpeechProviderResolveConfigContext) => SpeechProviderConfig;
+  parseDirectiveToken?: (ctx: SpeechDirectiveTokenParseContext) => SpeechDirectiveTokenParseResult;
+  resolveTalkConfig?: (ctx: SpeechProviderResolveTalkConfigContext) => SpeechProviderConfig;
+  resolveTalkOverrides?: (
+    ctx: SpeechProviderResolveTalkOverridesContext,
+  ) => SpeechProviderConfig | undefined;
   isConfigured: (ctx: SpeechProviderConfiguredContext) => boolean;
   synthesize: (req: SpeechSynthesisRequest) => Promise<SpeechSynthesisResult>;
   synthesizeTelephony?: (
@@ -1420,6 +1433,8 @@ export type OpenClawPluginApi = {
   ) => void;
   /** Register the pre-compaction flush plan resolver for this memory plugin (exclusive slot). */
   registerMemoryFlushPlan: (resolver: import("./memory-state.js").MemoryFlushPlanResolver) => void;
+  /** Register the active memory runtime adapter for this memory plugin (exclusive slot). */
+  registerMemoryRuntime: (runtime: import("./memory-state.js").MemoryPluginRuntime) => void;
   resolvePath: (input: string) => string;
   /** Register a lifecycle hook handler */
   on: <K extends PluginHookName>(
