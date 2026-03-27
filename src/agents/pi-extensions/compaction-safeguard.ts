@@ -614,8 +614,21 @@ export default function compactionSafeguardExtension(api: ExtensionAPI): void {
       return { cancel: true };
     }
 
-    const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
-    if (!auth.ok || (!auth.apiKey && !auth.headers)) {
+    const requestAuth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
+    if (!requestAuth.ok) {
+      log.warn(
+        `Compaction safeguard: request auth resolution failed for ${model.provider}/${model.id}: ${requestAuth.error}`,
+      );
+      setCompactionSafeguardCancelReason(
+        ctx.sessionManager,
+        `Compaction safeguard could not resolve request auth for ${model.provider}/${model.id}: ${requestAuth.error}`,
+      );
+      return { cancel: true };
+    }
+
+    const apiKey = requestAuth.apiKey ?? "";
+    const headers = requestAuth.headers ?? model.headers;
+    if (!apiKey && !headers) {
       log.warn(
         "Compaction safeguard: no request auth available; cancelling compaction to preserve history.",
       );
@@ -625,8 +638,6 @@ export default function compactionSafeguardExtension(api: ExtensionAPI): void {
       );
       return { cancel: true };
     }
-    const apiKey = auth.apiKey ?? "";
-    const headers = auth.headers;
 
     try {
       const modelContextWindow = resolveContextWindowTokens(model);
