@@ -214,6 +214,11 @@ Each list is optional:
 | `webSearchProviders`          | `string[]` | Web-search provider ids this plugin owns.                      |
 | `tools`                       | `string[]` | Agent tool names this plugin owns for bundled contract checks. |
 
+Legacy top-level `speechProviders`, `mediaUnderstandingProviders`, and
+`imageGenerationProviders` are deprecated. Use `openclaw doctor --fix` to move
+them under `contracts`; normal manifest loading no longer treats them as
+capability ownership.
+
 ## Manifest versus package.json
 
 The two files serve different jobs:
