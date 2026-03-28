@@ -1,28 +1,18 @@
-import type { AgentTool } from "@mariozechner/pi-agent-core";
+import { Type } from "@sinclair/typebox";
 import { describe, expect, it, vi } from "vitest";
 import { normalizeToolParameters } from "./pi-tools.schema.js";
+import type { AnyAgentTool } from "./pi-tools.types.js";
 
 describe("normalizeToolParameters", () => {
   it("strips compat-declared unsupported schema keywords without provider-specific branching", () => {
-    const tool: AgentTool = {
+    const tool: AnyAgentTool = {
       name: "demo",
       label: "demo",
       description: "demo",
-      parameters: {
-        type: "object",
-        properties: {
-          count: {
-            type: "integer",
-            minimum: 1,
-            maximum: 5,
-          },
-          query: {
-            type: "string",
-            minLength: 2,
-          },
-        },
-        required: ["count"],
-      },
+      parameters: Type.Object({
+        count: Type.Integer({ minimum: 1, maximum: 5 }),
+        query: Type.Optional(Type.String({ minLength: 2 })),
+      }),
       execute: vi.fn(),
     };
 
