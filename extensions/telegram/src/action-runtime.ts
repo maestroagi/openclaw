@@ -47,6 +47,9 @@ export const telegramActionRuntime = {
 };
 
 const TELEGRAM_BUTTON_STYLES: readonly TelegramButtonStyle[] = ["danger", "success", "primary"];
+const TELEGRAM_FORUM_TOPIC_ICON_COLORS = [
+  0x6fb9f0, 0xffd67e, 0xcb86db, 0x8eee98, 0xff93b2, 0xfb6f5f,
+] as const;
 const TELEGRAM_ACTION_ALIASES = {
   createForumTopic: "createForumTopic",
   delete: "deleteMessage",
@@ -68,12 +71,25 @@ const TELEGRAM_ACTION_ALIASES = {
 } as const;
 
 type TelegramActionName = (typeof TELEGRAM_ACTION_ALIASES)[keyof typeof TELEGRAM_ACTION_ALIASES];
+type TelegramForumTopicIconColor = (typeof TELEGRAM_FORUM_TOPIC_ICON_COLORS)[number];
 type RawTelegramButton = {
   callback_data?: unknown;
   style?: unknown;
   text?: unknown;
 };
 
+function readTelegramForumTopicIconColor(
+  params: Record<string, unknown>,
+): TelegramForumTopicIconColor | undefined {
+  const iconColor = readNumberParam(params, "iconColor", { integer: true });
+  if (iconColor == null) {
+    return undefined;
+  }
+  if (!TELEGRAM_FORUM_TOPIC_ICON_COLORS.includes(iconColor as TelegramForumTopicIconColor)) {
+    throw new Error("iconColor must be one of Telegram's supported forum topic colors.");
+  }
+  return iconColor as TelegramForumTopicIconColor;
+}
 function resolveTelegramPollVisibility(params: {
   pollAnonymous?: boolean;
   pollPublic?: boolean;
@@ -576,7 +592,7 @@ export async function handleTelegramAction(
     }
     const chatId = readTelegramChatId(params);
     const name = readStringParam(params, "name", { required: true });
-    const iconColor = readNumberParam(params, "iconColor", { integer: true });
+    const iconColor = readTelegramForumTopicIconColor(params);
     const iconCustomEmojiId = readStringParam(params, "iconCustomEmojiId");
     const token = resolveTelegramToken(cfg, { accountId }).token;
     if (!token) {
@@ -588,7 +604,7 @@ export async function handleTelegramAction(
       cfg,
       token,
       accountId: accountId ?? undefined,
-      iconColor: iconColor ?? undefined,
+      iconColor,
       iconCustomEmojiId: iconCustomEmojiId ?? undefined,
     });
     return jsonResult({
