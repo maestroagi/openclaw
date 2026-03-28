@@ -24,6 +24,52 @@ function createCommandResult() {
   };
 }
 
+function createGatewaySubagentRuntime() {
+  return {
+    run: vi.fn(),
+    waitForRun: vi.fn(),
+    getSessionMessages: vi.fn(),
+    getSession: vi.fn(),
+    deleteSession: vi.fn(),
+  };
+}
+
+function expectRuntimeShape(
+  assertRuntime: (runtime: ReturnType<typeof createPluginRuntime>) => void,
+) {
+  const runtime = createPluginRuntime();
+  assertRuntime(runtime);
+}
+
+function expectGatewaySubagentRunFailure(
+  runtime: ReturnType<typeof createPluginRuntime>,
+  params: { sessionKey: string; message: string },
+) {
+  expect(() => runtime.subagent.run(params)).toThrow(
+    "Plugin runtime subagent methods are only available during a gateway request.",
+  );
+}
+
+function expectFunctionKeys(value: Record<string, unknown>, keys: readonly string[]) {
+  keys.forEach((key) => {
+    expect(typeof value[key]).toBe("function");
+  });
+}
+
+function expectRunCommandOutcome(params: {
+  runtime: ReturnType<typeof createPluginRuntime>;
+  expected: "resolve" | "reject";
+  commandResult: ReturnType<typeof createCommandResult>;
+}) {
+  const command = params.runtime.system.runCommandWithTimeout(["echo", "hello"], {
+    timeoutMs: 1000,
+  });
+  if (params.expected === "resolve") {
+    return expect(command).resolves.toEqual(params.commandResult);
+  }
+  return expect(command).rejects.toThrow("boom");
+}
+
 describe("plugin runtime command execution", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -51,12 +97,7 @@ describe("plugin runtime command execution", () => {
     }
 
     const runtime = createPluginRuntime();
-    const command = runtime.system.runCommandWithTimeout(["echo", "hello"], { timeoutMs: 1000 });
-    if (expected === "resolve") {
-      await expect(command).resolves.toEqual(commandResult);
-    } else {
-      await expect(command).rejects.toThrow("boom");
-    }
+    await expectRunCommandOutcome({ runtime, expected, commandResult });
     expect(runCommandWithTimeoutMock).toHaveBeenCalledWith(["echo", "hello"], { timeoutMs: 1000 });
   });
 
@@ -70,10 +111,12 @@ describe("plugin runtime command execution", () => {
     {
       name: "exposes runtime.mediaUnderstanding helpers and keeps stt as an alias",
       assert: (runtime: ReturnType<typeof createPluginRuntime>) => {
-        expect(typeof runtime.mediaUnderstanding.runFile).toBe("function");
-        expect(typeof runtime.mediaUnderstanding.describeImageFile).toBe("function");
-        expect(typeof runtime.mediaUnderstanding.describeImageFileWithModel).toBe("function");
-        expect(typeof runtime.mediaUnderstanding.describeVideoFile).toBe("function");
+        expectFunctionKeys(runtime.mediaUnderstanding as Record<string, unknown>, [
+          "runFile",
+          "describeImageFile",
+          "describeImageFileWithModel",
+          "describeVideoFile",
+        ]);
         expect(runtime.mediaUnderstanding.transcribeAudioFile).toBe(
           runtime.stt.transcribeAudioFile,
         );
@@ -82,15 +125,19 @@ describe("plugin runtime command execution", () => {
     {
       name: "exposes runtime.imageGeneration helpers",
       assert: (runtime: ReturnType<typeof createPluginRuntime>) => {
-        expect(typeof runtime.imageGeneration.generate).toBe("function");
-        expect(typeof runtime.imageGeneration.listProviders).toBe("function");
+        expectFunctionKeys(runtime.imageGeneration as Record<string, unknown>, [
+          "generate",
+          "listProviders",
+        ]);
       },
     },
     {
       name: "exposes runtime.webSearch helpers",
       assert: (runtime: ReturnType<typeof createPluginRuntime>) => {
-        expect(typeof runtime.webSearch.listProviders).toBe("function");
-        expect(typeof runtime.webSearch.search).toBe("function");
+        expectFunctionKeys(runtime.webSearch as Record<string, unknown>, [
+          "listProviders",
+          "search",
+        ]);
       },
     },
     {
@@ -100,22 +147,27 @@ describe("plugin runtime command execution", () => {
           model: DEFAULT_MODEL,
           provider: DEFAULT_PROVIDER,
         });
-        expect(typeof runtime.agent.runEmbeddedPiAgent).toBe("function");
-        expect(typeof runtime.agent.resolveAgentDir).toBe("function");
-        expect(typeof runtime.agent.session.resolveSessionFilePath).toBe("function");
+        expectFunctionKeys(runtime.agent as Record<string, unknown>, [
+          "runEmbeddedPiAgent",
+          "resolveAgentDir",
+        ]);
+        expectFunctionKeys(runtime.agent.session as Record<string, unknown>, [
+          "resolveSessionFilePath",
+        ]);
       },
     },
     {
       name: "exposes runtime.modelAuth with getApiKeyForModel and resolveApiKeyForProvider",
       assert: (runtime: ReturnType<typeof createPluginRuntime>) => {
         expect(runtime.modelAuth).toBeDefined();
-        expect(typeof runtime.modelAuth.getApiKeyForModel).toBe("function");
-        expect(typeof runtime.modelAuth.resolveApiKeyForProvider).toBe("function");
+        expectFunctionKeys(runtime.modelAuth as Record<string, unknown>, [
+          "getApiKeyForModel",
+          "resolveApiKeyForProvider",
+        ]);
       },
     },
   ] as const)("$name", ({ assert }) => {
-    const runtime = createPluginRuntime();
-    assert(runtime);
+    expectRuntimeShape(assert);
   });
 
   it("exposes runtime.system.requestHeartbeatNow", () => {
@@ -135,17 +187,9 @@ describe("plugin runtime command execution", () => {
 
   it("keeps subagent unavailable by default even after gateway initialization", async () => {
     const runtime = createPluginRuntime();
-    setGatewaySubagentRuntime({
-      run: vi.fn(),
-      waitForRun: vi.fn(),
-      getSessionMessages: vi.fn(),
-      getSession: vi.fn(),
-      deleteSession: vi.fn(),
-    });
+    setGatewaySubagentRuntime(createGatewaySubagentRuntime());
 
-    expect(() => runtime.subagent.run({ sessionKey: "s-1", message: "hello" })).toThrow(
-      "Plugin runtime subagent methods are only available during a gateway request.",
-    );
+    expectGatewaySubagentRunFailure(runtime, { sessionKey: "s-1", message: "hello" });
   });
 
   it("late-binds to the gateway subagent when explicitly enabled", async () => {
@@ -153,11 +197,8 @@ describe("plugin runtime command execution", () => {
     const runtime = createPluginRuntime({ allowGatewaySubagentBinding: true });
 
     setGatewaySubagentRuntime({
+      ...createGatewaySubagentRuntime(),
       run,
-      waitForRun: vi.fn(),
-      getSessionMessages: vi.fn(),
-      getSession: vi.fn(),
-      deleteSession: vi.fn(),
     });
 
     await expect(runtime.subagent.run({ sessionKey: "s-2", message: "hello" })).resolves.toEqual({

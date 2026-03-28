@@ -2,6 +2,26 @@ import { describe, expect, it } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
 import { enablePluginInConfig } from "./enable.js";
 
+function expectEnableResult(
+  cfg: OpenClawConfig,
+  pluginId: string,
+  params: {
+    enabled: boolean;
+    assert: (result: ReturnType<typeof enablePluginInConfig>) => void;
+  },
+) {
+  const result = enablePluginInConfig(cfg, pluginId);
+  expect(result.enabled).toBe(params.enabled);
+  params.assert(result);
+}
+
+function expectEnabledAllowlist(
+  result: ReturnType<typeof enablePluginInConfig>,
+  expected: string[],
+) {
+  expect(result.config.plugins?.allow).toEqual(expected);
+}
+
 describe("enablePluginInConfig", () => {
   it.each([
     {
@@ -23,7 +43,7 @@ describe("enablePluginInConfig", () => {
       pluginId: "google",
       expectedEnabled: true,
       assert: (result: ReturnType<typeof enablePluginInConfig>) => {
-        expect(result.config.plugins?.allow).toEqual(["memory-core", "google"]);
+        expectEnabledAllowlist(result, ["memory-core", "google"]);
       },
     },
     {
@@ -60,7 +80,7 @@ describe("enablePluginInConfig", () => {
       expectedEnabled: true,
       assert: (result: ReturnType<typeof enablePluginInConfig>) => {
         expect(result.config.channels?.telegram?.enabled).toBe(true);
-        expect(result.config.plugins?.allow).toEqual(["memory-core", "telegram"]);
+        expectEnabledAllowlist(result, ["memory-core", "telegram"]);
       },
     },
     {
@@ -87,8 +107,9 @@ describe("enablePluginInConfig", () => {
       },
     },
   ])("$name", ({ cfg, pluginId, expectedEnabled, assert }) => {
-    const result = enablePluginInConfig(cfg, pluginId);
-    expect(result.enabled).toBe(expectedEnabled);
-    assert(result);
+    expectEnableResult(cfg, pluginId, {
+      enabled: expectedEnabled,
+      assert,
+    });
   });
 });

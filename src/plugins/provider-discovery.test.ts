@@ -33,6 +33,47 @@ function makeModelProviderConfig(overrides?: Partial<ModelProviderConfig>): Mode
   };
 }
 
+function expectGroupedProviderIds(
+  providers: readonly ProviderPlugin[],
+  expected: Record<ProviderDiscoveryOrder | "late", readonly string[]>,
+) {
+  const grouped = groupPluginDiscoveryProvidersByOrder([...providers]);
+  const actual = {
+    simple: grouped.simple.map((provider) => provider.id),
+    profile: grouped.profile.map((provider) => provider.id),
+    paired: grouped.paired.map((provider) => provider.id),
+    late: grouped.late.map((provider) => provider.id),
+  };
+  expect(actual).toEqual(expected);
+}
+
+function createCatalogRuntimeContext() {
+  return {
+    config: {},
+    env: {},
+    resolveProviderApiKey: () => ({ apiKey: undefined }),
+    resolveProviderAuth: () => ({
+      apiKey: undefined,
+      discoveryApiKey: undefined,
+      mode: "none" as const,
+      source: "none" as const,
+    }),
+  };
+}
+
+function expectNormalizedDiscoveryResult(params: {
+  provider: ProviderPlugin;
+  result: Parameters<typeof normalizePluginDiscoveryResult>[0]["result"];
+  expected: Record<string, unknown>;
+}) {
+  expect(
+    normalizePluginDiscoveryResult({
+      provider: params.provider,
+      result: params.result,
+    }),
+  ).toEqual(params.expected);
+}
+
 describe("groupPluginDiscoveryProvidersByOrder", () => {
   it.each([
     {
@@ -64,12 +105,7 @@ describe("groupPluginDiscoveryProvidersByOrder", () => {
       },
     },
   ] as const)("$name", ({ providers, expected }) => {
-    const grouped = groupPluginDiscoveryProvidersByOrder([...providers]);
-
-    expect(grouped.simple.map((provider) => provider.id)).toEqual(expected.simple);
-    expect(grouped.profile.map((provider) => provider.id)).toEqual(expected.profile);
-    expect(grouped.paired.map((provider) => provider.id)).toEqual(expected.paired);
-    expect(grouped.late.map((provider) => provider.id)).toEqual(expected.late);
+    expectGroupedProviderIds(providers, expected);
   });
 });
 
@@ -109,8 +145,7 @@ describe("normalizePluginDiscoveryResult", () => {
       },
     },
   ] as const)("$name", ({ provider, result, expected }) => {
-    const normalized = normalizePluginDiscoveryResult({ provider, result });
-    expect(normalized).toEqual(expected);
+    expectNormalizedDiscoveryResult({ provider, result, expected });
   });
 });
 
@@ -131,15 +166,7 @@ describe("runProviderCatalog", () => {
         catalog: { run: catalogRun },
         discovery: { run: discoveryRun },
       },
-      config: {},
-      env: {},
-      resolveProviderApiKey: () => ({ apiKey: undefined }),
-      resolveProviderAuth: () => ({
-        apiKey: undefined,
-        discoveryApiKey: undefined,
-        mode: "none",
-        source: "none",
-      }),
+      ...createCatalogRuntimeContext(),
     });
 
     expect(result).toEqual({

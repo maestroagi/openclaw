@@ -6,10 +6,15 @@ const mocks = vi.hoisted(() => ({
   memoryRegister: vi.fn(),
   otherRegister: vi.fn(),
   loadOpenClawPlugins: vi.fn(),
+  applyPluginAutoEnable: vi.fn(),
 }));
 
 vi.mock("./loader.js", () => ({
   loadOpenClawPlugins: (...args: unknown[]) => mocks.loadOpenClawPlugins(...args),
+}));
+
+vi.mock("../config/plugin-auto-enable.js", () => ({
+  applyPluginAutoEnable: (...args: unknown[]) => mocks.applyPluginAutoEnable(...args),
 }));
 
 import { registerPluginCliCommands } from "./cli.js";
@@ -22,27 +27,41 @@ function createProgram(existingCommandName?: string) {
   return program;
 }
 
+function createCliRegistry() {
+  return {
+    cliRegistrars: [
+      {
+        pluginId: "memory-core",
+        register: mocks.memoryRegister,
+        commands: ["memory"],
+        source: "bundled",
+      },
+      {
+        pluginId: "other",
+        register: mocks.otherRegister,
+        commands: ["other"],
+        source: "bundled",
+      },
+    ],
+  };
+}
+
+function expectPluginLoaderConfig(config: OpenClawConfig) {
+  expect(mocks.loadOpenClawPlugins).toHaveBeenCalledWith(
+    expect.objectContaining({
+      config,
+    }),
+  );
+}
+
 describe("registerPluginCliCommands", () => {
   beforeEach(() => {
     mocks.memoryRegister.mockClear();
     mocks.otherRegister.mockClear();
     mocks.loadOpenClawPlugins.mockReset();
-    mocks.loadOpenClawPlugins.mockReturnValue({
-      cliRegistrars: [
-        {
-          pluginId: "memory-core",
-          register: mocks.memoryRegister,
-          commands: ["memory"],
-          source: "bundled",
-        },
-        {
-          pluginId: "other",
-          register: mocks.otherRegister,
-          commands: ["other"],
-          source: "bundled",
-        },
-      ],
-    });
+    mocks.loadOpenClawPlugins.mockReturnValue(createCliRegistry());
+    mocks.applyPluginAutoEnable.mockReset();
+    mocks.applyPluginAutoEnable.mockImplementation(({ config }) => ({ config, changes: [] }));
   });
 
   it("skips plugin CLI registrars when commands already exist", () => {
@@ -64,6 +83,36 @@ describe("registerPluginCliCommands", () => {
     expect(mocks.loadOpenClawPlugins).toHaveBeenCalledWith(
       expect.objectContaining({
         env,
+      }),
+    );
+  });
+
+  it("loads plugin CLI commands from the auto-enabled config snapshot", () => {
+    const program = createProgram();
+    const rawConfig = {
+      plugins: {},
+      channels: { demo: { enabled: true } },
+    } as OpenClawConfig;
+    const autoEnabledConfig = {
+      ...rawConfig,
+      plugins: {
+        entries: {
+          demo: { enabled: true },
+        },
+      },
+    } as OpenClawConfig;
+    mocks.applyPluginAutoEnable.mockReturnValue({ config: autoEnabledConfig, changes: [] });
+
+    registerPluginCliCommands(program, rawConfig);
+
+    expect(mocks.applyPluginAutoEnable).toHaveBeenCalledWith({
+      config: rawConfig,
+      env: process.env,
+    });
+    expectPluginLoaderConfig(autoEnabledConfig);
+    expect(mocks.memoryRegister).toHaveBeenCalledWith(
+      expect.objectContaining({
+        config: autoEnabledConfig,
       }),
     );
   });

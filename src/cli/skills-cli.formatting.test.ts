@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildWorkspaceSkillStatus } from "../agents/skills-status.js";
 import type { SkillEntry } from "../agents/skills.js";
+import { createCanonicalFixtureSkill } from "../agents/skills.test-helpers.js";
 import { captureEnv } from "../test-utils/env.js";
 import { formatSkillInfo, formatSkillsCheck, formatSkillsList } from "./skills-cli.format.js";
 
@@ -92,18 +93,5 @@ function createFixtureSkill(params: {
   baseDir: string;
   source: string;
 }): SkillEntry["skill"] {
-  return {
-    name: params.name,
-    description: params.description,
-    filePath: params.filePath,
-    baseDir: params.baseDir,
-    sourceInfo: {
-      path: params.filePath,
-      source: params.source,
-      scope: "project",
-      origin: "top-level",
-      baseDir: params.baseDir,
-    },
-    disableModelInvocation: false,
-  };
+  return createCanonicalFixtureSkill(params);
 }
