@@ -30,6 +30,10 @@ Docs: https://docs.openclaw.ai
 - Agents/Kimi: preserve already-valid Anthropic-compatible tool call argument objects while still clearing cached repairs when later trailing junk exceeds the repair allowance. (#54491) Thanks @yuanaichi.
 - Docker/setup: force BuildKit for local image builds (including sandbox image builds) so `./docker-setup.sh` no longer fails on `RUN --mount=...` when hosts default to Docker's legacy builder. (#56681) Thanks @zhanghui-china.
 - Control UI/agents: auto-load agent workspace files on initial Files panel open, and populate overview model/workspace/fallbacks from effective runtime agent metadata so defaulted models no longer show as `Not set`. (#56637) Thanks @dxsx84.
+- Control UI/slash commands: make `/steer` and `/redirect` work from the chat command palette with visible pending state for active-run `/steer`, correct redirected-run tracking, and a single canonical `/steer` entry in the command menu. (#54625) Thanks @fuller-stack-dev.
+- Exec: fail closed when the implicit sandbox host has no sandbox runtime, and stop denied async approval followups from reusing prior command output from the same session. (#56800) Thanks @scoootscooob.
+- Plugins/ClawHub: sanitize temporary archive filenames for scoped package names and slash-containing skill slugs so `openclaw plugins install @scope/name` no longer fails with `ENOENT` during archive download. (#56452) Thanks @soimy.
+- Telegram/polling: keep the watchdog from aborting long-running reply delivery by treating recent non-polling API activity as bounded liveness instead of a hard stall. (#56343) Thanks @openperf.
 
 ## 2026.3.28
 
@@ -61,6 +65,7 @@ Docs: https://docs.openclaw.ai
 - Agents/compaction: surface safeguard-specific cancel reasons and relabel benign manual `/compact` no-op cases as skipped instead of failed. (#51072) Thanks @afurm.
 - Docs: add `pnpm docs:check-links:anchors` for Mintlify anchor validation while keeping `scripts/docs-link-audit.mjs` as the stable link-audit entrypoint. (#55912) Thanks @velvet-shark.
 - Tavily: mark outbound API requests with `X-Client-Source: openclaw` so Tavily can attribute OpenClaw-originated traffic. (#55335) Thanks @lakshyaag-tavily.
+- Matrix/streaming: add `streaming: "partial"` draft replies that stay on a single editable preview message, stop preview streaming once text no longer fits one Matrix event, and clear stale previews before media-only finals. (#56387) thanks @jrusz.
 
 ### Fixes
 
