@@ -493,7 +493,7 @@ export const discordPlugin: ChannelPlugin<ResolvedDiscordAccount, DiscordProbe> 
       },
       execApprovals: {
         getInitiatingSurfaceState: ({ cfg, accountId }) =>
-          isDiscordExecApprovalClientEnabled({ cfg, accountId })
+          getDiscordExecApprovalApprovers({ cfg, accountId }).length > 0
             ? { kind: "enabled" }
             : { kind: "disabled" },
         shouldSuppressLocalPrompt: ({ cfg, accountId, payload }) =>
