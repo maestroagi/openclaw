@@ -67,13 +67,16 @@
       "durationMs": 3200
     },
     "extensions/telegram/src/bot/delivery.resolve-media-retry.test.ts": {
-      "durationMs": 18920
+      "durationMs": 15830
     },
     "extensions/telegram/src/webhook.test.ts": {
       "durationMs": 2900
     },
     "extensions/slack/src/monitor/slash.test.ts": {
       "durationMs": 12500
+    },
+    "extensions/slack/src/outbound-adapter.test.ts": {
+      "durationMs": 4630
     },
     "extensions/whatsapp/src/send.test.ts": {
       "durationMs": 2700
@@ -85,7 +88,7 @@
       "durationMs": 2300
     },
     "extensions/whatsapp/src/auto-reply/deliver-reply.test.ts": {
-      "durationMs": 12400
+      "durationMs": 10260
     },
     "extensions/slack/src/monitor/events/reactions.test.ts": {
       "durationMs": 2200
@@ -166,7 +169,7 @@
       "durationMs": 1000
     },
     "extensions/telegram/src/bot-message-context.audio-transcript.test.ts": {
-      "durationMs": 17310
+      "durationMs": 20350
     },
     "extensions/whatsapp/src/monitor-inbox.append-upsert.test.ts": {
       "durationMs": 999
@@ -190,7 +193,7 @@
       "durationMs": 950
     },
     "extensions/slack/src/send.upload.test.ts": {
-      "durationMs": 923
+      "durationMs": 10010
     },
     "extensions/telegram/src/bot-native-commands.registry.test.ts": {
       "durationMs": 842
@@ -292,13 +295,13 @@
       "durationMs": 324
     },
     "extensions/whatsapp/src/outbound-adapter.poll.test.ts": {
-      "durationMs": 284
+      "durationMs": 17860
     },
     "src/browser/server.agent-contract-form-layout-act-commands.test.ts": {
       "durationMs": 282
     },
     "extensions/discord/src/send.webhook-activity.test.ts": {
-      "durationMs": 246
+      "durationMs": 31110
     },
     "src/browser/routes/basic.existing-session.test.ts": {
       "durationMs": 221
@@ -520,7 +523,7 @@
       "durationMs": 11
     },
     "extensions/telegram/src/bot-message-context.sender-prefix.test.ts": {
-      "durationMs": 19410
+      "durationMs": 20090
     },
     "extensions/whatsapp/src/active-listener.test.ts": {
       "durationMs": 11
