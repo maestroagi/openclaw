@@ -36,6 +36,8 @@ import {
   previewTaskRegistryMaintenance,
   reconcileInspectableTasks,
   runTaskRegistryMaintenance,
+  startTaskRegistryMaintenance,
+  stopTaskRegistryMaintenanceForTests,
   sweepTaskRegistry,
 } from "./task-registry.maintenance.js";
 import { configureTaskRegistryRuntime } from "./task-registry.store.js";
@@ -1026,7 +1028,7 @@ describe("task-registry", () => {
         lastEventAt: now - 10 * 60_000,
       });
 
-      expect(runTaskRegistryMaintenance()).toEqual({
+      expect(await runTaskRegistryMaintenance()).toEqual({
         reconciled: 1,
         cleanupStamped: 0,
         pruned: 0,
@@ -1061,7 +1063,7 @@ describe("task-registry", () => {
         lastEventAt: Date.now() - 8 * 24 * 60 * 60_000,
       });
 
-      expect(sweepTaskRegistry()).toEqual({
+      expect(await sweepTaskRegistry()).toEqual({
         reconciled: 0,
         cleanupStamped: 0,
         pruned: 1,
@@ -1110,12 +1112,46 @@ describe("task-registry", () => {
         pruned: 0,
       });
 
-      expect(runTaskRegistryMaintenance()).toEqual({
+      expect(await runTaskRegistryMaintenance()).toEqual({
         reconciled: 0,
         cleanupStamped: 1,
         pruned: 0,
       });
       expect(getTaskById("task-missing-cleanup")?.cleanupAfter).toBeGreaterThan(now);
+    });
+  });
+
+  it("cancels the deferred maintenance sweep during test teardown", async () => {
+    await withTaskRegistryTempDir(async (root) => {
+      vi.useFakeTimers();
+      process.env.OPENCLAW_STATE_DIR = root;
+      resetTaskRegistryForTests();
+      const now = Date.now();
+
+      const task = createTaskRecord({
+        runtime: "acp",
+        ownerKey: "agent:main:main",
+        scopeKind: "session",
+        childSessionKey: "agent:main:acp:missing",
+        runId: "run-deferred-maintenance-stop",
+        task: "Missing child",
+        status: "running",
+        deliveryStatus: "pending",
+      });
+      setTaskTimingById({
+        taskId: task.taskId,
+        lastEventAt: now - 10 * 60_000,
+      });
+
+      startTaskRegistryMaintenance();
+      stopTaskRegistryMaintenanceForTests();
+
+      await vi.advanceTimersByTimeAsync(5_000);
+      await flushAsyncWork();
+
+      expect(getTaskById(task.taskId)).toMatchObject({
+        status: "running",
+      });
     });
   });
 
