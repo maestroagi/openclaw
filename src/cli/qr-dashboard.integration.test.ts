@@ -41,9 +41,13 @@ vi.mock("../infra/clipboard.js", () => ({
   copyToClipboard: copyToClipboardMock,
 }));
 
-vi.mock("../runtime.js", () => ({
-  defaultRuntime: runtime,
-}));
+vi.mock("../runtime.js", async () => {
+  const actual = await vi.importActual<typeof import("../runtime.js")>("../runtime.js");
+  return {
+    ...actual,
+    defaultRuntime: runtime,
+  };
+});
 
 let dashboardCommand: typeof import("../commands/dashboard.js").dashboardCommand;
 let registerQrCli: typeof import("./qr-cli.js").registerQrCli;
@@ -90,6 +94,20 @@ function decodeSetupCode(setupCode: string): {
   };
 }
 
+function findSetupCodeLogLine(lines: string[]): string | undefined {
+  for (const line of lines) {
+    try {
+      const payload = decodeSetupCode(line);
+      if (payload.url || payload.bootstrapToken) {
+        return line;
+      }
+    } catch {
+      // Ignore non-setup-code log lines.
+    }
+  }
+  return undefined;
+}
+
 async function runCli(args: string[]): Promise<void> {
   const program = new Command();
   registerQrCli(program);
@@ -134,7 +152,7 @@ describe("cli integration: qr + dashboard token SecretRef", () => {
     });
 
     await runCli(["qr", "--setup-code-only"]);
-    const setupCode = runtimeLogs.at(-1);
+    const setupCode = findSetupCodeLogLine(runtimeLogs);
     expect(setupCode).toBeTruthy();
     const payload = decodeSetupCode(setupCode ?? "");
     expect(payload.url).toBe("ws://127.0.0.1:18789");
