@@ -2455,6 +2455,10 @@ Set `MINIMAX_API_KEY`. Shortcuts:
 `openclaw onboard --auth-choice minimax-global-api` or
 `openclaw onboard --auth-choice minimax-cn-api`.
 The model catalog now defaults to M2.7 only.
+On the Anthropic-compatible streaming path, OpenClaw disables MiniMax thinking
+by default unless you explicitly set `thinking` yourself. `/fast on` or
+`params.fastMode: true` rewrites `MiniMax-M2.7` to
+`MiniMax-M2.7-highspeed`.
 
 </Accordion>
 
@@ -2695,6 +2699,9 @@ See [Plugins](/tools/plugin).
 - `gateway.auth.rateLimit`: optional failed-auth limiter. Applies per client IP and per auth scope (shared-secret and device-token are tracked independently). Blocked attempts return `429` + `Retry-After`.
   - `gateway.auth.rateLimit.exemptLoopback` defaults to `true`; set `false` when you intentionally want localhost traffic rate-limited too (for test setups or strict proxy deployments).
 - Browser-origin WS auth attempts are always throttled with loopback exemption disabled (defense-in-depth against browser-based localhost brute force).
+- On loopback, those browser-origin lockouts are isolated per normalized `Origin`
+  value, so repeated failures from one localhost origin do not automatically
+  lock out a different origin.
 - `tailscale.mode`: `serve` (tailnet only, loopback bind) or `funnel` (public, requires auth).
 - `controlUi.allowedOrigins`: explicit browser-origin allowlist for Gateway WebSocket connects. Required when browser clients are expected from non-loopback origins.
 - `controlUi.dangerouslyAllowHostHeaderOriginFallback`: dangerous mode that enables Host-header origin fallback for deployments that intentionally rely on Host-header origin policy.

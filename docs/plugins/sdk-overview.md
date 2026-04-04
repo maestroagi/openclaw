@@ -83,7 +83,7 @@ subpaths is in `scripts/lib/plugin-sdk-entrypoints.json`.
     | `plugin-sdk/provider-catalog-shared` | `findCatalogTemplate`, `buildSingleProviderApiKeyCatalog`, `supportsNativeStreamingUsageCompat`, `applyProviderNativeStreamingUsageCompat` |
     | `plugin-sdk/provider-tools` | `buildProviderToolCompatFamilyHooks`, Gemini schema helpers |
     | `plugin-sdk/provider-usage` | `fetchClaudeUsage` and similar |
-    | `plugin-sdk/provider-stream` | `buildProviderStreamFamilyHooks`, stream wrapper types, provider stream wrappers |
+    | `plugin-sdk/provider-stream` | `buildProviderStreamFamilyHooks`, stream wrapper types, provider stream wrappers, shared OpenAI/OpenRouter stream-family helpers |
     | `plugin-sdk/provider-onboard` | Onboarding config patch helpers |
     | `plugin-sdk/global-singleton` | Process-local singleton/map/cache helpers |
   </Accordion>
@@ -293,6 +293,13 @@ Facade-loaded bundled plugin public surfaces (`api.ts`, `runtime-api.ts`,
 `index.ts`, `setup-entry.ts`, and similar public entry files) now prefer the
 active runtime config snapshot when OpenClaw is already running. If no runtime
 snapshot exists yet, they fall back to the resolved config file on disk.
+
+Provider plugins can also expose a narrow plugin-local contract barrel when a
+helper is intentionally provider-specific and does not belong in a generic SDK
+subpath yet. Current bundled example: the Anthropic provider keeps its Claude
+stream helpers in its own public `api.ts` / `contract-api.ts` seam instead of
+promoting Anthropic beta-header and `service_tier` logic into a generic
+`plugin-sdk/*` contract.
 
 <Warning>
   Extension production code should also avoid `openclaw/plugin-sdk/<other-plugin>`
