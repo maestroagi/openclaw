@@ -206,6 +206,7 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
 
     - If the chat already supports commands and replies, same-chat `/approve` works through the shared path.
     - If a supported native channel can infer approvers safely, OpenClaw now auto-enables DM-first native approvals when `channels.<channel>.execApprovals.enabled` is unset or `"auto"`.
+    - When native approval cards/buttons are available, that native UI is the primary path; the agent should only include a manual `/approve` command if the tool result says chat approvals are unavailable or manual approval is the only path.
     - Use `approvals.exec` only when prompts must also be forwarded to other chats or explicit ops rooms.
     - Use `channels.<channel>.execApprovals.target: "channel"` or `"both"` only when you explicitly want approval prompts posted back into the originating room/topic.
     - Plugin approvals are separate again: they use same-chat `/approve` by default, optional `approvals.plugin` forwarding, and only some native channels keep plugin-approval-native handling on top.
@@ -1614,6 +1615,7 @@ for usage/billing and raise limits as needed.
     - Use `openclaw configure` for interactive edits.
     - Use `config.schema.lookup` first when you are not sure about an exact path or field shape; it returns a shallow schema node plus immediate child summaries for drill-down.
     - Use `config.patch` for partial RPC edits; keep `config.apply` for full-config replacement only.
+    - If you are using the owner-only `gateway` tool from an agent run, it will still reject writes to `tools.exec.ask` / `tools.exec.security` (including legacy `tools.bash.*` aliases that normalize to the same protected exec paths).
 
     Docs: [Config](/cli/config), [Configure](/cli/configure), [Doctor](/gateway/doctor).
 
@@ -1789,6 +1791,7 @@ for usage/billing and raise limits as needed.
     - `config.get`: fetch the current snapshot + hash
     - `config.patch`: safe partial update (preferred for most RPC edits)
     - `config.apply`: validate + replace the full config, then restart
+    - The owner-only `gateway` runtime tool still refuses to rewrite `tools.exec.ask` / `tools.exec.security`; legacy `tools.bash.*` aliases normalize to the same protected exec paths
 
   </Accordion>
 
