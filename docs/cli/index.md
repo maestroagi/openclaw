@@ -956,7 +956,7 @@ Options:
 - `--reply-to <target>` (delivery target override, separate from session routing)
 - `--reply-channel <channel>` (delivery channel override)
 - `--reply-account <id>` (delivery account id override)
-- `--local`
+- `--local` (embedded run; plugin registry still preloads first)
 - `--deliver`
 - `--json`
 - `--timeout <seconds>`
@@ -964,6 +964,7 @@ Options:
 Notes:
 
 - Gateway mode falls back to the embedded agent when the Gateway request fails.
+- `--local` still preloads the plugin registry, so plugin-provided providers, tools, and channels remain available during embedded runs.
 - `--channel`, `--reply-channel`, and `--reply-account` affect reply delivery, not routing.
 
 ### `agents`
@@ -1292,7 +1293,7 @@ List and manage [background task](/automation/tasks) runs across agents.
 - `tasks notify <id>` — change notification policy for a task run
 - `tasks cancel <id>` — cancel a running task
 - `tasks audit` — surface operational issues (stale, lost, delivery failures)
-- `tasks maintenance` — preview or apply tasks and TaskFlow cleanup/reconciliation
+- `tasks maintenance` — preview or apply tasks and TaskFlow cleanup/reconciliation (ACP/subagent child sessions, active cron jobs, live CLI runs)
 - `tasks flow list` — list active and recent Task Flow flows
 - `tasks flow show <lookup>` — inspect a flow by id or lookup key
 - `tasks flow cancel <lookup>` — cancel a running flow and its active tasks
@@ -1351,7 +1352,8 @@ Notes:
 - `gateway status` probes the Gateway RPC by default using the service’s resolved port/config (override with `--url/--token/--password`).
 - `gateway status` supports `--no-probe`, `--deep`, `--require-rpc`, and `--json` for scripting.
 - `gateway status` also surfaces legacy or extra gateway services when it can detect them (`--deep` adds system-level scans). Profile-named OpenClaw services are treated as first-class and aren't flagged as "extra".
-- `gateway status` prints which config path the CLI uses vs which config the service likely uses (service env), plus the resolved probe target URL.
+- `gateway status` stays available for diagnostics even when the local CLI config is missing or invalid.
+- `gateway status` prints the resolved file log path, the CLI-vs-service config paths/validity snapshot, and the resolved probe target URL.
 - If gateway auth SecretRefs are unresolved in the current command path, `gateway status --json` reports `rpc.authWarning` only when probe connectivity/auth fails (warnings are suppressed when probe succeeds).
 - On Linux systemd installs, status token-drift checks include both `Environment=` and `EnvironmentFile=` unit sources.
 - `gateway install|uninstall|start|stop|restart` support `--json` for scripting (default output stays human-friendly).
