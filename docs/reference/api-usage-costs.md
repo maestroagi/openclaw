@@ -73,8 +73,8 @@ Every reply or tool call uses the **current model provider** (OpenAI, Anthropic,
 primary source of usage and cost.
 
 This also includes subscription-style hosted providers that still bill outside
-OpenClaw's local UI, such as **OpenAI Codex**, **Alibaba Cloud Model Studio
-Coding Plan**, **MiniMax Coding Plan**, **Z.AI / GLM Coding Plan**, and
+OpenClaw's local UI, such as **OpenAI Codex**, **Qwen Cloud Coding Plan**,
+**MiniMax Coding Plan**, **Z.AI / GLM Coding Plan**, and
 Anthropic subscription auth with **Extra Usage** enabled.
 
 See [Models](/providers/models) for pricing config and [Token use & costs](/reference/token-use) for display.
@@ -83,13 +83,28 @@ See [Models](/providers/models) for pricing config and [Token use & costs](/refe
 
 Inbound media can be summarized/transcribed before the reply runs. This uses model/provider APIs.
 
-- Audio: OpenAI / Groq / Deepgram (now **auto-enabled** when keys exist).
-- Image: OpenAI / Anthropic / Google.
-- Video: Google.
+- Audio: OpenAI / Groq / Deepgram / Google / Mistral.
+- Image: OpenAI / OpenRouter / Anthropic / Google / MiniMax / Moonshot / Qwen / Z.AI.
+- Video: Google / Qwen / Moonshot.
 
 See [Media understanding](/nodes/media-understanding).
 
-### 3) Memory embeddings + semantic search
+### 3) Image and video generation
+
+Shared generation capabilities can also spend provider keys:
+
+- Image generation: OpenAI / Google / fal / MiniMax
+- Video generation: Qwen
+
+Image generation can infer an auth-backed provider default when
+`agents.defaults.imageGenerationModel` is unset. Video generation currently
+requires an explicit `agents.defaults.videoGenerationModel` such as
+`qwen/wan2.6-t2v`.
+
+See [Image generation](/tools/image-generation), [Qwen Cloud](/providers/qwen),
+and [Models](/concepts/models).
+
+### 4) Memory embeddings + semantic search
 
 Semantic memory search uses **embedding APIs** when configured for remote providers:
 
@@ -104,7 +119,7 @@ You can keep it local with `memorySearch.provider = "local"` (no API usage).
 
 See [Memory](/concepts/memory).
 
-### 4) Web search tool
+### 5) Web search tool
 
 `web_search` may incur usage charges depending on your provider:
 
