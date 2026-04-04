@@ -90,7 +90,7 @@ It does not install or modify anything on the remote host.
   </Step>
   <Step title="Skills">
     - Reads available skills and checks requirements.
-    - Lets you choose node manager: npm or pnpm (bun not recommended).
+    - Lets you choose node manager: npm, pnpm, or bun.
     - Installs optional dependencies (some use Homebrew on macOS).
   </Step>
   <Step title="Finish">
@@ -223,6 +223,12 @@ What you set:
 Model behavior:
 
 - Pick default model from detected options, or enter provider and model manually.
+- When onboarding starts from a provider auth choice, the model picker prefers
+  that provider automatically. For Volcengine and BytePlus, the same preference
+  also matches their coding-plan variants (`volcengine-plan/*`,
+  `byteplus-plan/*`).
+- If that preferred-provider filter would be empty, the picker falls back to
+  the full catalog instead of showing no models.
 - Wizard runs a model check and warns if the configured model is unknown or missing auth.
 
 Credential and profile paths:

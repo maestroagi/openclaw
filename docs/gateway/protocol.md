@@ -173,6 +173,14 @@ Method scope is only the first gate. Some slash commands reached through
 `chat.send` apply stricter command-level checks on top. For example, persistent
 `/config set` and `/config unset` writes require `operator.admin`.
 
+`node.pair.approve` also has an extra approval-time scope check on top of the
+base method scope:
+
+- commandless requests: `operator.pairing`
+- requests with non-exec node commands: `operator.pairing` + `operator.write`
+- requests that include `system.run`, `system.run.prepare`, or `system.which`:
+  `operator.pairing` + `operator.admin`
+
 ### Caps/commands/permissions (node)
 
 Nodes declare capability claims at connect time:
@@ -244,6 +252,9 @@ The Gateway treats these as **claims** and enforces server-side allowlists.
   such as `wss://` or loopback/local pairing.
 - Device tokens can be rotated/revoked via `device.token.rotate` and
   `device.token.revoke` (requires `operator.pairing` scope).
+- Token issuance/rotation stays bounded to the approved role set recorded in
+  that device's pairing entry; rotating a token cannot expand the device into a
+  role that pairing approval never granted.
 - Auth failures include `error.details.code` plus recovery hints:
   - `error.details.canRetryWithDeviceToken` (boolean)
   - `error.details.recommendedNextStep` (`retry_with_device_token`, `update_auth_configuration`, `update_auth_credentials`, `wait_then_retry`, `review_auth_configuration`)

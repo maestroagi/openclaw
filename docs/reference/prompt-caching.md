@@ -114,11 +114,31 @@ Per-agent heartbeat is supported at `agents.list[].heartbeat`.
 
 ### OpenRouter Anthropic models
 
-For `openrouter/anthropic/*` model refs, OpenClaw injects Anthropic `cache_control` on system/developer prompt blocks to improve prompt-cache reuse.
+For `openrouter/anthropic/*` model refs, OpenClaw injects Anthropic
+`cache_control` on system/developer prompt blocks to improve prompt-cache
+reuse only when the request is still targeting a verified OpenRouter route
+(`openrouter` on its default endpoint, or any provider/base URL that resolves
+to `openrouter.ai`).
+
+If you repoint the model at an arbitrary OpenAI-compatible proxy URL, OpenClaw
+stops injecting those OpenRouter-specific Anthropic cache markers.
 
 ### Other providers
 
 If the provider does not support this cache mode, `cacheRetention` has no effect.
+
+## OpenClaw cache-stability guards
+
+OpenClaw also keeps several cache-sensitive payload shapes deterministic before
+the request reaches the provider:
+
+- Bundle MCP tool catalogs are sorted deterministically before tool
+  registration, so `listTools()` order changes do not churn the tools block and
+  bust prompt-cache prefixes.
+- Legacy sessions with persisted image blocks keep the **3 most recent
+  completed turns** intact; older already-processed image blocks may be
+  replaced with a marker so image-heavy follow-ups do not keep re-sending large
+  stale payloads.
 
 ## Tuning patterns
 

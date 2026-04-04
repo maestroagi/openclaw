@@ -107,7 +107,8 @@ Current bundled examples:
   fetching
 - `openai`: GPT-5.4 forward-compat fallback, direct OpenAI transport
   normalization, Codex-aware missing-auth hints, Spark suppression, synthetic
-  OpenAI/Codex catalog rows, thinking/live-model policy, and
+  OpenAI/Codex catalog rows, thinking/live-model policy, usage-token alias
+  normalization (`input` / `output` and `prompt` / `completion` families), and
   provider-family metadata
 - `google` and `google-gemini-cli`: Gemini 3.1 forward-compat fallback and
   modern-model matching; Gemini CLI OAuth also owns auth-profile token
@@ -265,8 +266,10 @@ OpenClaw ships with the pi‑ai catalog. These providers require **no**
 - Gemini CLI OAuth is shipped as part of the bundled `google` plugin.
   - Enable: `openclaw plugins enable google`
   - Login: `openclaw models auth login --provider google-gemini-cli --set-default`
+  - Default model: `google-gemini-cli/gemini-3.1-pro-preview`
   - Note: you do **not** paste a client id or secret into `openclaw.json`. The CLI login flow stores
     tokens in auth profiles on the gateway host.
+  - If requests fail after login, set `GOOGLE_CLOUD_PROJECT` or `GOOGLE_CLOUD_PROJECT_ID` on the gateway host.
 
 ### Z.AI (GLM)
 
@@ -305,6 +308,8 @@ See [/providers/kilocode](/providers/kilocode) for setup details.
 - Example model: `openrouter/auto`
 - OpenClaw applies OpenRouter's documented app-attribution headers only when
   the request actually targets `openrouter.ai`
+- OpenRouter-specific Anthropic `cache_control` markers are likewise gated to
+  verified OpenRouter routes, not arbitrary proxy URLs
 - OpenRouter remains on the proxy-style OpenAI-compatible path, so native
   OpenAI-only request shaping (`serviceTier`, Responses `store`,
   prompt-cache hints, OpenAI reasoning-compat payloads) is not forwarded
@@ -439,6 +444,11 @@ Volcano Engine (火山引擎) provides access to Doubao and other models in Chin
 Onboarding defaults to the coding surface, but the general `volcengine/*`
 catalog is registered at the same time.
 
+In onboarding/configure model pickers, the Volcengine auth choice prefers both
+`volcengine/*` and `volcengine-plan/*` rows. If those models are not loaded yet,
+OpenClaw falls back to the unfiltered catalog instead of showing an empty
+provider-scoped picker.
+
 Available models:
 
 - `volcengine/doubao-seed-1-8-251228` (Doubao Seed 1.8)
@@ -474,6 +484,11 @@ BytePlus ARK provides access to the same models as Volcano Engine for internatio
 
 Onboarding defaults to the coding surface, but the general `byteplus/*`
 catalog is registered at the same time.
+
+In onboarding/configure model pickers, the BytePlus auth choice prefers both
+`byteplus/*` and `byteplus-plan/*` rows. If those models are not loaded yet,
+OpenClaw falls back to the unfiltered catalog instead of showing an empty
+provider-scoped picker.
 
 Available models:
 
