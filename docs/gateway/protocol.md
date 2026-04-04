@@ -218,8 +218,16 @@ This page is not a generated full dump, but the public WS surface is broader
 than the handshake/auth examples above. These are the main method families the
 Gateway exposes today.
 
+`hello-ok.features.methods` is a conservative discovery list built from
+`src/gateway/server-methods-list.ts` plus loaded plugin/channel method exports.
+Treat it as feature discovery, not as a generated dump of every callable helper
+implemented in `src/gateway/server-methods/*.ts`.
+
 ### System and identity
 
+- `health` returns the cached or freshly probed gateway health snapshot.
+- `status` returns the `/status`-style gateway summary; sensitive fields are
+  included only for admin-scoped operator clients.
 - `gateway.identity.get` returns the gateway device identity used by relay and
   pairing flows.
 - `system-presence` returns the current presence snapshot for connected
@@ -234,6 +242,8 @@ Gateway exposes today.
 - `models.list` returns the runtime-allowed model catalog.
 - `usage.status` returns provider usage windows/remaining quota summaries.
 - `usage.cost` returns aggregated cost usage summaries for a date range.
+- `doctor.memory.status` returns vector-memory / embedding readiness for the
+  active default agent workspace.
 - `sessions.usage` returns per-session usage summaries.
 - `sessions.usage.timeseries` returns timeseries usage for one session.
 - `sessions.usage.logs` returns usage log entries for one session.
@@ -250,6 +260,13 @@ Gateway exposes today.
 - `push.test` sends a test APNs push to a registered iOS node.
 - `voicewake.get` returns the stored wake-word triggers.
 - `voicewake.set` updates wake-word triggers and broadcasts the change.
+
+### Messaging and logs
+
+- `send` is the direct outbound-delivery RPC for channel/account/thread-targeted
+  sends outside the chat runner.
+- `logs.tail` returns the configured gateway file-log tail with cursor/limit and
+  max-byte controls.
 
 ### Talk and TTS
 
@@ -360,6 +377,8 @@ Gateway exposes today.
 
 - `exec.approval.request` and `exec.approval.resolve` cover one-shot exec
   approval requests.
+- `exec.approval.waitDecision` waits on one pending exec approval and returns
+  the final decision (or `null` on timeout).
 - `exec.approvals.get` and `exec.approvals.set` manage gateway exec approval
   policy snapshots.
 - `exec.approvals.node.get` and `exec.approvals.node.set` manage node-local exec
@@ -369,8 +388,33 @@ Gateway exposes today.
 
 #### Other major families
 
-- automation: `cron.*`
+- automation:
+  - `wake` schedules an immediate or next-heartbeat wake text injection
+  - `cron.list`, `cron.status`, `cron.add`, `cron.update`, `cron.remove`,
+    `cron.run`, `cron.runs`
 - skills/tools: `skills.*`, `tools.catalog`, `tools.effective`
+
+### Common event families
+
+- `chat`: UI chat updates such as `chat.inject` and other transcript-only chat
+  events.
+- `session.message` and `session.tool`: transcript/event-stream updates for a
+  subscribed session.
+- `sessions.changed`: session index or metadata changed.
+- `presence`: system presence snapshot updates.
+- `tick`: periodic keepalive / liveness event.
+- `health`: gateway health snapshot update.
+- `heartbeat`: heartbeat event stream update.
+- `cron`: cron run/job change event.
+- `shutdown`: gateway shutdown notification.
+- `node.pair.requested` / `node.pair.resolved`: node pairing lifecycle.
+- `node.invoke.request`: node invoke request broadcast.
+- `device.pair.requested` / `device.pair.resolved`: paired-device lifecycle.
+- `voicewake.changed`: wake-word trigger config changed.
+- `exec.approval.requested` / `exec.approval.resolved`: exec approval
+  lifecycle.
+- `plugin.approval.requested` / `plugin.approval.resolved`: plugin approval
+  lifecycle.
 
 ### Node helper methods
 

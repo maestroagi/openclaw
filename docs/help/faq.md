@@ -1274,7 +1274,12 @@ for usage/billing and raise limits as needed.
   </Accordion>
 
   <Accordion title="How do I bind a host folder into the sandbox?">
-    Set `agents.defaults.sandbox.docker.binds` to `["host:path:mode"]` (e.g., `"/home/user/src:/src:ro"`). Global + per-agent binds merge; per-agent binds are ignored when `scope: "shared"`. Use `:ro` for anything sensitive and remember binds bypass the sandbox filesystem walls. See [Sandboxing](/gateway/sandboxing#custom-bind-mounts) and [Sandbox vs Tool Policy vs Elevated](/gateway/sandbox-vs-tool-policy-vs-elevated#bind-mounts-security-quick-check) for examples and safety notes.
+    Set `agents.defaults.sandbox.docker.binds` to `["host:path:mode"]` (e.g., `"/home/user/src:/src:ro"`). Global + per-agent binds merge; per-agent binds are ignored when `scope: "shared"`. Use `:ro` for anything sensitive and remember binds bypass the sandbox filesystem walls.
+
+    OpenClaw validates bind sources against both the normalized path and the canonical path resolved through the deepest existing ancestor. That means symlink-parent escapes still fail closed even when the last path segment does not exist yet, and allowed-root checks still apply after symlink resolution.
+
+    See [Sandboxing](/gateway/sandboxing#custom-bind-mounts) and [Sandbox vs Tool Policy vs Elevated](/gateway/sandbox-vs-tool-policy-vs-elevated#bind-mounts-security-quick-check) for examples and safety notes.
+
   </Accordion>
 
   <Accordion title="How does memory work?">
@@ -1462,7 +1467,10 @@ for usage/billing and raise limits as needed.
   </Accordion>
 
   <Accordion title='I set gateway.bind: "lan" (or "tailnet") and now nothing listens / the UI says unauthorized'>
-    Non-loopback binds **require auth**. Configure `gateway.auth.mode` + `gateway.auth.token` (or use `OPENCLAW_GATEWAY_TOKEN`).
+    Non-loopback binds **require a valid gateway auth path**. In practice that means:
+
+    - shared-secret auth: token or password
+    - `gateway.auth.mode: "trusted-proxy"` behind a correctly configured non-loopback identity-aware reverse proxy
 
     ```json5
     {
@@ -1480,8 +1488,10 @@ for usage/billing and raise limits as needed.
 
     - `gateway.remote.token` / `.password` do **not** enable local gateway auth by themselves.
     - Local call paths can use `gateway.remote.*` as fallback only when `gateway.auth.*` is unset.
+    - For password auth, set `gateway.auth.mode: "password"` plus `gateway.auth.password` (or `OPENCLAW_GATEWAY_PASSWORD`) instead.
     - If `gateway.auth.token` / `gateway.auth.password` is explicitly configured via SecretRef and unresolved, resolution fails closed (no remote fallback masking).
     - Shared-secret Control UI setups authenticate via `connect.params.auth.token` or `connect.params.auth.password` (stored in app/UI settings). Identity-bearing modes such as Tailscale Serve or `trusted-proxy` use request headers instead. Avoid putting shared secrets in URLs.
+    - With `gateway.auth.mode: "trusted-proxy"`, same-host loopback reverse proxies still do **not** satisfy trusted-proxy auth. The trusted proxy must be a configured non-loopback source.
 
   </Accordion>
 
@@ -2590,6 +2600,10 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
 
     OpenClaw may temporarily skip a profile if it's in a short **cooldown** (rate limits/timeouts/auth failures) or a longer **disabled** state (billing/insufficient credits). To inspect this, run `openclaw models status --json` and check `auth.unusableProfiles`. Tuning: `auth.cooldowns.billingBackoffHours*`.
 
+    Rate-limit cooldowns can be model-scoped. A profile that is cooling down
+    for one model can still be usable for a sibling model on the same provider,
+    while billing/disabled windows still block the whole profile.
+
     You can also set a **per-agent** order override (stored in that agent's `auth-profiles.json`) via the CLI:
 
     ```bash
@@ -2611,6 +2625,15 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
     ```bash
     openclaw models auth order set --provider anthropic --agent main anthropic:default
     ```
+
+    To verify what will actually be tried, use:
+
+    ```bash
+    openclaw models status --probe
+    ```
+
+    If a stored profile is omitted from the explicit order, probe reports
+    `excluded_by_auth_order` for that profile instead of trying it silently.
 
   </Accordion>
 

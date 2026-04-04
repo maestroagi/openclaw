@@ -86,6 +86,22 @@ Automation-friendly check (exit `1` when expired/missing, `2` when expiring):
 openclaw models status --check
 ```
 
+Live auth probes:
+
+```bash
+openclaw models status --probe
+```
+
+Notes:
+
+- Probe rows can come from auth profiles, env credentials, or `models.json`.
+- If explicit `auth.order.<provider>` omits a stored profile, probe reports
+  `excluded_by_auth_order` for that profile instead of trying it.
+- If auth exists but OpenClaw cannot resolve a probeable model candidate for
+  that provider, probe reports `status: no_model`.
+- Rate-limit cooldowns can be model-scoped. A profile cooling down for one
+  model can still be usable for a sibling model on the same provider.
+
 Optional ops scripts (systemd/Termux) are documented here:
 [Auth monitoring scripts](/help/scripts#auth-monitoring-scripts)
 
@@ -169,6 +185,10 @@ openclaw models auth order clear --provider anthropic
 ```
 
 Use `--agent <id>` to target a specific agent; omit it to use the configured default agent.
+When you debug order issues, `openclaw models status --probe` shows omitted
+stored profiles as `excluded_by_auth_order` instead of silently skipping them.
+When you debug cooldown issues, remember that rate-limit cooldowns can be tied
+to one model id rather than the whole provider profile.
 
 ## Troubleshooting
 
