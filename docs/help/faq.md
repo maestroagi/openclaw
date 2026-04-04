@@ -613,7 +613,10 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
   <Accordion title="Do you support Claude subscription auth (Claude Pro or Max)?">
     Yes. Reuse a local **Claude CLI** login on the gateway host with `openclaw models auth login --provider anthropic --method cli --set-default`.
 
-    Existing legacy Anthropic token profiles still run if they are already configured, but OpenClaw no longer offers Anthropic setup-token as a new setup path. See [Anthropic](/providers/anthropic) and [OAuth](/concepts/oauth).
+    Existing Anthropic OAuth/token profiles still run if they are already configured, but OpenClaw no longer offers Anthropic setup-token as a new setup path. See [Anthropic](/providers/anthropic) and [OAuth](/concepts/oauth).
+    Other providers can still use the generic token helpers with
+    `openclaw models auth setup-token --provider <id>` or
+    `openclaw models auth paste-token --provider <id>`.
 
     Important: Anthropic changed third-party harness billing on **April 4, 2026
     at 12:00 PM PT / 8:00 PM BST**. Anthropic says Claude subscription limits no
@@ -631,15 +634,16 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
 <a id="why-am-i-seeing-http-429-ratelimiterror-from-anthropic"></a>
 <Accordion title="Why am I seeing HTTP 429 rate_limit_error from Anthropic?">
 That means your **Anthropic quota/rate limit** is exhausted for the current window. If you
-use **Claude CLI**, wait for the window to reset or upgrade your plan. If you
-use an **Anthropic API key**, check the Anthropic Console
+use **Claude CLI** or **Anthropic OAuth/subscription tokens**, wait for the
+window to reset or enable/upgrade Extra Usage. If you use an **Anthropic API
+key**, check the Anthropic Console
 for usage/billing and raise limits as needed.
 
     If the message is specifically:
     `Extra usage is required for long context requests`, the request is trying to use
     Anthropic's 1M context beta (`context1m: true`). That only works when your
-    credential is eligible for long-context billing (API key billing or Claude
-    CLI with Extra Usage enabled).
+    credential is eligible for long-context billing (API key billing or
+    Anthropic OAuth/subscription auth with Extra Usage enabled).
 
     Tip: set a **fallback model** so OpenClaw can keep replying while a provider is rate-limited.
     See [Models](/cli/models), [OAuth](/concepts/oauth), and
@@ -1030,7 +1034,7 @@ for usage/billing and raise limits as needed.
     - If the completion origin only carries a channel, OpenClaw falls back to the requester session's stored route (`lastChannel` / `lastTo` / `lastAccountId`) so direct delivery can still succeed.
     - If neither a bound route nor a usable stored route exists, direct delivery can fail and the result falls back to queued session delivery instead of posting immediately to chat.
     - Invalid or stale targets can still force queue fallback or final delivery failure.
-    - If the child's last visible assistant reply is a silent token (`NO_REPLY` / `ANNOUNCE_SKIP`), OpenClaw intentionally suppresses the announce instead of posting stale earlier progress.
+    - If the child's last visible assistant reply is the exact silent token `NO_REPLY` / `no_reply`, or exactly `ANNOUNCE_SKIP`, OpenClaw intentionally suppresses the announce instead of posting stale earlier progress.
     - If the child timed out after only tool calls, the announce can collapse that into a short partial-progress summary instead of replaying raw tool output.
 
     Debug:
