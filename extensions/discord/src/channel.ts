@@ -17,6 +17,7 @@ import {
   createChannelDirectoryAdapter,
   createRuntimeDirectoryLiveAdapter,
 } from "openclaw/plugin-sdk/directory-runtime";
+import { createLazyRuntimeModule } from "openclaw/plugin-sdk/lazy-runtime";
 import {
   createRuntimeOutboundDelegates,
   resolveOutboundSendDep,
@@ -35,10 +36,15 @@ import {
 import { getDiscordApprovalCapability } from "./approval-native.js";
 import { discordMessageActions as discordMessageActionsImpl } from "./channel-actions.js";
 import {
-  listDiscordDirectoryGroupsFromConfig,
-  listDiscordDirectoryPeersFromConfig,
-} from "./directory-config.js";
-import { listDiscordDirectoryGroupsLive, listDiscordDirectoryPeersLive } from "./directory-live.js";
+  buildTokenChannelStatusSummary,
+  type ChannelPlugin,
+  DEFAULT_ACCOUNT_ID,
+  getChatChannelMeta,
+  PAIRING_APPROVED_MESSAGE,
+  projectCredentialSnapshotFields,
+  resolveConfiguredFromCredentialStatuses,
+  type OpenClawConfig,
+} from "./channel-api.js";
 import { shouldSuppressLocalDiscordExecApprovalPrompt } from "./exec-approvals.js";
 import {
   resolveDiscordGroupRequireMention,
@@ -56,21 +62,8 @@ import {
 } from "./normalize.js";
 import { resolveDiscordOutboundSessionRoute } from "./outbound-session-route.js";
 import type { DiscordProbe } from "./probe.js";
-import { resolveDiscordChannelAllowlist } from "./resolve-channels.js";
-import { resolveDiscordUserAllowlist } from "./resolve-users.js";
-import {
-  buildTokenChannelStatusSummary,
-  type ChannelPlugin,
-  DEFAULT_ACCOUNT_ID,
-  getChatChannelMeta,
-  PAIRING_APPROVED_MESSAGE,
-  projectCredentialSnapshotFields,
-  resolveConfiguredFromCredentialStatuses,
-  type OpenClawConfig,
-} from "./runtime-api.js";
 import { getDiscordRuntime } from "./runtime.js";
 import { collectDiscordSecurityAuditFindings } from "./security-audit.js";
-import { fetchChannelPermissionsDiscord, sendMessageDiscord, sendPollDiscord } from "./send.js";
 import { normalizeExplicitDiscordSessionKey } from "./session-key-normalization.js";
 import { discordSetupAdapter } from "./setup-core.js";
 import { createDiscordPluginBase, discordConfigAdapter } from "./shared.js";
@@ -78,7 +71,7 @@ import { collectDiscordStatusIssues } from "./status-issues.js";
 import { parseDiscordTarget } from "./targets.js";
 import { DiscordUiContainer } from "./ui.js";
 
-type DiscordSendFn = typeof sendMessageDiscord;
+type DiscordSendFn = typeof import("./send.js").sendMessageDiscord;
 type DiscordCarbonModule = typeof import("@buape/carbon");
 type DiscordTextDisplay = InstanceType<DiscordCarbonModule["TextDisplay"]>;
 type DiscordSeparator = InstanceType<DiscordCarbonModule["Separator"]>;
@@ -88,7 +81,17 @@ let discordProviderRuntimePromise:
   | undefined;
 let discordProbeRuntimePromise: Promise<typeof import("./probe.runtime.js")> | undefined;
 let discordAuditModulePromise: Promise<typeof import("./audit.js")> | undefined;
+let discordSendModulePromise: Promise<typeof import("./send.js")> | undefined;
+let discordDirectoryLiveModulePromise: Promise<typeof import("./directory-live.js")> | undefined;
 let discordCarbonModuleCache: DiscordCarbonModule | null = null;
+
+const loadDiscordDirectoryConfigModule = createLazyRuntimeModule(
+  () => import("./directory-config.js"),
+);
+const loadDiscordResolveChannelsModule = createLazyRuntimeModule(
+  () => import("./resolve-channels.js"),
+);
+const loadDiscordResolveUsersModule = createLazyRuntimeModule(() => import("./resolve-users.js"));
 
 const require = createRequire(import.meta.url);
 
@@ -107,12 +110,24 @@ async function loadDiscordAuditModule() {
   return await discordAuditModulePromise;
 }
 
+async function loadDiscordSendModule() {
+  discordSendModulePromise ??= import("./send.js");
+  return await discordSendModulePromise;
+}
+
+async function loadDiscordDirectoryLiveModule() {
+  discordDirectoryLiveModulePromise ??= import("./directory-live.js");
+  return await discordDirectoryLiveModulePromise;
+}
+
 function loadDiscordCarbonModule() {
   discordCarbonModuleCache ??= require("@buape/carbon") as DiscordCarbonModule;
   return discordCarbonModuleCache;
 }
 
-const meta = getChatChannelMeta("discord");
+const meta = {
+  ...getChatChannelMeta("discord"),
+};
 const REQUIRED_DISCORD_PERMISSIONS = ["ViewChannel", "SendMessages"] as const;
 const DISCORD_ACCOUNT_STARTUP_STAGGER_MS = 10_000;
 
@@ -132,11 +147,11 @@ function resolveOptionalDiscordRuntime() {
   }
 }
 
-function resolveDiscordSend(deps?: { [channelId: string]: unknown }): DiscordSendFn {
+async function resolveDiscordSend(deps?: { [channelId: string]: unknown }): Promise<DiscordSendFn> {
   return (
     resolveOutboundSendDep<DiscordSendFn>(deps, "discord") ??
     resolveOptionalDiscordRuntime()?.channel?.discord?.sendMessageDiscord ??
-    sendMessageDiscord
+    (await loadDiscordSendModule()).sendMessageDiscord
   );
 }
 
@@ -444,13 +459,12 @@ export const discordPlugin: ChannelPlugin<ResolvedDiscordAccount, DiscordProbe> 
       },
       approvalCapability: getDiscordApprovalCapability(),
       directory: createChannelDirectoryAdapter({
-        listPeers: async (params) => listDiscordDirectoryPeersFromConfig(params),
-        listGroups: async (params) => listDiscordDirectoryGroupsFromConfig(params),
+        listPeers: async (params) =>
+          (await loadDiscordDirectoryConfigModule()).listDiscordDirectoryPeersFromConfig(params),
+        listGroups: async (params) =>
+          (await loadDiscordDirectoryConfigModule()).listDiscordDirectoryGroupsFromConfig(params),
         ...createRuntimeDirectoryLiveAdapter({
-          getRuntime: () => ({
-            listDirectoryGroupsLive: listDiscordDirectoryGroupsLive,
-            listDirectoryPeersLive: listDiscordDirectoryPeersLive,
-          }),
+          getRuntime: loadDiscordDirectoryLiveModule,
           listPeersLive: (runtime) => runtime.listDirectoryPeersLive,
           listGroupsLive: (runtime) => runtime.listDirectoryGroupsLive,
         }),
@@ -463,8 +477,11 @@ export const discordPlugin: ChannelPlugin<ResolvedDiscordAccount, DiscordProbe> 
               token: account.token,
               inputs,
               missingTokenNote: "missing Discord token",
-              resolveWithToken: ({ token, inputs }) =>
-                resolveDiscordChannelAllowlist({ token, entries: inputs }),
+              resolveWithToken: async ({ token, inputs }) =>
+                (await loadDiscordResolveChannelsModule()).resolveDiscordChannelAllowlist({
+                  token,
+                  entries: inputs,
+                }),
               mapResolved: (entry) => ({
                 input: entry.input,
                 resolved: entry.resolved,
@@ -481,8 +498,11 @@ export const discordPlugin: ChannelPlugin<ResolvedDiscordAccount, DiscordProbe> 
             token: account.token,
             inputs,
             missingTokenNote: "missing Discord token",
-            resolveWithToken: ({ token, inputs }) =>
-              resolveDiscordUserAllowlist({ token, entries: inputs }),
+            resolveWithToken: async ({ token, inputs }) =>
+              (await loadDiscordResolveUsersModule()).resolveDiscordUserAllowlist({
+                token,
+                entries: inputs,
+              }),
             mapResolved: (entry) => ({
               input: entry.input,
               resolved: entry.resolved,
@@ -609,7 +629,9 @@ export const discordPlugin: ChannelPlugin<ResolvedDiscordAccount, DiscordProbe> 
             };
           }
           try {
-            const perms = await fetchChannelPermissionsDiscord(parsedTarget.id, {
+            const perms = await (
+              await loadDiscordSendModule()
+            ).fetchChannelPermissionsDiscord(parsedTarget.id, {
               token,
               accountId: account.accountId ?? undefined,
             });
@@ -763,7 +785,7 @@ export const discordPlugin: ChannelPlugin<ResolvedDiscordAccount, DiscordProbe> 
         message: PAIRING_APPROVED_MESSAGE,
         normalizeAllowEntry: createPairingPrefixStripper(/^(discord|user):/i),
         notify: async ({ id, message }) => {
-          await sendMessageDiscord(`user:${id}`, message);
+          await (await loadDiscordSendModule()).sendMessageDiscord(`user:${id}`, message);
         },
       },
     },
@@ -796,7 +818,7 @@ export const discordPlugin: ChannelPlugin<ResolvedDiscordAccount, DiscordProbe> 
       attachedResults: {
         channel: "discord",
         sendText: async ({ cfg, to, text, accountId, deps, replyToId, silent }) => {
-          const send = resolveDiscordSend(deps);
+          const send = await resolveDiscordSend(deps);
           return await send(to, text, {
             verbose: false,
             cfg,
@@ -816,7 +838,7 @@ export const discordPlugin: ChannelPlugin<ResolvedDiscordAccount, DiscordProbe> 
           replyToId,
           silent,
         }) => {
-          const send = resolveDiscordSend(deps);
+          const send = await resolveDiscordSend(deps);
           return await send(to, text, {
             verbose: false,
             cfg,
@@ -828,7 +850,9 @@ export const discordPlugin: ChannelPlugin<ResolvedDiscordAccount, DiscordProbe> 
           });
         },
         sendPoll: async ({ cfg, to, poll, accountId, silent }) =>
-          await sendPollDiscord(to, poll, {
+          await (
+            await loadDiscordSendModule()
+          ).sendPollDiscord(to, poll, {
             cfg,
             accountId: accountId ?? undefined,
             silent: silent ?? undefined,

@@ -1,11 +1,8 @@
 import { describe, expect, it } from "vitest";
-import baseConfig from "../vitest.config.ts";
+import baseConfig, { rootVitestProjects } from "../vitest.config.ts";
 
 describe("projects vitest config", () => {
-  it("defines unit and boundary project config files at the root", () => {
-    expect(baseConfig.test?.projects).toEqual([
-      "vitest.unit.config.ts",
-      "vitest.boundary.config.ts",
-    ]);
+  it("defines the native root project list for all non-live Vitest lanes", () => {
+    expect(baseConfig.test?.projects).toEqual([...rootVitestProjects]);
   });
 });
