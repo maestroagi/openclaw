@@ -71,13 +71,10 @@ Think of the suites as “increasing realism” (and increasing flakiness/cost):
     through the real `run.ts` / `compact.ts` paths; helper-only tests are not a
     sufficient substitute for those integration paths.
 - Pool note:
-  - Base Vitest config still defaults to `forks`.
-  - Unit and boundary projects stay on `forks`.
-  - Channel, extension, and gateway configs also stay on `forks`.
-  - Unit, channel, and extension configs default to `isolate: false` for faster file startup.
-  - `pnpm test` inherits the isolation defaults from the root `vitest.config.ts` projects config.
-  - Opt back into unit-file isolation with `OPENCLAW_TEST_ISOLATE=1 pnpm test`.
-  - `OPENCLAW_TEST_NO_ISOLATE=0` or `OPENCLAW_TEST_NO_ISOLATE=false` also force isolated runs.
+  - Base Vitest config now defaults to `threads`.
+  - The shared Vitest config also fixes `isolate: false` and uses the non-isolated runner across the root projects, e2e, and live configs.
+  - The root UI lane keeps its `jsdom` setup and optimizer, but now runs on the shared non-isolated runner too.
+  - `pnpm test` inherits the same `threads` + `isolate: false` defaults from the root `vitest.config.ts` projects config.
 - Fast-local iteration note:
   - `pnpm test:changed` runs the native projects config with `--changed origin/main`.
   - `pnpm test:max` and `pnpm test:changed:max` keep the same native projects config, just with a higher worker cap.
@@ -96,7 +93,7 @@ Think of the suites as “increasing realism” (and increasing flakiness/cost):
 - Config: `vitest.e2e.config.ts`
 - Files: `src/**/*.e2e.test.ts`, `test/**/*.e2e.test.ts`
 - Runtime defaults:
-  - Uses Vitest `forks` for deterministic cross-file isolation.
+  - Uses Vitest `threads` with `isolate: false`, matching the rest of the repo.
   - Uses adaptive workers (CI: up to 2, local: 1 by default).
   - Runs in silent mode by default to reduce console I/O overhead.
 - Useful overrides:

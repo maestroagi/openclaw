@@ -223,8 +223,8 @@ describe("normalizeVoiceCallConfig", () => {
 
     expect(normalized.serve.path).toBe("/voice/webhook");
     expect(normalized.streaming.streamPath).toBe("/custom-stream");
-    expect(normalized.streaming.provider).toBe("openai");
-    expect(normalized.streaming.providers.openai).toEqual({});
+    expect(normalized.streaming.provider).toBeUndefined();
+    expect(normalized.streaming.providers).toEqual({});
     expect(normalized.realtime.streamPath).toBe("/voice/stream/realtime");
     expect(normalized.tunnel.provider).toBe("none");
     expect(normalized.webhookSecurity.allowedHosts).toEqual([]);
@@ -269,5 +269,30 @@ describe("normalizeVoiceCallConfig", () => {
       id: "ELEVENLABS_API_KEY",
     });
     expect(elevenlabs.voiceSettings).toEqual({ speed: 1.1 });
+  });
+});
+
+describe("resolveVoiceCallConfig", () => {
+  it("preserves configured realtime instructions without env indirection", () => {
+    const resolved = resolveVoiceCallConfig({
+      enabled: true,
+      provider: "twilio",
+      realtime: {
+        enabled: true,
+        instructions: "Stay concise.",
+      },
+    });
+
+    expect(resolved.realtime.instructions).toBe("Stay concise.");
+    expect(resolved.realtime.provider).toBeUndefined();
+  });
+
+  it("leaves responseModel unset so voice responses can inherit runtime defaults", () => {
+    const resolved = resolveVoiceCallConfig({
+      enabled: true,
+      provider: "mock",
+    });
+
+    expect(resolved.responseModel).toBeUndefined();
   });
 });

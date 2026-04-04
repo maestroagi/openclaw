@@ -30,7 +30,6 @@ export function createVoiceCallBaseConfig(params?: {
     },
     streaming: {
       enabled: false,
-      provider: "openai",
       providers: {
         openai: {
           model: "gpt-4o-transcribe",
@@ -51,14 +50,12 @@ export function createVoiceCallBaseConfig(params?: {
       providers: {},
     },
     skipSignatureVerification: false,
-    stt: { provider: "openai", model: "whisper-1" },
     tts: {
       provider: "openai",
       providers: {
         openai: { model: "gpt-4o-mini-tts", voice: "coral" },
       },
     },
-    responseModel: "openai/gpt-4o-mini",
     responseTimeoutMs: 30000,
   };
 }

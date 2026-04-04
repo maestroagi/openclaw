@@ -20,6 +20,28 @@ describe("buildOpenAIRealtimeTranscriptionProvider", () => {
     });
   });
 
+  it("keeps provider-owned transcription settings configurable via raw provider config", () => {
+    const provider = buildOpenAIRealtimeTranscriptionProvider();
+    const resolved = provider.resolveConfig?.({
+      cfg: {} as never,
+      rawConfig: {
+        providers: {
+          openai: {
+            model: "gpt-4o-transcribe",
+            silenceDurationMs: 900,
+            vadThreshold: 0.45,
+          },
+        },
+      },
+    });
+
+    expect(resolved).toEqual({
+      model: "gpt-4o-transcribe",
+      silenceDurationMs: 900,
+      vadThreshold: 0.45,
+    });
+  });
+
   it("accepts the legacy openai-realtime alias", () => {
     const provider = buildOpenAIRealtimeTranscriptionProvider();
     expect(provider.aliases).toContain("openai-realtime");
