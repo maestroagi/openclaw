@@ -258,12 +258,12 @@ const createStubPluginRegistry = (): PluginRegistry => ({
       }),
     },
     {
-      pluginId: "elevenlabs",
+      pluginId: "acme-speech",
       source: "test",
       provider: createStubSpeechProvider({
-        id: "elevenlabs",
-        label: "ElevenLabs",
-        voices: ["EXAVITQu4vr4xnSDxMaL", "voice-default"],
+        id: "acme-speech",
+        label: "Acme Speech",
+        voices: ["stub-default-voice", "stub-alt-voice"],
         resolveTalkOverrides: ({ params }) => ({
           ...(trimString(params.voiceId) == null ? {} : { voiceId: trimString(params.voiceId) }),
           ...(trimString(params.modelId) == null ? {} : { modelId: trimString(params.modelId) }),
@@ -274,35 +274,6 @@ const createStubPluginRegistry = (): PluginRegistry => ({
             ? {}
             : { latencyTier: asNumber(params.latencyTier) }),
         }),
-        synthesize: async (req) => {
-          const config = req.providerConfig as Record<string, unknown>;
-          const overrides = (req.providerOverrides ?? {}) as Record<string, unknown>;
-          const voiceId =
-            trimString(overrides.voiceId) ?? trimString(config.voiceId) ?? "voice-default";
-          const outputFormat = trimString(overrides.outputFormat) ?? "mp3";
-          const url = new URL(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`);
-          url.searchParams.set("output_format", outputFormat);
-          const audioBuffer = await fetchStubSpeechAudio(
-            url.href,
-            {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({
-                text: req.text,
-                ...(asNumber(overrides.latencyTier) == null
-                  ? {}
-                  : { latency_optimization_level: asNumber(overrides.latencyTier) }),
-              }),
-            },
-            "elevenlabs",
-          );
-          return {
-            audioBuffer,
-            outputFormat,
-            fileExtension: outputFormat.startsWith("pcm") ? ".pcm" : ".mp3",
-            voiceCompatible: false,
-          };
-        },
       }),
     },
   ],
