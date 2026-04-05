@@ -10,6 +10,8 @@ import {
 } from "./run.overflow-compaction.harness.js";
 import {
   extractPlanningOnlyPlanDetails,
+  isLikelyExecutionAckPrompt,
+  resolveAckExecutionFastPathInstruction,
   resolvePlanningOnlyRetryInstruction,
 } from "./run/incomplete-turn.js";
 import type { EmbeddedRunAttemptResult } from "./run/types.js";
@@ -99,6 +101,32 @@ describe("runEmbeddedPiAgent incomplete-turn safety", () => {
     });
 
     expect(retryInstruction).toBeNull();
+  });
+
+  it("detects short execution approval prompts", () => {
+    expect(isLikelyExecutionAckPrompt("ok do it")).toBe(true);
+    expect(isLikelyExecutionAckPrompt("go ahead")).toBe(true);
+    expect(isLikelyExecutionAckPrompt("Can you do it?")).toBe(false);
+  });
+
+  it("detects short execution approvals across requested locales", () => {
+    expect(isLikelyExecutionAckPrompt("نفذها")).toBe(true);
+    expect(isLikelyExecutionAckPrompt("mach es")).toBe(true);
+    expect(isLikelyExecutionAckPrompt("進めて")).toBe(true);
+    expect(isLikelyExecutionAckPrompt("fais-le")).toBe(true);
+    expect(isLikelyExecutionAckPrompt("adelante")).toBe(true);
+    expect(isLikelyExecutionAckPrompt("vai em frente")).toBe(true);
+    expect(isLikelyExecutionAckPrompt("진행해")).toBe(true);
+  });
+
+  it("adds an ack-turn fast-path instruction for GPT action turns", () => {
+    const instruction = resolveAckExecutionFastPathInstruction({
+      provider: "openai",
+      modelId: "gpt-5.4",
+      prompt: "go ahead",
+    });
+
+    expect(instruction).toContain("Do not recap or restate the plan");
   });
 
   it("extracts structured steps from planning-only narration", () => {
