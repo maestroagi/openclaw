@@ -86,6 +86,7 @@ Docs: https://docs.openclaw.ai
 - Providers/GitHub Copilot: send IDE identity headers on runtime model requests and GitHub token exchange so IDE-authenticated Copilot runs stop failing with missing `Editor-Version`. (#60641) Thanks @VACInc and @vincentkoc.
 - Model picker/providers: treat bundled BytePlus and Volcengine plan aliases as their native providers during setup, and expose their bundled standard/coding catalogs before auth so setup can suggest the right models. (#58819) Thanks @Luckymingxuan.
 - Prompt caching: route Codex Responses and Anthropic Vertex through boundary-aware cache shaping, and report the actual outbound system prompt in cache traces so cache reuse and misses line up with what providers really receive. Thanks @vincentkoc.
+- Prompt caching: order stable workspace project-context files before `HEARTBEAT.md` and keep `HEARTBEAT.md` below the system-prompt cache boundary so heartbeat churn does not invalidate the stable project-context prefix. (#58979) Thanks @yozu and @vincentkoc.
 - Agents/Kimi tool-call repair: preserve tool arguments that were already present on streamed tool calls when later malformed deltas fail reevaluation, while still dropping stale repair-only state before `toolcall_end`.
 - MiniMax/pricing: keep bundled MiniMax highspeed pricing distinct in provider catalogs and preserve the lower M2.5 cache-read pricing when onboarding older MiniMax models. (#54214) Thanks @octo-patch.
 - Agents/cache: preserve the full 3-turn prompt-cache image window across tool loops, keep colliding bundled MCP tool definitions deterministic, and reapply Anthropic Vertex cache shaping after payload hook replacements so KV/cache reuse stays stable. Thanks @vincentkoc.
@@ -103,6 +104,7 @@ Docs: https://docs.openclaw.ai
 - Gateway/device auth: reuse cached device-token scopes only for cached-token reconnects, while keeping explicit `deviceToken` scope requests and empty-cache fallbacks intact so reconnects preserve `operator.read` without breaking explicit auth flows. (#46032) Thanks @caicongyang.
 - Agents/scheduling: steer background-now work toward automatic completion wake and treat `process` polling as on-demand inspection or intervention instead of default completion handling. (#60877) Thanks @vincentkoc.
 - Google Gemini CLI auth: improve OAuth credential discovery across Windows nvm and Homebrew libexec installs, and align Code Assist metadata so Gemini login stops failing on packaged CLI layouts. (#40729) Thanks @hughcube.
+- Google Gemini CLI auth: detect bundled npm installs by scanning packaged bundle files for the Gemini OAuth client config, so `npm install -g @google/gemini-cli` layouts work again. (#60486) Thanks @wzfmini01.
 - Mattermost/config schema: accept `groups.*.requireMention` again so existing Mattermost configs no longer fail strict validation after upgrade. (#58271) Thanks @MoerAI.
 - Agents/failover: scope Anthropic `An unknown error occurred` failover matching by provider so generic internal unknown-error text no longer triggers retryable timeout fallback. (#59325) Thanks @aaron-he-zhu.
 - Providers/OpenRouter failover: classify `403 "Key limit exceeded"` spending-limit responses as billing so model fallback continues instead of stopping on generic auth. (#59892) Thanks @rockcent.
@@ -110,6 +112,7 @@ Docs: https://docs.openclaw.ai
 - Gateway/device pairing: require non-admin paired-device sessions to manage only their own device for token rotate/revoke and paired-device removal, blocking cross-device token theft inside pairing-scoped sessions. (#50627) Thanks @coygeek.
 - CLI/skills JSON: route `skills list --json`, `skills info --json`, and `skills check --json` output to stdout instead of stderr so machine-readable consumers receive JSON on the expected stream again. (#60914; fixes #57599; landed from contributor PR #57611 by @Aftabbs) Thanks @Aftabbs.
 - Agents/subagents: honor allowlist validation, auth-profile handoff, and session override state when a subagent retries after `LiveSessionModelSwitchError`. (#58178) Thanks @openperf.
+- Google image generation: disable pinned DNS for Gemini image requests and honor explicit `pinDns` overrides in shared provider HTTP helpers so proxy-backed image generation works again. (#59873) Thanks @luoyanglang.
 - Agents/exec: restore `host=node` routing for node-pinned and `host=auto` sessions, while still blocking sandboxed `auto` sessions from jumping to gateway. (#60788) Thanks @openperf.
 - Agents/compaction: keep assistant tool calls and displaced tool results in the same compaction chunk so strict summarization providers stop rejecting orphaned tool pairs. (#58849) Thanks @openperf.
 - Outbound/sanitizer: strip leaked `<tool_call>`, `<function_calls>`, and model special tokens from shared user-visible assistant text, including truncated tool-call streams, so internal scaffolding no longer bleeds into replies across surfaces. (#60619) Thanks @oliviareid-svg.
@@ -125,6 +128,7 @@ Docs: https://docs.openclaw.ai
 - Android/Talk Mode: cancel in-flight `talk.speak` playback when speech is explicitly stopped, so stale replies stop starting after barge-in or manual stop. (#61164) Thanks @obviyus.
 - Plugins/onboarding: write dotted plugin uiHint paths like Brave `webSearch.mode` as nested plugin config so `llm-context` setup stops failing validation. (#61159) Thanks @obviyus.
 - Android/Talk Mode: restore voice replies on gateway-backed talk mode sessions by updating embedded runner transport overrides to the current agent transport API. (#61214) Thanks @obviyus.
+- Amazon Bedrock/aws-sdk auth: stop injecting the fake `AWS_PROFILE` apiKey marker when no AWS auth env vars exist, so instance-role and other default-chain setups keep working without poisoning provider config. (#61194) Thanks @wirjo.
 
 ## 2026.4.2
 
