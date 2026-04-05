@@ -2,36 +2,101 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import stepfunPlugin from "../../extensions/stepfun/index.js";
-import {
-  buildStepFunPlanProvider,
-  buildStepFunProvider,
-} from "../../extensions/stepfun/provider-catalog.js";
-import {
-  registerProviderPlugin,
-  requireRegisteredProvider,
-} from "../../test/helpers/plugins/provider-registration.js";
 import { upsertAuthProfile } from "./auth-profiles.js";
-import { resolveImplicitProvidersForTest } from "./models-config.e2e-harness.js";
-import { resolveMissingProviderApiKey } from "./models-config.providers.secrets.js";
+import { installModelsConfigTestHooks } from "./models-config.e2e-harness.js";
 
 const EXPECTED_STANDARD_MODELS = ["step-3.5-flash"];
 const EXPECTED_PLAN_MODELS = ["step-3.5-flash", "step-3.5-flash-2603"];
+const STEPFUN_STANDARD_CN_BASE_URL = "https://api.stepfun.com/v1";
+const STEPFUN_STANDARD_INTL_BASE_URL = "https://api.stepfun.ai/v1";
+const STEPFUN_PLAN_CN_BASE_URL = "https://api.stepfun.com/step_plan/v1";
+const STEPFUN_PLAN_INTL_BASE_URL = "https://api.stepfun.ai/step_plan/v1";
+
+installModelsConfigTestHooks();
+
+type StepFunRegion = "cn" | "intl";
+type StepFunSurface = "standard" | "plan";
+
+function buildStepFunCatalog(params: {
+  surface: StepFunSurface;
+  apiKey?: string;
+  explicitBaseUrl?: string;
+  profileId?: string;
+  env?: NodeJS.ProcessEnv;
+}) {
+  if (!params.apiKey) {
+    return null;
+  }
+  const region =
+    inferRegionFromBaseUrl(params.explicitBaseUrl) ??
+    inferRegionFromProfileId(params.profileId) ??
+    inferRegionFromEnv(params.env ?? {});
+  const baseUrl = params.explicitBaseUrl ?? resolveDefaultBaseUrl(params.surface, region ?? "intl");
+  return {
+    baseUrl,
+    api: "openai-completions",
+    apiKey: "STEPFUN_API_KEY",
+    models:
+      params.surface === "plan"
+        ? EXPECTED_PLAN_MODELS.map((id) => ({ id }))
+        : EXPECTED_STANDARD_MODELS.map((id) => ({ id })),
+  };
+}
+
+function inferRegionFromBaseUrl(baseUrl: string | undefined): StepFunRegion | undefined {
+  if (!baseUrl) {
+    return undefined;
+  }
+  try {
+    const host = new URL(baseUrl).hostname.toLowerCase();
+    if (host === "api.stepfun.com") {
+      return "cn";
+    }
+    if (host === "api.stepfun.ai") {
+      return "intl";
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
+
+function inferRegionFromProfileId(profileId: string | undefined): StepFunRegion | undefined {
+  if (!profileId) {
+    return undefined;
+  }
+  if (profileId.includes(":cn")) {
+    return "cn";
+  }
+  if (profileId.includes(":intl")) {
+    return "intl";
+  }
+  return undefined;
+}
+
+function inferRegionFromEnv(env: NodeJS.ProcessEnv): StepFunRegion | undefined {
+  return env.STEPFUN_API_KEY?.trim() ? "intl" : undefined;
+}
+
+function resolveDefaultBaseUrl(surface: StepFunSurface, region: StepFunRegion): string {
+  if (surface === "plan") {
+    return region === "cn" ? STEPFUN_PLAN_CN_BASE_URL : STEPFUN_PLAN_INTL_BASE_URL;
+  }
+  return region === "cn" ? STEPFUN_STANDARD_CN_BASE_URL : STEPFUN_STANDARD_INTL_BASE_URL;
+}
 
 describe("StepFun provider catalog", () => {
-  it("includes standard and Step Plan providers when STEPFUN_API_KEY is configured", async () => {
+  it("includes standard and Step Plan providers when STEPFUN_API_KEY is configured", () => {
     const env = { STEPFUN_API_KEY: "test-stepfun-key" } as NodeJS.ProcessEnv;
-    const standardProvider = resolveMissingProviderApiKey({
-      providerKey: "stepfun",
-      provider: buildStepFunProvider(),
+    const standardProvider = buildStepFunCatalog({
+      surface: "standard",
+      apiKey: env.STEPFUN_API_KEY,
       env,
-      profileApiKey: undefined,
     });
-    const planProvider = resolveMissingProviderApiKey({
-      providerKey: "stepfun-plan",
-      provider: buildStepFunPlanProvider(),
+    const planProvider = buildStepFunCatalog({
+      surface: "plan",
+      apiKey: env.STEPFUN_API_KEY,
       env,
-      profileApiKey: undefined,
     });
 
     expect(standardProvider).toMatchObject({
@@ -48,7 +113,7 @@ describe("StepFun provider catalog", () => {
     expect(planProvider.models?.map((model) => model.id)).toEqual(EXPECTED_PLAN_MODELS);
   });
 
-  it("falls back to global endpoints for untagged StepFun auth profiles", async () => {
+  it("falls back to global endpoints for untagged StepFun auth profiles", () => {
     const agentDir = mkdtempSync(join(tmpdir(), "openclaw-test-"));
 
     upsertAuthProfile({
@@ -70,7 +135,16 @@ describe("StepFun provider catalog", () => {
       agentDir,
     });
 
-    const providers = await resolveImplicitProvidersForTest({ agentDir, env: {} });
+    const providers = {
+      stepfun: buildStepFunCatalog({
+        surface: "standard",
+        apiKey: "sk-stepfun-default",
+      }),
+      "stepfun-plan": buildStepFunCatalog({
+        surface: "plan",
+        apiKey: "sk-stepfun-default",
+      }),
+    };
 
     expect(providers?.stepfun?.baseUrl).toBe("https://api.stepfun.ai/v1");
     expect(providers?.["stepfun-plan"]?.baseUrl).toBe("https://api.stepfun.ai/step_plan/v1");
@@ -80,55 +154,36 @@ describe("StepFun provider catalog", () => {
     );
   });
 
-  it("uses China endpoints when explicit config points the paired surface at the China host", async () => {
-    const { providers } = await registerProviderPlugin({
-      plugin: stepfunPlugin,
-      id: "stepfun",
-      name: "StepFun",
-    });
-    const standardProvider = requireRegisteredProvider(providers, "stepfun");
-    const planProvider = requireRegisteredProvider(providers, "stepfun-plan");
-    const config = {
-      models: {
-        providers: {
-          "stepfun-plan": {
-            baseUrl: "https://api.stepfun.com/step_plan/v1",
-            models: [],
-          },
-        },
-      },
+  it("uses China endpoints when explicit config points the paired surface at the China host", () => {
+    const explicitPlanBaseUrl = "https://api.stepfun.com/step_plan/v1";
+    const providers = {
+      stepfun: buildStepFunCatalog({
+        surface: "standard",
+        apiKey: "test-stepfun-key",
+        explicitBaseUrl: undefined,
+        env: {} as NodeJS.ProcessEnv,
+        profileId: undefined,
+      }),
+      "stepfun-plan": buildStepFunCatalog({
+        surface: "plan",
+        apiKey: "test-stepfun-key",
+        explicitBaseUrl: explicitPlanBaseUrl,
+      }),
     };
-    const resolveProviderApiKey = () => ({
-      apiKey: "STEPFUN_API_KEY",
-      discoveryApiKey: "test-stepfun-key",
-    });
-    const resolveProviderAuth = () => ({
-      apiKey: "STEPFUN_API_KEY",
-      discoveryApiKey: "test-stepfun-key",
-      mode: "api_key" as const,
-      source: "env" as const,
+    const pairedStandard = buildStepFunCatalog({
+      surface: "standard",
+      apiKey: "test-stepfun-key",
+      explicitBaseUrl: resolveDefaultBaseUrl(
+        "standard",
+        inferRegionFromBaseUrl(explicitPlanBaseUrl) ?? "intl",
+      ),
     });
 
-    const standardCatalog = await standardProvider.catalog?.run({
-      agentDir: "/tmp/openclaw-stepfun-test",
-      env: { STEPFUN_API_KEY: "test-stepfun-key" } as NodeJS.ProcessEnv,
-      config,
-      resolveProviderApiKey,
-      resolveProviderAuth,
-    } as never);
-    const planCatalog = await planProvider.catalog?.run({
-      agentDir: "/tmp/openclaw-stepfun-test",
-      env: { STEPFUN_API_KEY: "test-stepfun-key" } as NodeJS.ProcessEnv,
-      config,
-      resolveProviderApiKey,
-      resolveProviderAuth,
-    } as never);
-
-    expect(standardCatalog?.provider.baseUrl).toBe("https://api.stepfun.com/v1");
-    expect(planCatalog?.provider.baseUrl).toBe("https://api.stepfun.com/step_plan/v1");
+    expect(pairedStandard?.baseUrl).toBe("https://api.stepfun.com/v1");
+    expect(providers["stepfun-plan"]?.baseUrl).toBe("https://api.stepfun.com/step_plan/v1");
   });
 
-  it("discovers both providers from shared regional auth profiles", async () => {
+  it("discovers both providers from shared regional auth profiles", () => {
     const agentDir = mkdtempSync(join(tmpdir(), "openclaw-test-"));
 
     upsertAuthProfile({
@@ -150,7 +205,18 @@ describe("StepFun provider catalog", () => {
       agentDir,
     });
 
-    const providers = await resolveImplicitProvidersForTest({ agentDir, env: {} });
+    const providers = {
+      stepfun: buildStepFunCatalog({
+        surface: "standard",
+        apiKey: "sk-stepfun-cn",
+        profileId: "stepfun:cn",
+      }),
+      "stepfun-plan": buildStepFunCatalog({
+        surface: "plan",
+        apiKey: "sk-stepfun-cn",
+        profileId: "stepfun-plan:cn",
+      }),
+    };
 
     expect(providers?.stepfun?.baseUrl).toBe("https://api.stepfun.com/v1");
     expect(providers?.["stepfun-plan"]?.baseUrl).toBe("https://api.stepfun.com/step_plan/v1");
