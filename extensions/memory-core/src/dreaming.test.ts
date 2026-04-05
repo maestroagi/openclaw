@@ -26,6 +26,16 @@ function createLogger() {
   };
 }
 
+async function writeDailyMemoryNote(
+  workspaceDir: string,
+  date: string,
+  lines: string[],
+): Promise<void> {
+  const notePath = path.join(workspaceDir, "memory", `${date}.md`);
+  await fs.mkdir(path.dirname(notePath), { recursive: true });
+  await fs.writeFile(notePath, `${lines.join("\n")}\n`, "utf-8");
+}
+
 function createCronHarness(
   initialJobs: CronJobLike[] = [],
   opts?: { removeResult?: "boolean" | "unknown"; removeThrowsForIds?: string[] },
@@ -117,6 +127,7 @@ describe("short-term dreaming config", () => {
       minScore: constants.DEFAULT_DREAMING_MIN_SCORE,
       minRecallCount: constants.DEFAULT_DREAMING_MIN_RECALL_COUNT,
       minUniqueQueries: constants.DEFAULT_DREAMING_MIN_UNIQUE_QUERIES,
+      verboseLogging: false,
     });
   });
 
@@ -131,6 +142,7 @@ describe("short-term dreaming config", () => {
           minScore: 0.4,
           minRecallCount: 2,
           minUniqueQueries: 3,
+          verboseLogging: true,
         },
       },
     });
@@ -142,6 +154,7 @@ describe("short-term dreaming config", () => {
       minScore: 0.4,
       minRecallCount: 2,
       minUniqueQueries: 3,
+      verboseLogging: true,
     });
   });
 
@@ -165,6 +178,7 @@ describe("short-term dreaming config", () => {
       minScore: 0.6,
       minRecallCount: 2,
       minUniqueQueries: 3,
+      verboseLogging: false,
     });
   });
 
@@ -187,6 +201,7 @@ describe("short-term dreaming config", () => {
       minScore: constants.DREAMING_PRESET_DEFAULTS.deep.minScore,
       minRecallCount: constants.DREAMING_PRESET_DEFAULTS.deep.minRecallCount,
       minUniqueQueries: constants.DREAMING_PRESET_DEFAULTS.deep.minUniqueQueries,
+      verboseLogging: false,
     });
   });
 
@@ -200,6 +215,28 @@ describe("short-term dreaming config", () => {
       },
     });
     expect(resolved.limit).toBe(0);
+  });
+
+  it("accepts verboseLogging as a boolean or boolean string", () => {
+    const enabled = resolveShortTermPromotionDreamingConfig({
+      pluginConfig: {
+        dreaming: {
+          mode: "core",
+          verboseLogging: true,
+        },
+      },
+    });
+    const disabled = resolveShortTermPromotionDreamingConfig({
+      pluginConfig: {
+        dreaming: {
+          mode: "core",
+          verboseLogging: "false",
+        },
+      },
+    });
+
+    expect(enabled.verboseLogging).toBe(true);
+    expect(disabled.verboseLogging).toBe(false);
   });
 
   it("falls back to defaults when thresholds are negative", () => {
@@ -263,6 +300,7 @@ describe("short-term dreaming cron reconciliation", () => {
         minScore: 0.5,
         minRecallCount: 4,
         minUniqueQueries: 5,
+        verboseLogging: false,
       },
       logger,
     });
@@ -294,6 +332,7 @@ describe("short-term dreaming cron reconciliation", () => {
       minScore: constants.DEFAULT_DREAMING_MIN_SCORE,
       minRecallCount: constants.DEFAULT_DREAMING_MIN_RECALL_COUNT,
       minUniqueQueries: constants.DEFAULT_DREAMING_MIN_UNIQUE_QUERIES,
+      verboseLogging: false,
     } as const;
     const desired = __testing.buildManagedDreamingCronJob(desiredConfig);
     const stalePrimary: CronJobLike = {
@@ -384,6 +423,7 @@ describe("short-term dreaming cron reconciliation", () => {
         minScore: constants.DEFAULT_DREAMING_MIN_SCORE,
         minRecallCount: constants.DEFAULT_DREAMING_MIN_RECALL_COUNT,
         minUniqueQueries: constants.DEFAULT_DREAMING_MIN_UNIQUE_QUERIES,
+        verboseLogging: false,
       },
       logger,
     });
@@ -417,6 +457,7 @@ describe("short-term dreaming cron reconciliation", () => {
         minScore: constants.DEFAULT_DREAMING_MIN_SCORE,
         minRecallCount: constants.DEFAULT_DREAMING_MIN_RECALL_COUNT,
         minUniqueQueries: constants.DEFAULT_DREAMING_MIN_UNIQUE_QUERIES,
+        verboseLogging: false,
       },
       logger,
     });
@@ -449,6 +490,7 @@ describe("short-term dreaming cron reconciliation", () => {
         minScore: constants.DEFAULT_DREAMING_MIN_SCORE,
         minRecallCount: constants.DEFAULT_DREAMING_MIN_RECALL_COUNT,
         minUniqueQueries: constants.DEFAULT_DREAMING_MIN_UNIQUE_QUERIES,
+        verboseLogging: false,
       },
       logger,
     });
@@ -472,6 +514,7 @@ describe("short-term dreaming trigger", () => {
     const logger = createLogger();
     const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "memory-dreaming-"));
     tempDirs.push(workspaceDir);
+    await writeDailyMemoryNote(workspaceDir, "2026-04-02", ["Move backups to S3 Glacier."]);
 
     await recordShortTermRecalls({
       workspaceDir,
@@ -499,6 +542,7 @@ describe("short-term dreaming trigger", () => {
         minScore: 0,
         minRecallCount: 0,
         minUniqueQueries: 0,
+        verboseLogging: false,
       },
       logger,
     });
@@ -512,6 +556,10 @@ describe("short-term dreaming trigger", () => {
     const logger = createLogger();
     const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "memory-dreaming-strict-"));
     tempDirs.push(workspaceDir);
+    await writeDailyMemoryNote(workspaceDir, "2026-04-03", [
+      "Move backups to S3 Glacier.",
+      "Retain quarterly snapshots.",
+    ]);
 
     await recordShortTermRecalls({
       workspaceDir,
@@ -539,6 +587,7 @@ describe("short-term dreaming trigger", () => {
         minScore: constants.DEFAULT_DREAMING_MIN_SCORE,
         minRecallCount: constants.DEFAULT_DREAMING_MIN_RECALL_COUNT,
         minUniqueQueries: constants.DEFAULT_DREAMING_MIN_UNIQUE_QUERIES,
+        verboseLogging: false,
       },
       logger,
     });
@@ -568,6 +617,7 @@ describe("short-term dreaming trigger", () => {
         minScore: 0,
         minRecallCount: 0,
         minUniqueQueries: 0,
+        verboseLogging: false,
       },
       logger,
     });
@@ -590,6 +640,7 @@ describe("short-term dreaming trigger", () => {
         minScore: 0,
         minRecallCount: 0,
         minUniqueQueries: 0,
+        verboseLogging: false,
       },
       logger,
     });
@@ -610,6 +661,10 @@ describe("short-term dreaming trigger", () => {
     const logger = createLogger();
     const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "memory-dreaming-repair-"));
     tempDirs.push(workspaceDir);
+    await writeDailyMemoryNote(workspaceDir, "2026-04-03", [
+      "Move backups to S3 Glacier and sync router failover notes.",
+      "Keep router recovery docs current.",
+    ]);
     const storePath = path.join(workspaceDir, "memory", ".dreams", "short-term-recall.json");
     await fs.mkdir(path.dirname(storePath), { recursive: true });
     await fs.writeFile(
@@ -654,6 +709,7 @@ describe("short-term dreaming trigger", () => {
         minScore: 0,
         minRecallCount: 0,
         minUniqueQueries: 0,
+        verboseLogging: false,
       },
       logger,
     });
@@ -678,6 +734,140 @@ describe("short-term dreaming trigger", () => {
     ]);
     expect(repaired.entries["memory:memory/2026-04-03.md:1:2"]?.conceptTags).toEqual(
       expect.arrayContaining(["glacier", "router", "failover"]),
+    );
+  });
+
+  it("emits detailed run logs when verboseLogging is enabled", async () => {
+    const logger = createLogger();
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "memory-dreaming-verbose-"));
+    tempDirs.push(workspaceDir);
+    await writeDailyMemoryNote(workspaceDir, "2026-04-02", ["Move backups to S3 Glacier."]);
+
+    await recordShortTermRecalls({
+      workspaceDir,
+      query: "backup policy",
+      results: [
+        {
+          path: "memory/2026-04-02.md",
+          startLine: 1,
+          endLine: 1,
+          score: 0.9,
+          snippet: "Move backups to S3 Glacier.",
+          source: "memory",
+        },
+      ],
+    });
+
+    const result = await runShortTermDreamingPromotionIfTriggered({
+      cleanedBody: constants.DREAMING_SYSTEM_EVENT_TEXT,
+      trigger: "heartbeat",
+      workspaceDir,
+      config: {
+        enabled: true,
+        cron: constants.DEFAULT_DREAMING_CRON_EXPR,
+        limit: 10,
+        minScore: 0,
+        minRecallCount: 0,
+        minUniqueQueries: 0,
+        verboseLogging: true,
+      },
+      logger,
+    });
+
+    expect(result?.handled).toBe(true);
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining("memory-core: dreaming verbose enabled"),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining("memory-core: dreaming candidate details"),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining("memory-core: dreaming applied details"),
+    );
+  });
+
+  it("fans out one dreaming run across configured agent workspaces", async () => {
+    const logger = createLogger();
+    const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "memory-dreaming-multi-"));
+    tempDirs.push(workspaceRoot);
+    const alphaWorkspace = path.join(workspaceRoot, "alpha");
+    const betaWorkspace = path.join(workspaceRoot, "beta");
+
+    await writeDailyMemoryNote(alphaWorkspace, "2026-04-02", ["Alpha backup note."]);
+    await writeDailyMemoryNote(betaWorkspace, "2026-04-02", ["Beta router note."]);
+    await recordShortTermRecalls({
+      workspaceDir: alphaWorkspace,
+      query: "alpha backup",
+      results: [
+        {
+          path: "memory/2026-04-02.md",
+          startLine: 1,
+          endLine: 1,
+          score: 0.9,
+          snippet: "Alpha backup note.",
+          source: "memory",
+        },
+      ],
+    });
+    await recordShortTermRecalls({
+      workspaceDir: betaWorkspace,
+      query: "beta router",
+      results: [
+        {
+          path: "memory/2026-04-02.md",
+          startLine: 1,
+          endLine: 1,
+          score: 0.9,
+          snippet: "Beta router note.",
+          source: "memory",
+        },
+      ],
+    });
+
+    const result = await runShortTermDreamingPromotionIfTriggered({
+      cleanedBody: constants.DREAMING_SYSTEM_EVENT_TEXT,
+      trigger: "heartbeat",
+      workspaceDir: alphaWorkspace,
+      cfg: {
+        agents: {
+          defaults: {
+            memorySearch: {
+              enabled: true,
+            },
+          },
+          list: [
+            {
+              id: "alpha",
+              workspace: alphaWorkspace,
+            },
+            {
+              id: "beta",
+              workspace: betaWorkspace,
+            },
+          ],
+        },
+      } as OpenClawConfig,
+      config: {
+        enabled: true,
+        cron: constants.DEFAULT_DREAMING_CRON_EXPR,
+        limit: 10,
+        minScore: 0,
+        minRecallCount: 0,
+        minUniqueQueries: 0,
+        verboseLogging: false,
+      },
+      logger,
+    });
+
+    expect(result?.handled).toBe(true);
+    expect(await fs.readFile(path.join(alphaWorkspace, "MEMORY.md"), "utf-8")).toContain(
+      "Alpha backup note.",
+    );
+    expect(await fs.readFile(path.join(betaWorkspace, "MEMORY.md"), "utf-8")).toContain(
+      "Beta router note.",
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      "memory-core: dreaming promotion complete (workspaces=2, candidates=2, applied=2, failed=0).",
     );
   });
 });
