@@ -61,6 +61,7 @@ Docs: https://docs.openclaw.ai
 - Agents/session keys: backfill `sessionKey` from `sessionId` in the embedded PI runner when callers omit it, so hooks, LCM, and compaction receive a valid key; also normalize whitespace-only session keys to `undefined` before downstream consumers see them. (#60555) Thanks @100yenadmin.
 - Plugins/provider hooks: stop recursive provider snapshot loads from overflowing the stack during plugin initialization, while still preserving cached nested provider-hook results. (#61922, #61938, #61946, #61951)
 - Discord/voice: re-arm DAVE receive passthrough without suppressing decrypt-failure rejoin recovery, and clear capture state before finalize teardown so rapid speaker restarts keep their next utterance. (#41536) Thanks @wit-oc.
+- Agents/exec: keep `strictInlineEval` commands blocked after approval timeouts on both gateway and node exec hosts, so timeout fallback no longer turns timed-out inline interpreter prompts into automatic execution.
 
 ## 2026.4.5
 
@@ -72,6 +73,7 @@ Docs: https://docs.openclaw.ai
 
 - Agents/video generation: add the built-in `video_generate` tool so agents can create videos through configured providers and return the generated media directly in the reply.
 - Agents/music generation: ignore unsupported optional hints such as `durationSeconds` with a warning instead of hard-failing requests on providers like Google Lyria.
+- Providers/Arcee AI: add a bundled Arcee AI provider plugin with `ARCEEAI_API_KEY` onboarding, Trinity model catalog (mini, large-preview, large-thinking), OpenAI-compatible API support, and OpenRouter as an alternative auth path. (#62068) Thanks @arthurbr11.
 - Providers/ComfyUI: add a bundled `comfy` workflow media plugin for local ComfyUI and Comfy Cloud workflows, including shared `image_generate`, `video_generate`, and workflow-backed `music_generate` support, with prompt injection, optional reference-image upload, live tests, and output download.
 - Tools/music generation: add the built-in `music_generate` tool with bundled Google (Lyria) and MiniMax providers plus workflow-backed Comfy support, including async task tracking and follow-up delivery of finished audio.
 - Providers: add bundled Qwen, Fireworks AI, and StepFun providers, plus MiniMax TTS, Ollama Web Search, and MiniMax Search integrations for chat, speech, and search workflows. (#60032, #55921, #59318, #54648)
@@ -953,6 +955,7 @@ Docs: https://docs.openclaw.ai
 - Security/path resolution: prefer non-user-writable absolute helper binaries for OpenClaw CLI, ffmpeg, and OpenSSL resolution so PATH hijacks cannot replace trusted helpers with attacker-controlled executables.
 - Security/gateway command scopes: require `operator.admin` before Telegram target writeback and Talk Voice `/voice set` config writes persist through gateway message flows.
 - Security/OpenShell mirror: exclude workspace `hooks/` from mirror sync so untrusted sandbox files cannot become trusted host hooks on gateway startup.
+- Exec env policy: block Mercurial config redirects, Rust compiler wrappers, and GNU make flag env vars in host exec sanitization so inherited env and request-scoped overrides cannot redirect build-tool execution.
 
 ## 2026.3.24-beta.2
 
