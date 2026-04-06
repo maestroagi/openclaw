@@ -87,7 +87,8 @@ export function createMusicGenerateStatusActionResult(
   return createMediaGenerateStatusActionResult({
     sessionKey,
     inactiveText: "No active music generation task is currently running for this session.",
-    findActiveTask: findActiveMusicGenerationTaskForSession,
+    findActiveTask: (activeSessionKey) =>
+      findActiveMusicGenerationTaskForSession(activeSessionKey) ?? undefined,
     buildStatusText: buildMusicGenerationTaskStatusText,
     buildStatusDetails: buildMusicGenerationTaskStatusDetails,
   });
@@ -95,10 +96,11 @@ export function createMusicGenerateStatusActionResult(
 
 export function createMusicGenerateDuplicateGuardResult(
   sessionKey?: string,
-): MusicGenerateActionResult | null {
+): MusicGenerateActionResult | undefined {
   return createMediaGenerateDuplicateGuardResult({
     sessionKey,
-    findActiveTask: findActiveMusicGenerationTaskForSession,
+    findActiveTask: (activeSessionKey) =>
+      findActiveMusicGenerationTaskForSession(activeSessionKey) ?? undefined,
     buildStatusText: buildMusicGenerationTaskStatusText,
     buildStatusDetails: buildMusicGenerationTaskStatusDetails,
   });
