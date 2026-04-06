@@ -223,6 +223,7 @@ explicitly promotes one as public.
     | Subpath | Key exports |
     | --- | --- |
     | `plugin-sdk/media-runtime` | Shared media fetch/transform/store helpers plus media payload builders |
+    | `plugin-sdk/media-generation-runtime` | Shared media-generation failover helpers, candidate selection, and missing-model messaging |
     | `plugin-sdk/media-understanding` | Media understanding provider types plus provider-facing image/audio helper exports |
     | `plugin-sdk/text-runtime` | Shared text/markdown/logging helpers such as assistant-visible-text stripping, markdown render/chunking/table helpers, redaction helpers, directive-tag helpers, and safe-text utilities |
     | `plugin-sdk/text-chunking` | Outbound text chunking helper |
@@ -232,6 +233,8 @@ explicitly promotes one as public.
     | `plugin-sdk/realtime-voice` | Realtime voice provider types and registry helpers |
     | `plugin-sdk/image-generation` | Image generation provider types |
     | `plugin-sdk/image-generation-core` | Shared image-generation types, failover, auth, and registry helpers |
+    | `plugin-sdk/music-generation` | Music generation provider/request/result types |
+    | `plugin-sdk/music-generation-core` | Shared music-generation types, failover helpers, provider lookup, and model-ref parsing |
     | `plugin-sdk/video-generation` | Video generation provider/request/result types |
     | `plugin-sdk/video-generation-core` | Shared video-generation types, failover helpers, provider lookup, and model-ref parsing |
     | `plugin-sdk/webhook-targets` | Webhook target registry and route-install helpers |
@@ -288,6 +291,7 @@ methods:
 | `api.registerRealtimeVoiceProvider(...)`         | Duplex realtime voice sessions   |
 | `api.registerMediaUnderstandingProvider(...)`    | Image/audio/video analysis       |
 | `api.registerImageGenerationProvider(...)`       | Image generation                 |
+| `api.registerMusicGenerationProvider(...)`       | Music generation                 |
 | `api.registerVideoGenerationProvider(...)`       | Video generation                 |
 | `api.registerWebFetchProvider(...)`              | Web fetch / scrape provider      |
 | `api.registerWebSearchProvider(...)`             | Web search                       |

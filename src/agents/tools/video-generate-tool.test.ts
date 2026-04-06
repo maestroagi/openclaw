@@ -5,6 +5,10 @@ import * as videoGenerationRuntime from "../../video-generation/runtime.js";
 import * as videoGenerateBackground from "./video-generate-background.js";
 import { createVideoGenerateTool } from "./video-generate-tool.js";
 
+const taskRuntimeInternalMocks = vi.hoisted(() => ({
+  listTasksForOwnerKey: vi.fn(),
+}));
+
 const taskExecutorMocks = vi.hoisted(() => ({
   createRunningTaskRun: vi.fn(),
   completeTaskRunByRunId: vi.fn(),
@@ -12,6 +16,7 @@ const taskExecutorMocks = vi.hoisted(() => ({
   recordTaskRunProgressByRunId: vi.fn(),
 }));
 
+vi.mock("../../tasks/runtime-internal.js", () => taskRuntimeInternalMocks);
 vi.mock("../../tasks/task-executor.js", () => taskExecutorMocks);
 
 function asConfig(value: unknown): OpenClawConfig {
@@ -22,6 +27,8 @@ describe("createVideoGenerateTool", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.spyOn(videoGenerationRuntime, "listRuntimeVideoGenerationProviders").mockReturnValue([]);
+    taskRuntimeInternalMocks.listTasksForOwnerKey.mockReset();
+    taskRuntimeInternalMocks.listTasksForOwnerKey.mockReturnValue([]);
     taskExecutorMocks.createRunningTaskRun.mockReset();
     taskExecutorMocks.completeTaskRunByRunId.mockReset();
     taskExecutorMocks.failTaskRunByRunId.mockReset();
@@ -140,6 +147,7 @@ describe("createVideoGenerateTool", () => {
       provider: "qwen",
       model: "wan2.6-t2v",
       attempts: [],
+      ignoredOverrides: [],
       videos: [
         {
           buffer: Buffer.from("video-bytes"),
@@ -181,7 +189,8 @@ describe("createVideoGenerateTool", () => {
     const result = await tool.execute("call-1", { prompt: "friendly lobster surfing" });
     const text = (result.content?.[0] as { text: string } | undefined)?.text ?? "";
 
-    expect(text).toContain("Started video generation task task-123 in the background.");
+    expect(text).toContain("Background task started for video generation (task-123).");
+    expect(text).toContain("Do not call video_generate again for this request.");
     expect(result.details).toMatchObject({
       async: true,
       status: "started",
