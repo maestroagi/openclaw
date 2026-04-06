@@ -9,6 +9,8 @@ Docs: https://docs.openclaw.ai
 - Providers/Anthropic: restore Claude CLI as the preferred local Anthropic path in onboarding, model-auth guidance, and doctor flows again, and keep the Docker Claude CLI live lane aligned with the restored guidance.
 - Plugins/webhooks: add a bundled webhook ingress plugin so external automation can create and drive bound TaskFlows through per-route shared-secret endpoints. (#61892) Thanks @mbelinky.
 - Tools/media: document per-provider music and video generation capabilities, and add shared live video-to-video sweep coverage for providers that support local reference clips.
+- ACP/ACPX plugin: bump the bundled `acpx` pin to `0.5.1` so plugin-local installs and strict version checks pick up the latest published runtime release. (#62148) Thanks @onutc.
+- Tools/media generation: auto-fallback across auth-backed image, music, and video providers by default, and remap fallback size, aspect ratio, resolution, and duration hints to the closest supported option instead of dropping intent on provider switches.
 
 ### Fixes
 
@@ -55,10 +57,12 @@ Docs: https://docs.openclaw.ai
 - Agents/history: suppress commentary-only visible-text leaks in streaming and chat history views, and keep sanitized SSE history sequence numbers monotonic after transcript-only refreshes. (#61829) Thanks @100yenadmin.
 - Agents/history: use one shared assistant-visible sanitizer across embedded delivery and chat-history extraction so leaked `<tool_call>` and `<tool_result>` XML blocks stay hidden from user-facing replies. (#61729) Thanks @openperf.
 - Agents/history: keep truly legacy unsigned replay text unphased when mixed with phased OpenAI WS assistant blocks, while still inheriting message phase for id-only replay signatures. (#61529) Thanks @100yenadmin.
+- Auto-reply/media: block arbitrary absolute host-local `MEDIA:` paths from normal reply text, keep managed generated-media reply paths working, and require detected PDF or Office file content before host-local document sends are accepted.
 - Memory/dreaming: strip managed Light Sleep and REM blocks before daily-note ingestion so dreaming summaries stop re-ingesting their own staged output into new candidates. (#61720) Thanks @MonkeyLeeT.
 - Docs/i18n: relocalize final localized-page links after translation so generated locale pages stop keeping stale English-root links when targets appear later in the same run. (#61796) thanks @hxy91819.
 - Docs/i18n: remove the zh-CN homepage redirect override so Mintlify can resolve the localized Chinese homepage without self-redirecting `/zh-CN/index`.
 - Tools/web_fetch and web_search: fix `TypeError: fetch failed` caused by undici 8.0 enabling HTTP/2 by default; pinned SSRF-guard dispatchers now explicitly set `allowH2: false` to restore HTTP/1.1 behavior and keep the custom DNS-pinning lookup compatible. (#61738, #61777) Thanks @zozo123.
+- Tools/web search/Exa: show Exa Search in onboarding and configure provider pickers again by marking the bundled Exa provider as setup-visible. Thanks @vincentkoc.
 - Agents/session keys: backfill `sessionKey` from `sessionId` in the embedded PI runner when callers omit it, so hooks, LCM, and compaction receive a valid key; also normalize whitespace-only session keys to `undefined` before downstream consumers see them. (#60555) Thanks @100yenadmin.
 - Plugins/provider hooks: stop recursive provider snapshot loads from overflowing the stack during plugin initialization, while still preserving cached nested provider-hook results. (#61922, #61938, #61946, #61951)
 - Discord/voice: re-arm DAVE receive passthrough without suppressing decrypt-failure rejoin recovery, and clear capture state before finalize teardown so rapid speaker restarts keep their next utterance. (#41536) Thanks @wit-oc.
