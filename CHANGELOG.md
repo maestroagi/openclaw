@@ -11,6 +11,7 @@ Docs: https://docs.openclaw.ai
 - QA/lab: add character-vibes evaluation reports with model selection and parallel runs so live QA can compare candidate behavior faster.
 - Plugins/provider-auth: let provider manifests declare `providerAuthAliases` so provider variants can share env vars, auth profiles, config-backed auth, and API-key onboarding choices without core-specific wiring.
 - iOS: pin release versioning to an explicit CalVer in `apps/ios/version.json`, keep TestFlight iteration on the same short version until maintainers intentionally promote the next gateway version, and add the documented `pnpm ios:version:pin -- --from-gateway` workflow for release trains. (#63001) Thanks @ngutman.
+- Control UI/dreaming: surface grounded historical replay as its own Scene lane with grounded-led promotion hints and a safe clear-grounded action for staged backfill-only signals. (#63395) Thanks @mbelinky.
 
 ### Fixes
 
@@ -45,6 +46,9 @@ Docs: https://docs.openclaw.ai
 - Security/dependency audit: force `basic-ftp` to `5.2.1` to pick up the CRLF command-injection fix from GHSA-chqc-8p9q-pq6q.
 - Security/dependency audit: bump Hono to `4.12.12` and `@hono/node-server` to `1.19.13` in production resolution paths.
 - Slack/partial streaming: keep the final fallback reply path active when preview finalization fails so stale preview text cannot suppress the actual final answer. (#62859) Thanks @gumadeiras.
+- Plugins/contracts: keep test-only helpers out of production contract barrels, load shared contract harnesses through bundled test surfaces, and harden guardrails so indirect re-exports and canonical `*.test.ts` files stay blocked. (#63311) Thanks @altaywtf.
+- Sessions/routing: preserve established external routes on inter-session announce traffic so `sessions_send` follow-ups do not steal delivery from Telegram, Discord, or other external channels. (#58013) Thanks @duqaXxX.
+- Gateway/chat: suppress exact and streamed `ANNOUNCE_SKIP` / `REPLY_SKIP` control replies across live chat updates and history sanitization so internal agent-to-agent control tokens no longer leak into user-facing gateway chat surfaces. (#51739) Thanks @Pinghuachiu.
 
 ## 2026.4.8
 
@@ -1479,7 +1483,6 @@ Docs: https://docs.openclaw.ai
 ### Fixes
 
 - Agents/edit tool: accept common path/text alias spellings, show current file contents on exact-match failures, and avoid false edit failures after successful writes. (#52516) thanks @mbelinky.
-
 ## 2026.3.13
 
 ### Changes
