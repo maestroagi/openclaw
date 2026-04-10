@@ -11,6 +11,7 @@ Docs: https://docs.openclaw.ai
 - Docs i18n: chunk raw doc translation, reject truncated tagged outputs, avoid ambiguous body-only wrapper unwrapping, and recover from terminated Pi translation sessions without changing the default `openai/gpt-5.4` path. (#62969, #63808) Thanks @hxy91819.
 - QA/testing: add a `--runner multipass` lane for `openclaw qa suite` so repo-backed QA scenarios can run inside a disposable Linux VM and write back the usual report, summary, and VM logs. (#63426) Thanks @shakkernerd.
 - Gateway: split startup and runtime seams so gateway lifecycle sequencing, reload state, and shutdown behavior stay easier to maintain without changing observed behavior. (#63975) Thanks @gumadeiras.
+- Models/providers: add per-provider `models.providers.*.request.allowPrivateNetwork` for trusted self-hosted OpenAI-compatible endpoints, keep the opt-in scoped to model request surfaces, and refresh cached WebSocket managers when request transport overrides change. (#63671) Thanks @qas.
 
 ### Fixes
 
@@ -63,6 +64,8 @@ Docs: https://docs.openclaw.ai
 - ACP/stream relay: pass parent delivery context to ACP stream relay system events so `streamTo="parent"` updates route to the correct thread or topic instead of falling back to the main DM. (#57056) Thanks @pingren.
 - Agents/sessions: preserve announce `threadId` when `sessions.list` fallback rehydrates agent-to-agent announce targets so final announce messages stay in the originating thread/topic. (#63506) Thanks @SnowSky1.
 - Browser/plugin SDK: route browser auth, profile, host-inspection, and doctor readiness helpers through browser plugin public facades so core compatibility helpers stop carrying duplicate runtime implementations. (#63957) Thanks @joshavant.
+- Browser/act: centralize `/act` request normalization and execution dispatch while adding stable machine-readable route-level error codes for invalid requests, selector misuse, evaluate-disabled gating, target mismatch, and existing-session unsupported actions. (#63977) Thanks @joshavant.
+- Windows/exec: settle supervisor waits from child exit state after stdout and stderr drain even when `close` never arrives, so CLI commands stop hanging or dying with forced `SIGKILL` on Windows. (#64072) Thanks @obviyus.
 
 ## 2026.4.9
 
