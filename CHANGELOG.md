@@ -11,10 +11,14 @@ Docs: https://docs.openclaw.ai
 - Docs i18n: chunk raw doc translation, reject truncated tagged outputs, avoid ambiguous body-only wrapper unwrapping, and recover from terminated Pi translation sessions without changing the default `openai/gpt-5.4` path. (#62969, #63808) Thanks @hxy91819.
 - QA/testing: add a `--runner multipass` lane for `openclaw qa suite` so repo-backed QA scenarios can run inside a disposable Linux VM and write back the usual report, summary, and VM logs. (#63426) Thanks @shakkernerd.
 - Gateway: split startup and runtime seams so gateway lifecycle sequencing, reload state, and shutdown behavior stay easier to maintain without changing observed behavior. (#63975) Thanks @gumadeiras.
+- CLI/exec policy: add a local `openclaw exec-policy` command with `show`, `preset`, and `set` subcommands for synchronizing requested `tools.exec.*` config with the local exec approvals file, plus follow-up hardening for node-host rejection, rollback safety, and sync conflict detection.
 - Models/providers: add per-provider `models.providers.*.request.allowPrivateNetwork` for trusted self-hosted OpenAI-compatible endpoints, keep the opt-in scoped to model request surfaces, and refresh cached WebSocket managers when request transport overrides change. (#63671) Thanks @qas.
+- Gateway: add a `commands.list` RPC so remote gateway clients can discover runtime-native, text, skill, and plugin commands with surface-aware naming and serialized argument metadata. (#62656) Thanks @samzong.
 
 ### Fixes
 
+- Discord: update Carbon version to v0.15.0. Thanks @thewilloftheshadow
+- fix(infra): expand host env security policy denylist [AI]. (#63277) Thanks @pgondhi987.
 - fix(agents): guard nodes tool outPath against workspace boundary [AI-assisted]. (#63551) Thanks @pgondhi987.
 - fix(qqbot): enforce media storage boundary for all outbound local file paths [AI]. (#63271) Thanks @pgondhi987.
 - iMessage/self-chat: distinguish normal DM outbound rows from true self-chat using `destination_caller_id` plus chat participants, while preserving multi-handle self-chat aliases so outbound DM replies stop looping back as inbound messages. (#61619) Thanks @neeravmakwana.
@@ -65,7 +69,10 @@ Docs: https://docs.openclaw.ai
 - Agents/sessions: preserve announce `threadId` when `sessions.list` fallback rehydrates agent-to-agent announce targets so final announce messages stay in the originating thread/topic. (#63506) Thanks @SnowSky1.
 - Browser/plugin SDK: route browser auth, profile, host-inspection, and doctor readiness helpers through browser plugin public facades so core compatibility helpers stop carrying duplicate runtime implementations. (#63957) Thanks @joshavant.
 - Browser/act: centralize `/act` request normalization and execution dispatch while adding stable machine-readable route-level error codes for invalid requests, selector misuse, evaluate-disabled gating, target mismatch, and existing-session unsupported actions. (#63977) Thanks @joshavant.
+- Gateway/agents: preserve configured model selection and richer `IDENTITY.md` content across agent create/update flows and workspace moves, and fail safely instead of silently overwriting unreadable identity files. (#61577) Thanks @samzong.
 - Windows/exec: settle supervisor waits from child exit state after stdout and stderr drain even when `close` never arrives, so CLI commands stop hanging or dying with forced `SIGKILL` on Windows. (#64072) Thanks @obviyus.
+- Agents/timeouts: extend the default LLM idle window to 120s and keep silent no-token idle timeouts on recovery paths, so slow models can retry or fall back before users see an error.
+- Claude CLI: clear inherited Anthropic auth/header environment aliases before spawning Claude Code and add sanitized CLI backend auth-env diagnostics for debugging gateway-run provider selection.
 
 ## 2026.4.9
 
@@ -484,7 +491,6 @@ Docs: https://docs.openclaw.ai
 - Matrix: avoid failing startup when token auth already knows the user ID but still needs optional device metadata, retry transient auth bootstrap requests, and backfill missing device IDs after startup while keeping unknown-device storage reuse conservative until metadata is repaired. (#61383) Thanks @gumadeiras.
 - Agents/exec: stop streaming `tool_execution_update` events after an exec session backgrounds, preventing delayed background output from hitting a stale listener and crashing the gateway while keeping the output available through `process poll/log`. (#61627) Thanks @openperf.
 - Matrix: pass configured `deviceId` through health probes and keep probe-only client setup out of durable Matrix storage, so health checks preserve the correct device identity without rewriting `storage-meta.json` or related probe state on disk. (#61581) Thanks @MoerAI.
-  ||||||| parent of b4694a4ac7 (Telegram: add outbound chunker regression coverage)
 - Image generation/build: write stable runtime alias files into `dist/` and route provider-auth runtime lookups through those aliases so image-generation providers keep resolving auth/runtime modules after rebuilds instead of crashing on missing hashed chunk files.
 - Config/runtime: pin the first successful config load in memory for the running process and refresh that snapshot on successful writes/reloads, so hot paths stop reparsing `openclaw.json` between watcher-driven swaps.
 - Config/legacy cleanup: stop probing obsolete alternate legacy config names and service labels during local config/service detection, while keeping the active `~/.openclaw/openclaw.json` path canonical.
