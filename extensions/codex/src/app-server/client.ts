@@ -12,7 +12,7 @@ import {
 } from "./protocol.js";
 import { createStdioTransport } from "./transport-stdio.js";
 import { createWebSocketTransport } from "./transport-websocket.js";
-import type { CodexAppServerTransport } from "./transport.js";
+import { closeCodexAppServerTransport, type CodexAppServerTransport } from "./transport.js";
 
 export const MIN_CODEX_APP_SERVER_VERSION = "0.118.0";
 
@@ -21,6 +21,18 @@ type PendingRequest = {
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
 };
+
+export class CodexAppServerRpcError extends Error {
+  readonly code?: number;
+  readonly data?: JsonValue;
+
+  constructor(error: { code?: number; message: string; data?: JsonValue }, method: string) {
+    super(error.message || `${method} failed`);
+    this.name = "CodexAppServerRpcError";
+    this.code = error.code;
+    this.data = error.data;
+  }
+}
 
 export type CodexServerRequestHandler = (
   request: Required<Pick<RpcRequest, "id" | "method">> & { params?: JsonValue },
@@ -137,11 +149,13 @@ export class CodexAppServerClient {
   }
 
   close(): void {
+    if (this.closed) {
+      return;
+    }
     this.closed = true;
     this.lines.close();
-    if (!this.child.killed) {
-      this.child.kill?.();
-    }
+    this.rejectPendingRequests(new Error("codex app-server client is closed"));
+    closeCodexAppServerTransport(this.child);
   }
 
   private writeMessage(message: RpcRequest | RpcResponse): void {
@@ -192,7 +206,7 @@ export class CodexAppServerClient {
     }
     this.pending.delete(response.id);
     if (response.error) {
-      pending.reject(new Error(response.error.message || `${pending.method} failed`));
+      pending.reject(new CodexAppServerRpcError(response.error, pending.method));
       return;
     }
     pending.resolve(response.result);
@@ -233,6 +247,10 @@ export class CodexAppServerClient {
       return;
     }
     this.closed = true;
+    this.rejectPendingRequests(error);
+  }
+
+  private rejectPendingRequests(error: Error): void {
     for (const pending of this.pending.values()) {
       pending.reject(error);
     }
@@ -342,3 +360,7 @@ function formatExitValue(value: unknown): string {
   }
   return "unknown";
 }
+
+export const __testing = {
+  closeCodexAppServerTransport,
+} as const;
