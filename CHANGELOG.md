@@ -127,6 +127,8 @@ Docs: https://docs.openclaw.ai
 - Agents/exec: extend exec completion detection to cover local background exec formats so the owner-downgrade fires correctly for all exec paths. (#64376) Thanks @mmaps.
 - Security/dependencies: pin axios to 1.15.0 and add a plugin install dependency denylist that blocks known malicious packages before install. (#63891) Thanks @mmaps.
 - Browser/security: apply three-phase interaction navigation guard to pressKey and type(submit) so delayed JS redirects from keypress cannot bypass SSRF policy. (#63889) Thanks @mmaps.
+
+- Browser/security: guard existing-session Chrome MCP interaction routes with SSRF post-checks so delayed navigation from click, type, press, and evaluate cannot bypass the configured policy. (#64370) Thanks @eleqtrizit.
 ## 2026.4.9
 
 ### Changes
