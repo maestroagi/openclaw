@@ -17,6 +17,7 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- fix(nostr): require operator.admin scope for profile mutation routes [AI]. (#63553) Thanks @pgondhi987.
 - Gateway/startup: keep WebSocket RPC available while channels and plugin sidecars start, hold `chat.history` unavailable until startup sidecars finish so synchronous history reads cannot stall startup (reported in #63450), refresh advertised gateway methods after deferred plugin reloads, and enforce the pre-auth WebSocket upgrade budget before the no-handler 503 path so upgrade floods cannot bypass connection limits during that window. (#63480) Thanks @neeravmakwana.
 - Gateway/tailscale: start Tailscale exposure and the gateway update check before awaiting channel and plugin sidecar startup so remote operators are not locked out when startup sidecars stall.
 - WhatsApp: keep inbound replies, media, composing indicators, and queued outbound deliveries attached to the current socket across reconnect gaps, including fresh retry-eligible sends after the listener comes back. (#30806, #46299, #62892, #63916) Thanks @mcaxtr.
@@ -89,6 +90,8 @@ Docs: https://docs.openclaw.ai
 - iMessage (imsg): strip an accidental protobuf length-delimited UTF-8 field wrapper from inbound `text` and `reply_to_text` when it fully consumes the field, fixing leading garbage before the real message. (#63868) Thanks @neeravmakwana.
 - Gateway/pairing: fail closed for paired device records that have no device tokens, and reject pairing approvals whose requested scopes do not match the requested device roles.
 - ACP/gateway chat: classify lifecycle errors before forwarding them to ACP clients so refusals use ACP's refusal stop reason while transient backend errors continue to finish as normal turns.
+- Commands/btw: keep tool-less side questions from sending injected empty `tools` arrays on strict OpenAI-compatible providers, so `/btw` continues working after prior tool-call history. (#64219) Thanks @ngutman.
+- Agents/Bedrock: let `/btw` side questions use `auth: "aws-sdk"` without a static API key so Bedrock IAM and instance-role sessions stop failing before the side question runs. (#64218) Thanks @SnowSky1.
 
 ## 2026.4.9
 
@@ -136,6 +139,8 @@ Docs: https://docs.openclaw.ai
 - Plugins/contracts: keep test-only helpers out of production contract barrels, load shared contract harnesses through bundled test surfaces, and harden guardrails so indirect re-exports and canonical `*.test.ts` files stay blocked. (#63311) Thanks @altaywtf.
 - Control UI/models: preserve provider-qualified refs for OpenRouter catalog models whose ids already contain slashes so picker selections submit allowlist-compatible model refs instead of dropping the `openrouter/` prefix. (#63416) Thanks @sallyom.
 - Plugin SDK/command auth: split command status builders onto the lightweight `openclaw/plugin-sdk/command-status` subpath while preserving deprecated `command-auth` compatibility exports, so auth-only plugin imports no longer pull status/context warmup into CLI onboarding paths. (#63174) Thanks @hxy91819.
+- Wizard/plugin config: coerce integer-typed plugin config fields from interactive text input so integer schema values persist as numbers instead of failing validation. (#63346) Thanks @jalehman.
+- Dreaming/narrative: harden request-scoped diary fallback so scheduled dreaming only falls back on the dedicated subagent-runtime error, stop trusting spoofable raw error-code objects, and avoid leaking workspace paths when local fallback writes fail. (#64156) Thanks @mbelinky.
 
 ## 2026.4.8
 
