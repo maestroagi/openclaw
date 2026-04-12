@@ -26,15 +26,18 @@ Docs: https://docs.openclaw.ai
 - Dreaming/diary: use the host local timezone for diary timestamps when `dreaming.timezone` is unset, so `DREAMS.md` and the UI stop defaulting to UTC. (#65034) Thanks @neo1027144-creator and @vincentkoc.
 - Dreaming/diary: include the timezone abbreviation in diary timestamps so `DREAMS.md` and the UI make UTC or local host time explicit. (#65057) Thanks @Yanhu007 and @vincentkoc.
 - Dreaming/narrative: harden transient narrative cleanup by retrying timed-out deletes and scrubbing stale dreaming session artifacts through the lock-aware session-store path. (#65320) Thanks @serkonyc and @vincentkoc.
+- Dreaming/narrative: isolate transient narrative session keys per workspace so simultaneous dreaming phases cannot cross-read or delete each other's session state. (#61674) Thanks @GaosCode and @vincentkoc.
 - Plugins/memory: restore cached memory capability public artifacts on plugin-registry cache hits so memory-backed artifact surfaces stay visible after warm loads. Thanks @sercada and @vincentkoc.
 - Gateway/cron: preserve requested isolated-agent config across runtime reloads so subagent jobs and heartbeat overrides keep the right workspace and heartbeat settings when the hot-loaded snapshot is stale. Thanks @l0cka and @vincentkoc.
 - Gateway/plugins: always send a non-empty `idempotencyKey` for plugin subagent runs, so dreaming narrative jobs stop failing gateway schema validation. (#65354) Thanks @CodeForgeNet and @vincentkoc.
+- Dreaming/promotion: raise phase reinforcement enough for repeated dreaming-only revisits to clear the default durable-memory gate after multiple days, instead of stalling just below the score threshold. Thanks @vincentkoc.
 - CLI/plugins: honor `memory-wiki` when `plugins.allow` is set for `openclaw wiki`, and register `wiki` as the plugin-owned command alias so doctor/config stop treating it as stale. (#64779) Thanks @feiskyer and @vincentkoc.
 - Cron/isolated sessions: persist the right transcript path for each isolated run, including fresh session rollovers, so cron runs stop appending to stale session files. Thanks @samrusani and @vincentkoc.
 - CLI/memory-wiki: pass the active app config into the metadata registrar so built `openclaw wiki` commands resolve the live wiki plugin config instead of silently falling back to defaults. (#65012) Thanks @leonardsellem and @vincentkoc.
 - Dreaming/cron: wake managed dreaming jobs immediately instead of waiting for the next heartbeat, so scheduled dreaming runs start when the cron fires. (#65053) Thanks @l0cka and @vincentkoc.
 - QA/packaging: stop packaged QA helpers from crashing when optional scenario execution config is unavailable, so npm distributions can skip the repo-only scenario pack without breaking completion-cache and startup paths. (#65118) Thanks @EdderTalmor and @vincentkoc.
 - Media/audio transcription: surface the real provider failure when every audio transcription attempt fails, so status output and the CLI stop collapsing those errors into generic skips. (#65096) Thanks @l0cka and @vincentkoc.
+- Memory/wiki: preserve Unicode letters, digits, and combining marks in wiki slugs and contradiction clustering, and cap Unicode filename segments to safe byte lengths so non-ASCII titles stop collapsing or overflowing path limits. (#64742) Thanks @zhouhe-xydt and @vincentkoc.
 
 ## 2026.4.11
 
