@@ -6,7 +6,7 @@ Docs: https://docs.openclaw.ai
 
 ### Changes
 
-- Plugins/loading: narrow CLI, provider, and channel activation to manifest-declared needs so startup, command discovery, and runtime activation avoid loading unrelated plugin runtime. (#65120, #65259, #65429)
+- Plugins/loading: narrow CLI, provider, and channel activation to manifest-declared needs, preserve explicit scope and trust boundaries, and centralize manifest-owner policy so startup, command discovery, and runtime activation avoid loading unrelated plugin runtime. (#65120, #65259, #65298, #65429, #65459) Thanks @vincentkoc.
 - Memory/active-memory: default QMD recall to search and surface better search-path telemetry so memory-backed recall works more predictably out of the box. (#65068) Thanks @Takhoffman.
 - Docs/providers: expand bundled provider docs with richer capability, env-var, and setup guidance across provider pages.
 - Docs/memory-wiki: add the recommended QMD + bridge-mode hybrid recipe plus zero-artifact troubleshooting guidance for `memory-wiki` bridge setups. (#63165) Thanks @sercada and @vincentkoc.
@@ -18,11 +18,13 @@ Docs: https://docs.openclaw.ai
 - Dreaming: consume managed heartbeat events exactly once, stage light-sleep confidence from all recorded short-term signals, wake scheduled jobs immediately, raise dreaming-only promotion enough to cross the durable-memory gate, and stop dreaming from re-ingesting its own narrative transcripts.
 - Dreaming/narrative: harden transient narrative cleanup by retrying timed-out deletes, scrubbing stale dreaming session artifacts through the lock-aware session-store path, and isolating transient narrative session keys per workspace. (#65320, #61674)
 - Memory/wiki: preserve Unicode letters, digits, and combining marks in wiki slugs and contradiction clustering, and cap Unicode filename segments to safe byte lengths so non-ASCII titles stop collapsing or overflowing path limits. (#64742) Thanks @zhouhe-xydt.
+- Memory/short-term recall: allow nested daily notes under `memory/**/YYYY-MM-DD.md` to feed short-term recall, while still excluding generated dream reports under `memory/dreaming/**` so dreaming does not promote its own output. (#64682) Thanks @SARAMALI15792.
 - UI/WebChat: hide synthetic transcript-repair tool results from chat history reloads so internal recovery markers do not leak into visible chat after reconnects. (#65247) Thanks @wangwllu.
 - WhatsApp/outbound: fall back to the first `mediaUrls` entry when `mediaUrl` is empty so gateway media sends stop silently dropping attachments that already have a resolved media list. (#64394) Thanks @eric-fr4 and @vincentkoc.
 - Doctor/Discord: stop `openclaw doctor --fix` from rewriting legacy Discord preview-streaming config into the nested modern shape, so downgrades can still recover without hand-editing `channels.discord.streaming`. (#65035) Thanks @vincentkoc.
 - Gateway/auth: blank the shipped example gateway credential in `.env.example` and fail startup when a copied placeholder token or password is still configured, so operators cannot accidentally launch with a publicly known secret. (#64586) Thanks @navarrotech and @vincentkoc.
 - Memory/active-memory+dreaming: keep active-memory recall runs on the strongest resolved channel, consume managed dreaming heartbeat events exactly once, stop dreaming from re-ingesting its own narrative transcripts, and add explicit repair/dedupe recovery flows in CLI, doctor, and the Dreams UI.
+- Agents/queueing: carry orphaned active-turn user text into the next prompt before repairing transcript ordering, so follow-up messages that arrive mid-run are no longer silently dropped. (#65388) Thanks @adminfedres and @vincentkoc.
 - Gateway/keepalive: stop marking WebSocket tick broadcasts as droppable so slow or backpressured clients do not self-disconnect with `tick timeout` while long-running work is still alive. (#65256) Thanks @100yenadmin and @vincentkoc.
 - Matrix/mentions: keep room mention gating strict while accepting visible `@displayName` Matrix URI labels, so `requireMention` works for non-OpenClaw Matrix clients again. (#64796) Thanks @hclsys.
 - Doctor: warn when on-disk agent directories still exist under `~/.openclaw/agents/<id>/agent` but the matching `agents.list[]` entries are missing from config. (#65113) Thanks @neeravmakwana.
@@ -50,6 +52,8 @@ Docs: https://docs.openclaw.ai
 - Memory/QMD: allow channel sessions in the shipped default QMD scope, while still denying groups.
 - Memory/QMD: stop registering the legacy lowercase root memory file as a separate default collection, so QMD now prefers `MEMORY.md` and the `memory/` tree without duplicate collection-add warnings.
 - Memory/memory-core: watch the `memory` directory directly and ignore non-markdown churn so nested note changes still sync on macOS + Node 25 environments where recursive `memory/**/*.md` glob watching fails. (#64711) Thanks @jasonxargs-boop and @vincentkoc.
+- WhatsApp: centralize per-account connection ownership so reconnects, login recovery, and outbound readiness stay attached to the live socket instead of drifting across monitor and login paths. (#65290) Thanks @mcaxtr and @vincentkoc.
+- iMessage: retry transient `watch.subscribe` startup failures before tearing down the monitor, and sanitize startup error logging so brief local transport stalls do not immediately bounce the channel or leak raw imsg RPC payloads into logs. (#65393) Thanks @vincentkoc.
 
 ## 2026.4.11
 
@@ -225,6 +229,7 @@ Docs: https://docs.openclaw.ai
 - Agents/locks: unregister the session write-lock `exit` cleanup handler during teardown so repeated lock lifecycle resets stop stacking process listeners in long-running gateway processes. (#65391) Thanks @adminfedres and @vincentkoc.
 - CLI/Claude: rename the trusted inbound metadata schema to `openclaw.inbound_meta.v2` so Claude CLI no longer trips Anthropic's blocked `openclaw.inbound_meta.v1` filter on channel-originated turns. (#65399) Thanks @SzyMig and @vincentkoc.
 - Agents/inbound metadata: strip NUL bytes from serialized inbound context blocks before they reach backend spawn args, so malformed message metadata cannot crash agent spawn with `ERR_INVALID_ARG_VALUE`. (#65389) Thanks @adminfedres and @vincentkoc.
+- iMessage: retry transient `watch.subscribe` startup failures before tearing down the monitor, so brief local transport stalls do not immediately bounce the channel. (#65393) Thanks @vincentkoc.
 
 ## 2026.4.9
 
