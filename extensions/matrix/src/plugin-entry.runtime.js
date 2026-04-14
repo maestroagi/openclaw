@@ -38,11 +38,31 @@ function readPackageJson(packageRoot) {
   }
 }
 
+function normalizeLowercaseStringOrEmpty(value) {
+  return typeof value === "string" ? value.toLowerCase() : "";
+}
+
+function hasTrustedOpenClawRootIndicator(packageRoot, packageJson) {
+  const packageExports = packageJson?.exports ?? {};
+  if (!Object.prototype.hasOwnProperty.call(packageExports, "./plugin-sdk")) {
+    return false;
+  }
+  const hasCliEntryExport = Object.prototype.hasOwnProperty.call(packageExports, "./cli-entry");
+  const hasOpenClawBin =
+    (typeof packageJson?.bin === "string" &&
+      normalizeLowercaseStringOrEmpty(packageJson.bin).includes("openclaw")) ||
+    (typeof packageJson?.bin === "object" &&
+      packageJson.bin !== null &&
+      typeof packageJson.bin.openclaw === "string");
+  const hasOpenClawEntrypoint = fs.existsSync(path.join(packageRoot, "openclaw.mjs"));
+  return hasCliEntryExport || hasOpenClawBin || hasOpenClawEntrypoint;
+}
+
 function findOpenClawPackageRoot(startDir) {
   let cursor = path.resolve(startDir);
   for (let i = 0; i < 12; i += 1) {
     const pkg = readPackageJson(cursor);
-    if (pkg?.name === "openclaw" && pkg.exports?.["./plugin-sdk"]) {
+    if (pkg?.name === "openclaw" && hasTrustedOpenClawRootIndicator(cursor, pkg)) {
       return { packageRoot: cursor, packageJson: pkg };
     }
     const parent = path.dirname(cursor);
@@ -83,12 +103,12 @@ function buildPluginSdkAliasMap(moduleUrl) {
     }
   }
 
-  for (const exportKey of Object.keys(packageJson.exports ?? {})) {
+  for (const exportKey of Object.keys(packageJson.exports ?? {}).toSorted()) {
     if (!exportKey.startsWith(PLUGIN_SDK_EXPORT_PREFIX)) {
       continue;
     }
     const subpath = exportKey.slice(PLUGIN_SDK_EXPORT_PREFIX.length);
-    if (!subpath) {
+    if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(subpath)) {
       continue;
     }
     const resolvedPath =
@@ -102,8 +122,10 @@ function buildPluginSdkAliasMap(moduleUrl) {
   }
 
   const extensionApi =
-    resolveExistingFile(path.join(packageRoot, "src", "extensionAPI"), [".ts", ".js"]) ??
-    resolveExistingFile(path.join(packageRoot, "dist", "extensionAPI"), [".js"]);
+    resolveExistingFile(
+      path.join(packageRoot, "src", "extensionAPI"),
+      PLUGIN_SDK_SOURCE_EXTENSIONS,
+    ) ?? resolveExistingFile(path.join(packageRoot, "dist", "extensionAPI"), [".js"]);
   if (extensionApi) {
     aliasMap["openclaw/extension-api"] = extensionApi;
   }
