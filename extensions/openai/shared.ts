@@ -4,6 +4,7 @@ import {
   cloneFirstTemplateModel,
   matchesExactOrPrefix,
 } from "openclaw/plugin-sdk/provider-model-shared";
+import { buildProviderStreamFamilyHooks } from "openclaw/plugin-sdk/provider-stream-family";
 import { normalizeOptionalString } from "openclaw/plugin-sdk/text-runtime";
 
 type SyntheticOpenAIModelCatalogCost = {
@@ -25,6 +26,9 @@ type SyntheticOpenAIModelCatalogEntry = {
 };
 
 export const OPENAI_API_BASE_URL = "https://api.openai.com/v1";
+export const OPENAI_RESPONSES_STREAM_HOOKS = buildProviderStreamFamilyHooks(
+  "openai-responses-defaults",
+);
 
 export function toOpenAIDataUrl(buffer: Buffer, mimeType: string): string {
   return `data:${mimeType};base64,${buffer.toString("base64")}`;
@@ -48,6 +52,30 @@ export function isOpenAICodexBaseUrl(baseUrl?: string): boolean {
     return false;
   }
   return /^https?:\/\/chatgpt\.com\/backend-api\/?$/i.test(trimmed);
+}
+
+function hasSupportedOpenAIResponsesTransport(
+  transport: unknown,
+): transport is "auto" | "sse" | "websocket" {
+  return transport === "auto" || transport === "sse" || transport === "websocket";
+}
+
+export function defaultOpenAIResponsesExtraParams(
+  extraParams: Record<string, unknown> | undefined,
+  options?: { openaiWsWarmup?: boolean },
+): Record<string, unknown> | undefined {
+  const hasSupportedTransport = hasSupportedOpenAIResponsesTransport(extraParams?.transport);
+  const hasExplicitWarmup = typeof extraParams?.openaiWsWarmup === "boolean";
+  const shouldDefaultWarmup = options?.openaiWsWarmup === true;
+  if (hasSupportedTransport && (!shouldDefaultWarmup || hasExplicitWarmup)) {
+    return extraParams;
+  }
+
+  return {
+    ...extraParams,
+    ...(hasSupportedTransport ? {} : { transport: "auto" }),
+    ...(shouldDefaultWarmup && !hasExplicitWarmup ? { openaiWsWarmup: true } : {}),
+  };
 }
 
 export function buildOpenAISyntheticCatalogEntry(

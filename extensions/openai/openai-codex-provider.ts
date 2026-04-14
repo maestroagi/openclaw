@@ -17,7 +17,6 @@ import {
   normalizeProviderId,
   type ProviderPlugin,
 } from "openclaw/plugin-sdk/provider-model-shared";
-import { buildProviderStreamFamilyHooks } from "openclaw/plugin-sdk/provider-stream-family";
 import { fetchCodexUsage } from "openclaw/plugin-sdk/provider-usage";
 import { normalizeLowercaseStringOrEmpty, readStringValue } from "openclaw/plugin-sdk/text-runtime";
 import { OPENAI_CODEX_DEFAULT_MODEL } from "./default-models.js";
@@ -28,10 +27,12 @@ import { buildOpenAIReplayPolicy } from "./replay-policy.js";
 import {
   buildOpenAISyntheticCatalogEntry,
   cloneFirstTemplateModel,
+  defaultOpenAIResponsesExtraParams,
   findCatalogTemplate,
   isOpenAIApiBaseUrl,
   isOpenAICodexBaseUrl,
   matchesExactOrPrefix,
+  OPENAI_RESPONSES_STREAM_HOOKS,
 } from "./shared.js";
 import {
   resolveOpenAITransportTurnState,
@@ -100,8 +101,6 @@ const OPENAI_CODEX_MODERN_MODEL_IDS = [
   OPENAI_CODEX_GPT_53_MODEL_ID,
   OPENAI_CODEX_GPT_53_SPARK_MODEL_ID,
 ] as const;
-const OPENAI_RESPONSES_STREAM_HOOKS = buildProviderStreamFamilyHooks("openai-responses-defaults");
-
 function normalizeCodexTransport(model: ProviderRuntimeModel): ProviderRuntimeModel {
   const lowerModelId = normalizeLowercaseStringOrEmpty(model.id);
   const canonicalModelId =
@@ -336,16 +335,7 @@ export function buildOpenAICodexProviderPlugin(): ProviderPlugin {
       return id === OPENAI_CODEX_GPT_54_MODEL_ID || id === OPENAI_CODEX_GPT_54_PRO_MODEL_ID;
     },
     buildReplayPolicy: buildOpenAIReplayPolicy,
-    prepareExtraParams: (ctx) => {
-      const transport = ctx.extraParams?.transport;
-      if (transport === "auto" || transport === "sse" || transport === "websocket") {
-        return ctx.extraParams;
-      }
-      return {
-        ...ctx.extraParams,
-        transport: "auto",
-      };
-    },
+    prepareExtraParams: (ctx) => defaultOpenAIResponsesExtraParams(ctx.extraParams),
     ...OPENAI_RESPONSES_STREAM_HOOKS,
     resolveTransportTurnState: (ctx) => resolveOpenAITransportTurnState(ctx),
     resolveWebSocketSessionPolicy: (ctx) => resolveOpenAIWebSocketSessionPolicy(ctx),
