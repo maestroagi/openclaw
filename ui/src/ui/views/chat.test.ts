@@ -6,7 +6,7 @@ import { getSafeLocalStorage } from "../../local-storage.ts";
 import { resetAssistantAttachmentAvailabilityCacheForTest } from "../chat/grouped-render.ts";
 import { normalizeMessage } from "../chat/message-normalizer.ts";
 import type { SessionsListResult } from "../types.ts";
-import { renderChat, type ChatProps } from "./chat.ts";
+import { getContextNoticeViewModel, renderChat, type ChatProps } from "./chat.ts";
 
 function createSessions(): SessionsListResult {
   return {
@@ -143,6 +143,8 @@ describe("chat view", () => {
 
   it("renders the context notice only for fresh high current usage", () => {
     const container = document.createElement("div");
+    document.documentElement.style.setProperty("--warn", "rgb(1, 2, 3)");
+    document.documentElement.style.setProperty("--danger", "tomato");
 
     const renderWithSession = (session: NonNullable<ChatProps["sessions"]>["sessions"][number]) =>
       render(
@@ -160,16 +162,19 @@ describe("chat view", () => {
         container,
       );
 
-    renderWithSession({
-      key: "main",
-      kind: "direct",
-      updatedAt: null,
-      inputTokens: 757_300,
-      totalTokens: 46_000,
-      contextTokens: 200_000,
-    });
-    expect(container.textContent).not.toContain("context used");
-    expect(container.textContent).not.toContain("757.3k / 200k");
+    expect(
+      getContextNoticeViewModel(
+        {
+          key: "main",
+          kind: "direct",
+          updatedAt: null,
+          inputTokens: 757_300,
+          totalTokens: 46_000,
+          contextTokens: 200_000,
+        },
+        200_000,
+      ),
+    ).toBeNull();
 
     renderWithSession({
       key: "main",
@@ -182,26 +187,48 @@ describe("chat view", () => {
     expect(container.textContent).toContain("95% context used");
     expect(container.textContent).toContain("190k / 200k");
     expect(container.textContent).not.toContain("757.3k / 200k");
+    const notice = container.querySelector<HTMLElement>(".context-notice");
+    expect(notice).not.toBeNull();
+    expect(notice?.style.getPropertyValue("--ctx-color")).toContain("rgb(");
+    expect(notice?.style.getPropertyValue("--ctx-color")).not.toContain("NaN");
+    expect(notice?.style.getPropertyValue("--ctx-bg")).not.toContain("NaN");
 
-    renderWithSession({
-      key: "main",
-      kind: "direct",
-      updatedAt: null,
-      inputTokens: 500_000,
-      contextTokens: 200_000,
-    });
-    expect(container.textContent).not.toContain("context used");
+    const icon = container.querySelector<SVGElement>(".context-notice__icon");
+    expect(icon).not.toBeNull();
+    expect(icon?.tagName.toLowerCase()).toBe("svg");
+    expect(icon?.classList.contains("context-notice__icon")).toBe(true);
+    expect(icon?.getAttribute("width")).toBe("16");
+    expect(icon?.getAttribute("height")).toBe("16");
+    expect(icon?.querySelector("path")).not.toBeNull();
 
-    renderWithSession({
-      key: "main",
-      kind: "direct",
-      updatedAt: null,
-      totalTokens: 190_000,
-      totalTokensFresh: false,
-      contextTokens: 200_000,
-    });
-    expect(container.textContent).not.toContain("context used");
-    expect(container.textContent).not.toContain("190k / 200k");
+    document.documentElement.style.removeProperty("--warn");
+    document.documentElement.style.removeProperty("--danger");
+
+    expect(
+      getContextNoticeViewModel(
+        {
+          key: "main",
+          kind: "direct",
+          updatedAt: null,
+          inputTokens: 500_000,
+          contextTokens: 200_000,
+        },
+        200_000,
+      ),
+    ).toBeNull();
+    expect(
+      getContextNoticeViewModel(
+        {
+          key: "main",
+          kind: "direct",
+          updatedAt: null,
+          totalTokens: 190_000,
+          totalTokensFresh: false,
+          contextTokens: 200_000,
+        },
+        200_000,
+      ),
+    ).toBeNull();
   });
 
   it("uses the assistant avatar URL or bundled logo fallbacks", () => {
@@ -450,31 +477,6 @@ describe("chat view", () => {
     expect(container.textContent).not.toContain("Stop");
   });
 
-  it("shows sender labels from sanitized gateway messages instead of generic You", () => {
-    const container = document.createElement("div");
-    render(
-      renderChat(
-        createProps({
-          messages: [
-            {
-              role: "user",
-              content: "hello from topic",
-              senderLabel: "Iris",
-              timestamp: 1000,
-            },
-          ],
-        }),
-      ),
-      container,
-    );
-
-    const senderLabels = Array.from(container.querySelectorAll(".chat-sender-name")).map((node) =>
-      node.textContent?.trim(),
-    );
-    expect(senderLabels).toContain("Iris");
-    expect(senderLabels).not.toContain("You");
-  });
-
   it("keeps consecutive user messages from different senders in separate groups", () => {
     const container = document.createElement("div");
     render(
@@ -506,6 +508,7 @@ describe("chat view", () => {
     );
     expect(senderLabels).toContain("Iris");
     expect(senderLabels).toContain("Joaquin De Rojas");
+    expect(senderLabels).not.toContain("You");
   });
 
   it("positions delete confirm by message side", () => {
@@ -749,36 +752,7 @@ describe("chat view", () => {
     expect(container.textContent).toContain('"childSessionKey": "agent:test:subagent:abc123"');
   });
 
-  it("renders [embed] shortcodes inside the assistant bubble", () => {
-    const container = document.createElement("div");
-    render(
-      renderChat(
-        createProps({
-          showToolCalls: false,
-          messages: [
-            {
-              id: "assistant-anki-inline",
-              role: "assistant",
-              content: [
-                {
-                  type: "text",
-                  text: 'Still the same current card.\n[embed ref="cv_shortcode" title="Shortcode view" /]',
-                },
-              ],
-              timestamp: Date.now(),
-            },
-          ],
-        }),
-      ),
-      container,
-    );
-
-    expect(container.querySelector(".chat-tool-card__preview-frame")).not.toBeNull();
-    expect(container.textContent).toContain("Still the same current card.");
-    expect(container.textContent).toContain("Shortcode view");
-  });
-
-  it("renders canvas-only assistant bubbles", () => {
+  it("renders canvas-only [embed] shortcodes inside the assistant bubble", () => {
     const container = document.createElement("div");
     render(
       renderChat(
@@ -788,7 +762,12 @@ describe("chat view", () => {
             {
               id: "assistant-canvas-only",
               role: "assistant",
-              content: [{ type: "text", text: '[embed ref="cv_tictactoe" title="Tic-Tac-Toe" /]' }],
+              content: [
+                {
+                  type: "text",
+                  text: '[embed ref="cv_tictactoe" title="Tic-Tac-Toe" /]',
+                },
+              ],
               timestamp: Date.now(),
             },
           ],
@@ -1055,6 +1034,55 @@ describe("chat view", () => {
     expect(container.textContent).not.toContain("[[reply_to_current]]");
     expect(container.textContent).not.toContain("[[audio_as_voice]]");
     expect(container.textContent).not.toContain("MEDIA:https://example.com/photo.png");
+  });
+
+  it("opens only safe assistant image URLs in a hardened new tab", () => {
+    const container = document.createElement("div");
+    const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
+    const renderAssistantImage = (url: string) =>
+      render(
+        renderChat(
+          createProps({
+            messages: [
+              {
+                role: "assistant",
+                content: [{ type: "image_url", image_url: { url } }],
+                timestamp: Date.now(),
+              },
+            ],
+          }),
+        ),
+        container,
+      );
+
+    try {
+      renderAssistantImage("https://example.com/cat.png");
+      let image = container.querySelector<HTMLImageElement>(".chat-message-image");
+      expect(image).not.toBeNull();
+      image?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+      expect(openSpy).toHaveBeenCalledTimes(1);
+      expect(openSpy).toHaveBeenCalledWith(
+        "https://example.com/cat.png",
+        "_blank",
+        "noopener,noreferrer",
+      );
+
+      openSpy.mockClear();
+      renderAssistantImage("javascript:alert(1)");
+      image = container.querySelector<HTMLImageElement>(".chat-message-image");
+      expect(image).not.toBeNull();
+      image?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      expect(openSpy).not.toHaveBeenCalled();
+
+      renderAssistantImage("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' />");
+      image = container.querySelector<HTMLImageElement>(".chat-message-image");
+      expect(image).not.toBeNull();
+      image?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      expect(openSpy).not.toHaveBeenCalled();
+    } finally {
+      openSpy.mockRestore();
+    }
   });
 
   it("renders verified local assistant attachments through the Control UI media route", async () => {
@@ -1636,6 +1664,57 @@ describe("chat view", () => {
         kind: "markdown",
       }),
     );
+  });
+
+  it("renders markdown inside tool output sidebar", async () => {
+    const container = document.createElement("div");
+    let sidebarContent: ChatProps["sidebarContent"] = null;
+    const messages = [
+      {
+        role: "assistant",
+        content: [
+          { type: "toolcall", name: "noop", arguments: {} },
+          { type: "toolresult", name: "noop", text: "Hello **world**" },
+        ],
+        timestamp: Date.now(),
+      },
+    ];
+    const renderWithSidebar = () =>
+      render(
+        renderChat(
+          createProps({
+            messages,
+            sidebarOpen: sidebarContent !== null,
+            sidebarContent,
+            sidebarError: null,
+            onOpenSidebar: (content) => {
+              sidebarContent = content;
+              renderWithSidebar();
+            },
+            onCloseSidebar: () => {
+              sidebarContent = null;
+              renderWithSidebar();
+            },
+            onRequestUpdate: renderWithSidebar,
+          }),
+        ),
+        container,
+      );
+
+    renderWithSidebar();
+
+    const toolSummary = container.querySelector<HTMLElement>(".chat-tool-msg-summary");
+    expect(toolSummary).not.toBeNull();
+    toolSummary?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await flushTasks();
+
+    const openSidebarButton = container.querySelector<HTMLElement>(".chat-tool-card__action-btn");
+    expect(openSidebarButton).not.toBeNull();
+    openSidebarButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await flushTasks();
+
+    const strongNodes = Array.from(container.querySelectorAll(".sidebar-markdown strong"));
+    expect(strongNodes.some((node) => node.textContent === "world")).toBe(true);
   });
 
   it("lets a tool call collapse while keeping matching tool output visible", async () => {

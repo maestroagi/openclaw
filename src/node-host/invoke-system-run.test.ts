@@ -47,12 +47,14 @@ describe("formatSystemRunAllowlistMissMessage", () => {
 
 describe("handleSystemRunInvoke mac app exec host routing", () => {
   let sharedFixtureRoot = "";
+  let sharedOpenClawHome = "";
   let sharedFixtureId = 0;
-  let testOpenClawHome = "";
   let previousOpenClawHome: string | undefined;
 
   beforeAll(() => {
     sharedFixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-node-host-fixtures-"));
+    sharedOpenClawHome = path.join(sharedFixtureRoot, "openclaw-home");
+    fs.mkdirSync(sharedOpenClawHome, { recursive: true });
   });
 
   afterAll(() => {
@@ -69,8 +71,7 @@ describe("handleSystemRunInvoke mac app exec host routing", () => {
 
   beforeEach(() => {
     previousOpenClawHome = process.env.OPENCLAW_HOME;
-    testOpenClawHome = createFixtureDir("openclaw-node-host-home-");
-    process.env.OPENCLAW_HOME = testOpenClawHome;
+    process.env.OPENCLAW_HOME = sharedOpenClawHome;
     clearRuntimeConfigSnapshot();
   });
 
@@ -81,7 +82,6 @@ describe("handleSystemRunInvoke mac app exec host routing", () => {
     } else {
       process.env.OPENCLAW_HOME = previousOpenClawHome;
     }
-    testOpenClawHome = "";
   });
 
   function createLocalRunResult(stdout = "local-ok") {
@@ -1430,29 +1430,25 @@ describe("handleSystemRunInvoke mac app exec host routing", () => {
       await withTempApprovalsHome({
         approvals: createAllowlistOnMissApprovals(),
         run: async () => {
+          const tempDir = createFixtureDir("openclaw-inline-eval-bin-");
           for (const testCase of cases) {
-            const tempDir = createFixtureDir("openclaw-inline-eval-bin-");
-            try {
-              const executablePath = createTempExecutable({
-                dir: tempDir,
-                name: testCase.executable,
-              });
-              const { runCommand, sendInvokeResult } = await runSystemInvoke({
-                preferMacAppExecHost: false,
-                command: [executablePath, ...testCase.args],
-                security: "allowlist",
-                ask: "on-miss",
-                approvalDecision: "allow-always",
-                approved: true,
-                runCommand: vi.fn(async () => createLocalRunResult("inline-eval-ok")),
-              });
+            const executablePath = createTempExecutable({
+              dir: tempDir,
+              name: testCase.executable,
+            });
+            const { runCommand, sendInvokeResult } = await runSystemInvoke({
+              preferMacAppExecHost: false,
+              command: [executablePath, ...testCase.args],
+              security: "allowlist",
+              ask: "on-miss",
+              approvalDecision: "allow-always",
+              approved: true,
+              runCommand: vi.fn(async () => createLocalRunResult("inline-eval-ok")),
+            });
 
-              expect(runCommand).toHaveBeenCalledTimes(1);
-              expectInvokeOk(sendInvokeResult, { payloadContains: "inline-eval-ok" });
-              expect(loadExecApprovals().agents?.main?.allowlist ?? []).toEqual([]);
-            } finally {
-              fs.rmSync(tempDir, { recursive: true, force: true });
-            }
+            expect(runCommand).toHaveBeenCalledTimes(1);
+            expectInvokeOk(sendInvokeResult, { payloadContains: "inline-eval-ok" });
+            expect(loadExecApprovals().agents?.main?.allowlist ?? []).toEqual([]);
           }
         },
       });
