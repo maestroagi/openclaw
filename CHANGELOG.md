@@ -52,6 +52,7 @@ Docs: https://docs.openclaw.ai
 - Matrix: honor `channels.matrix.network.dangerouslyAllowPrivateNetwork` when creating clients for private-network homeservers. (#68332) Thanks @kagura-agent.
 - Cron/message tool: keep cron-owned runs with `delivery.mode: "none"` on the normal message-tool path so they can still send explicit messages, create threads, and route conditionally when no runner-owned delivery target is active. (#68482) Thanks @obviyus.
 - Agents/failover: avoid treating bare leading `402 ...` prose as billing errors while still recognizing proxy subscription failures. (#45827) Thanks @junyuc25.
+- Config/$schema: preserve root-authored `$schema` during partial config rewrites without injecting include-only schema URLs into the root config. (#47322) Thanks @EfeDurmaz16.
 
 ## 2026.4.15
 
@@ -159,6 +160,7 @@ Docs: https://docs.openclaw.ai
 - Dreaming/memory-core: use the ingestion day, not the source file day, for daily recall dedupe so repeat sweeps of the same daily note can increment `dailyCount` across days instead of stalling at `1`. (#67091) Thanks @Bartok9.
 - Node-host/tools.exec: let approval binding distinguish known native binaries from mutable shell payload files, while still fail-closing unknown or racy file probes so absolute-path node-host commands like `/usr/bin/whoami` no longer get rejected as unsafe interpreter/runtime commands. (#66731) Thanks @tmimmanuel.
 - Codex/gateway: fix gateway crash when the codex-acp subprocess terminates abruptly; an unhandled EPIPE on the child stdin stream now routes through graceful client shutdown, rejecting pending requests instead of propagating as an uncaught exception that crashes the entire gateway daemon and all connected channels. Fixes #67886. (#67947) thanks @openperf
+- Slack/streaming: resolve native streaming recipient teams from the inbound user when available, with a monitor-team fallback, so DM and shared-workspace streams target the right recipient more reliably.
 
 ## 2026.4.14
 
