@@ -16,6 +16,23 @@ vi.mock("../markdown.ts", () => ({
   toSanitizedMarkdownHtml: (value: string) => value,
 }));
 
+vi.mock("../chat/export.ts", () => ({
+  exportChatMarkdown: vi.fn(),
+}));
+
+vi.mock("../chat/speech.ts", () => ({
+  isSttActive: () => false,
+  isSttSupported: () => false,
+  isTtsSpeaking: () => false,
+  isTtsSupported: () => false,
+  speakText: () => false,
+  startStt: () => false,
+  stopStt: () => undefined,
+  stopTts: () => undefined,
+}));
+
+vi.mock("../components/resizable-divider.ts", () => ({}));
+
 vi.mock("./markdown-sidebar.ts", async () => {
   const { html } = await import("lit");
   return {
@@ -41,9 +58,9 @@ function flushTasks() {
 }
 
 async function flushAssistantAttachmentAvailabilityChecks() {
-  await Promise.resolve();
-  await Promise.resolve();
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  for (let i = 0; i < 6; i++) {
+    await Promise.resolve();
+  }
 }
 
 function createProps(overrides: Partial<ChatProps> = {}): ChatProps {
@@ -919,140 +936,81 @@ describe("chat view", () => {
     expect(container.textContent).not.toContain("MEDIA:https://example.com/photo.png");
   });
 
-  it("keeps user transcript images visible after history reload", () => {
-    const container = document.createElement("div");
-
-    renderGroupedMessage(
-      container,
-      {
-        id: "user-history-image",
-        role: "user",
-        content: "",
-        MediaPath: "/tmp/openclaw/user-upload.png",
-        timestamp: Date.now(),
-      },
-      "user",
-      {
+  it("renders allowed transcript images and skips blocked/non-image media", () => {
+    const renderUserMedia = (message: unknown) => {
+      const container = document.createElement("div");
+      renderGroupedMessage(container, message, "user", {
         showToolCalls: false,
         basePath: "/openclaw",
         assistantAttachmentAuthToken: "session-token",
         localMediaPreviewRoots: ["/tmp/openclaw"],
-      },
-    );
+      });
+      return container;
+    };
 
-    const image = container.querySelector<HTMLImageElement>(".chat-message-image");
-    expect(image?.getAttribute("src")).toBe(
+    let container = renderUserMedia({
+      id: "user-history-image",
+      role: "user",
+      content: "",
+      MediaPath: "/tmp/openclaw/user-upload.png",
+      timestamp: Date.now(),
+    });
+    expect(
+      container.querySelector<HTMLImageElement>(".chat-message-image")?.getAttribute("src"),
+    ).toBe(
       "/openclaw/__openclaw__/assistant-media?source=%2Ftmp%2Fopenclaw%2Fuser-upload.png&token=session-token",
     );
-  });
 
-  it("keeps transcript images visible when MIME falls back to application/octet-stream", () => {
-    const container = document.createElement("div");
-
-    renderGroupedMessage(
-      container,
-      {
-        id: "user-history-image-octet-stream",
-        role: "user",
-        content: "",
-        MediaPath: "/tmp/openclaw/user-upload.png",
-        MediaType: "application/octet-stream",
-        timestamp: Date.now(),
-      },
-      "user",
-      {
-        showToolCalls: false,
-        basePath: "/openclaw",
-        assistantAttachmentAuthToken: "session-token",
-        localMediaPreviewRoots: ["/tmp/openclaw"],
-      },
-    );
-
-    const image = container.querySelector<HTMLImageElement>(".chat-message-image");
-    expect(image?.getAttribute("src")).toBe(
+    container = renderUserMedia({
+      id: "user-history-image-octet-stream",
+      role: "user",
+      content: "",
+      MediaPath: "/tmp/openclaw/user-upload.png",
+      MediaType: "application/octet-stream",
+      timestamp: Date.now(),
+    });
+    expect(
+      container.querySelector<HTMLImageElement>(".chat-message-image")?.getAttribute("src"),
+    ).toBe(
       "/openclaw/__openclaw__/assistant-media?source=%2Ftmp%2Fopenclaw%2Fuser-upload.png&token=session-token",
     );
-  });
 
-  it("keeps plural user transcript images visible after history reload", () => {
-    const container = document.createElement("div");
-
-    renderGroupedMessage(
-      container,
-      {
-        id: "user-history-images",
-        role: "user",
-        content: "",
-        MediaPaths: ["/tmp/openclaw/first.png", "/tmp/openclaw/second.jpg"],
-        MediaTypes: ["image/png", "application/octet-stream"],
-        timestamp: Date.now(),
-      },
-      "user",
-      {
-        showToolCalls: false,
-        basePath: "/openclaw",
-        assistantAttachmentAuthToken: "session-token",
-        localMediaPreviewRoots: ["/tmp/openclaw"],
-      },
-    );
-
-    const imageSources = [
-      ...container.querySelectorAll<HTMLImageElement>(".chat-message-image"),
-    ].map((image) => image.getAttribute("src"));
-    expect(imageSources).toEqual([
+    container = renderUserMedia({
+      id: "user-history-images",
+      role: "user",
+      content: "",
+      MediaPaths: ["/tmp/openclaw/first.png", "/tmp/openclaw/second.jpg"],
+      MediaTypes: ["image/png", "application/octet-stream"],
+      timestamp: Date.now(),
+    });
+    expect(
+      [...container.querySelectorAll<HTMLImageElement>(".chat-message-image")].map((image) =>
+        image.getAttribute("src"),
+      ),
+    ).toEqual([
       "/openclaw/__openclaw__/assistant-media?source=%2Ftmp%2Fopenclaw%2Ffirst.png&token=session-token",
       "/openclaw/__openclaw__/assistant-media?source=%2Ftmp%2Fopenclaw%2Fsecond.jpg&token=session-token",
     ]);
-  });
 
-  it("does not render blocked local transcript image paths", () => {
-    const container = document.createElement("div");
-
-    renderGroupedMessage(
-      container,
-      {
-        id: "user-history-image-blocked",
-        role: "user",
-        content: "",
-        MediaPath: "/Users/test/Documents/private.png",
-        MediaType: "image/png",
-        timestamp: Date.now(),
-      },
-      "user",
-      {
-        showToolCalls: false,
-        basePath: "/openclaw",
-        assistantAttachmentAuthToken: "session-token",
-        localMediaPreviewRoots: ["/tmp/openclaw"],
-      },
-    );
-
+    container = renderUserMedia({
+      id: "user-history-image-blocked",
+      role: "user",
+      content: "",
+      MediaPath: "/Users/test/Documents/private.png",
+      MediaType: "image/png",
+      timestamp: Date.now(),
+    });
     expect(container.querySelector(".chat-message-image")).toBeNull();
     expect(container.querySelector(".chat-bubble")).toBeNull();
-  });
 
-  it("skips non-image transcript media paths after history reload", () => {
-    const container = document.createElement("div");
-
-    renderGroupedMessage(
-      container,
-      {
-        id: "user-history-document",
-        role: "user",
-        content: "",
-        MediaPath: "/tmp/openclaw/user-upload.pdf",
-        MediaType: "application/pdf",
-        timestamp: Date.now(),
-      },
-      "user",
-      {
-        showToolCalls: false,
-        basePath: "/openclaw",
-        assistantAttachmentAuthToken: "session-token",
-        localMediaPreviewRoots: ["/tmp/openclaw"],
-      },
-    );
-
+    container = renderUserMedia({
+      id: "user-history-document",
+      role: "user",
+      content: "",
+      MediaPath: "/tmp/openclaw/user-upload.pdf",
+      MediaType: "application/pdf",
+      timestamp: Date.now(),
+    });
     expect(container.querySelector(".chat-message-image")).toBeNull();
   });
 
