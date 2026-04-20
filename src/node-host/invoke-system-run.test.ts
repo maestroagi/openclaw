@@ -935,7 +935,7 @@ describe("handleSystemRunInvoke mac app exec host routing", () => {
     expectInvokeOk(sendInvokeResult);
   });
 
-  it("validates approved runtime script operand stability at dispatch", async () => {
+  it("validates approved runtime script operand bindings at dispatch", async () => {
     await withFakeRuntimeOnPath({
       runtime: "tsx",
       run: async () => {
@@ -993,41 +993,37 @@ describe("handleSystemRunInvoke mac app exec host routing", () => {
 
         expect(stableRun.runCommand).toHaveBeenCalledTimes(1);
         expectInvokeOk(stableRun.sendInvokeResult);
-      },
-    });
-  });
 
-  it("denies approval-based execution when tsx is missing a required mutable script binding", async () => {
-    await withFakeRuntimeOnPath({
-      runtime: "tsx",
-      run: async () => {
-        const tmp = createFixtureDir("openclaw-approval-tsx-missing-binding-");
-        const fixture = createRuntimeScriptOperandFixture({ tmp, runtime: "tsx" });
-        fs.writeFileSync(fixture.scriptPath, fixture.initialBody);
-        const prepared = buildSystemRunApprovalPlan({
-          command: fixture.command,
-          cwd: tmp,
+        const missingBindingTmp = createFixtureDir("openclaw-approval-tsx-missing-binding-");
+        const missingBindingFixture = createRuntimeScriptOperandFixture({
+          tmp: missingBindingTmp,
+          runtime: "tsx",
         });
-        expect(prepared.ok).toBe(true);
-        if (!prepared.ok) {
+        fs.writeFileSync(missingBindingFixture.scriptPath, missingBindingFixture.initialBody);
+        const missingBindingPrepared = buildSystemRunApprovalPlan({
+          command: missingBindingFixture.command,
+          cwd: missingBindingTmp,
+        });
+        expect(missingBindingPrepared.ok).toBe(true);
+        if (!missingBindingPrepared.ok) {
           throw new Error("unreachable");
         }
 
-        const planWithoutBinding = { ...prepared.plan };
+        const planWithoutBinding = { ...missingBindingPrepared.plan };
         delete planWithoutBinding.mutableFileOperand;
-        const { runCommand, sendInvokeResult } = await runSystemInvoke({
+        const missingBindingRun = await runSystemInvoke({
           preferMacAppExecHost: false,
-          command: prepared.plan.argv,
-          rawCommand: prepared.plan.commandText,
+          command: missingBindingPrepared.plan.argv,
+          rawCommand: missingBindingPrepared.plan.commandText,
           systemRunPlan: planWithoutBinding,
-          cwd: prepared.plan.cwd ?? tmp,
+          cwd: missingBindingPrepared.plan.cwd ?? missingBindingTmp,
           approved: true,
           security: "full",
           ask: "off",
         });
 
-        expect(runCommand).not.toHaveBeenCalled();
-        expectInvokeErrorMessage(sendInvokeResult, {
+        expect(missingBindingRun.runCommand).not.toHaveBeenCalled();
+        expectInvokeErrorMessage(missingBindingRun.sendInvokeResult, {
           message: "SYSTEM_RUN_DENIED: approval missing script operand binding",
           exact: true,
         });
@@ -1279,6 +1275,8 @@ describe("handleSystemRunInvoke mac app exec host routing", () => {
   });
 
   it("requires explicit approval for strict inline-eval carriers", async () => {
+    // The full carrier matrix lives in exec-inline-eval.test.ts; this is the
+    // handle-level smoke for strictInlineEval denial wiring.
     const cases = [
       {
         command: ["python3", "-c", "print('hi')"],
@@ -1287,22 +1285,6 @@ describe("handleSystemRunInvoke mac app exec host routing", () => {
       {
         command: ["awk", 'BEGIN{system("id")}', "/dev/null"],
         expected: "awk inline program requires explicit approval in strictInlineEval mode",
-      },
-      {
-        command: ["find", ".", "-exec", "id", "{}", ";"],
-        expected: "find -exec requires explicit approval in strictInlineEval mode",
-      },
-      {
-        command: ["xargs", "id"],
-        expected: "xargs inline command requires explicit approval in strictInlineEval mode",
-      },
-      {
-        command: ["make", "-f", "evil.mk"],
-        expected: "make -f requires explicit approval in strictInlineEval mode",
-      },
-      {
-        command: ["sed", "s/.*/id/e", "/dev/null"],
-        expected: "sed inline program requires explicit approval in strictInlineEval mode",
       },
     ] as const;
     setRuntimeConfigSnapshot({
@@ -1367,12 +1349,11 @@ describe("handleSystemRunInvoke mac app exec host routing", () => {
   });
 
   it("does not persist allow-always approvals for strict inline-eval carriers", async () => {
+    // Persistence behavior is covered generically in exec-approvals tests; keep
+    // one flag carrier and one inline-program carrier wired through the handler.
     const cases = [
       { executable: "python3", args: ["-c", "print('hi')"] },
       { executable: "awk", args: ['BEGIN{system("id")}', "/dev/null"] },
-      { executable: "find", args: [".", "-exec", "id", "{}", ";"] },
-      { executable: "xargs", args: ["id"] },
-      { executable: "sed", args: ["s/.*/id/e", "/dev/null"] },
     ] as const;
     setRuntimeConfigSnapshot({
       tools: {
