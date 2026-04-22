@@ -207,6 +207,10 @@ vi.mock("../plugin-sdk/browser-maintenance.js", () => ({
 
 vi.mock("../agents/pi-bundle-mcp-tools.js", () => ({
   disposeSessionMcpRuntime: bundleMcpRuntimeMocks.disposeSessionMcpRuntime,
+  retireSessionMcpRuntime: ({ sessionId }: { sessionId?: string | null }) =>
+    sessionId
+      ? bundleMcpRuntimeMocks.disposeSessionMcpRuntime(sessionId).then(() => true)
+      : Promise.resolve(false),
 }));
 
 installGatewayTestHooks({ scope: "suite" });
@@ -2665,6 +2669,7 @@ describe("gateway server sessions", () => {
       ["main", "agent:main:main", "sess-main"],
       "sess-main",
     );
+    expect(bundleMcpRuntimeMocks.disposeSessionMcpRuntime).toHaveBeenCalledWith("sess-main");
     expect(waitCallCountAtSnapshotClear).toEqual([1]);
     expect(browserSessionTabMocks.closeTrackedBrowserTabsForSessions).toHaveBeenCalledTimes(1);
     expect(browserSessionTabMocks.closeTrackedBrowserTabsForSessions).toHaveBeenCalledWith({
