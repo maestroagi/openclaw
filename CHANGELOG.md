@@ -19,6 +19,11 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Pi embedded runs: pass real built-in tools into Pi session creation and then narrow active tool names after custom tool registration, so the runner and compaction paths compile cleanly and keep OpenClaw-managed custom tool allowlists without feeding string arrays into `createAgentSession`. Thanks @vincentkoc.
+- Agents/OpenAI websocket: route native OpenAI websocket metadata and session-header decisions through the shared endpoint classifier so local mocks and custom `models.providers.openai.baseUrl` endpoints stay out of the native OpenAI path consistently across embedded-runner and websocket transport code. Thanks @vincentkoc.
+- MCP/gateway: tear down stdio MCP process trees on transport close and dispose bundled MCP runtimes during session delete/reset, preventing orphaned wrapper/server processes from accumulating. Fixes #68809 and #69465.
+- Config: render validation warnings with real line breaks instead of a literal `\n` sequence in CLI/audit output. Fixes #70140.
+- Cron/doctor: repair malformed persisted cron job IDs through `openclaw doctor`, including legacy `jobId`, non-string `id`, and missing `id` rows, so `cron list` no longer needs display-layer coercion for corrupt store data. Fixes #70128.
 - Discord: normalize prefixed channel targets only at the thread-binding API boundary, so `sessions_spawn({ runtime: "acp", thread: true })` can create child threads from Discord channels without breaking current-channel ACP bindings. (#68034) Thanks @Zetarcos.
 - Discord: harden inbound thread metadata handling against partial Carbon channel getters, so non-command thread messages and queued jobs no longer crash when `name`, `parentId`, `parent`, or `ownerId` requires fetched raw data.
 - Discord: let `message` tool reactions resolve `user:<id>` DM targets and preserve `channels.discord.guilds.<guild>.channels.<channel>.requireMention: false` during reply-stage activation fallback. Fixes #70165 and #69441.
@@ -33,6 +38,7 @@ Docs: https://docs.openclaw.ai
 - ACP/sessions_spawn: honor explicit `model` overrides for ACP child sessions instead of silently falling back to the target agent default model. (#70210) Thanks @felix-miao.
 - Agents/subagents: drop bare `NO_REPLY` from the parent turn when the session still has pending spawned children, so direct-conversation surfaces such as Telegram DMs no longer rewrite the sentinel into visible fallback chatter while waiting for the child completion event. (#69942) Thanks @neeravmakwana.
 - Plugins/install: keep bundled plugin dependencies off npm install while repairing them when plugins activate from a packaged install, including Feishu/Lark, Browser, and direct bundled channel setup-entry loads.
+- Memory/LanceDB: retry initialization after a failed LanceDB load and report unsupported Intel macOS native runtime clearly instead of caching the failure or repeatedly attempting an install that cannot work.
 - CLI/Claude: hash only static extra system prompt parts when deciding whether to reuse a CLI session, so per-message inbound metadata no longer resets Claude CLI conversations on every turn. (#70122) Thanks @zijunl.
 - Hooks/Slack: standardize shared message hook routing fields (`threadId` / `replyToId`) and stop Slack outbound delivery from re-running `message_sending` inside the channel adapter, so plugins like thread-ownership make one outbound routing decision per reply. Thanks @vincentkoc.
 - Auto-reply/media: share one run-scoped reply media context between streamed block delivery and final payload filtering, so a local `MEDIA:` attachment is staged once and duplicate media sends are suppressed reliably. (#68111) Thanks @ayeshakhalid192007-dev.
