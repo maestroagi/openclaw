@@ -35,6 +35,10 @@ Codex OAuth uses the same `openai/gpt-image-2` model ref. When an
 through that same OAuth profile instead of first trying `OPENAI_API_KEY`.
 Explicit custom `models.providers.openai` image config, such as an API key or
 custom/Azure base URL, opts back into the direct OpenAI Images API route.
+For OpenAI-compatible LAN endpoints such as LocalAI, keep the custom
+`models.providers.openai.baseUrl` and explicitly opt in with
+`browser.ssrfPolicy.dangerouslyAllowPrivateNetwork: true`; private/internal
+image endpoints remain blocked by default.
 
 3. Ask the agent: _"Generate an image of a friendly robot mascot."_
 
@@ -92,15 +96,31 @@ Aspect ratio: `1:1`, `2:3`, `3:2`, `3:4`, `4:3`, `4:5`, `5:4`, `9:16`, `16:9`, `
 Resolution hint.
 </ParamField>
 
+<ParamField path="quality" type="'low' | 'medium' | 'high' | 'auto'">
+Quality hint when the provider supports it.
+</ParamField>
+
+<ParamField path="outputFormat" type="'png' | 'jpeg' | 'webp'">
+Output format hint when the provider supports it.
+</ParamField>
+
 <ParamField path="count" type="number">
 Number of images to generate (1–4).
+</ParamField>
+
+<ParamField path="timeoutMs" type="number">
+Optional provider request timeout in milliseconds.
 </ParamField>
 
 <ParamField path="filename" type="string">
 Output filename hint.
 </ParamField>
 
-Not all providers support all parameters. When a fallback provider supports a nearby geometry option instead of the exact requested one, OpenClaw remaps to the closest supported size, aspect ratio, or resolution before submission. Truly unsupported overrides are still reported in the tool result.
+<ParamField path="openai" type="object">
+OpenAI-only hints: `background`, `moderation`, `outputCompression`, and `user`.
+</ParamField>
+
+Not all providers support all parameters. When a fallback provider supports a nearby geometry option instead of the exact requested one, OpenClaw remaps to the closest supported size, aspect ratio, or resolution before submission. Unsupported output hints such as `quality` or `outputFormat` are dropped for providers that do not declare support and are reported in the tool result.
 
 Tool results report the applied settings. When OpenClaw remaps geometry during provider fallback, the returned `size`, `aspectRatio`, and `resolution` values reflect what was actually sent, and `details.normalization` captures the requested-to-applied translation.
 
@@ -169,9 +189,29 @@ image-generation and image-editing requests should use `gpt-image-2`.
 
 `gpt-image-2` supports both text-to-image generation and reference-image
 editing through the same `image_generate` tool. OpenClaw forwards `prompt`,
-`count`, `size`, and reference images to OpenAI. OpenAI does not receive
-`aspectRatio` or `resolution` directly; when possible OpenClaw maps those into a
-supported `size`, otherwise the tool reports them as ignored overrides.
+`count`, `size`, `quality`, `outputFormat`, and reference images to OpenAI.
+OpenAI does not receive `aspectRatio` or `resolution` directly; when possible
+OpenClaw maps those into a supported `size`, otherwise the tool reports them as
+ignored overrides.
+
+OpenAI-specific options live under the `openai` object:
+
+```json
+{
+  "quality": "low",
+  "outputFormat": "jpeg",
+  "openai": {
+    "background": "opaque",
+    "moderation": "low",
+    "outputCompression": 60,
+    "user": "end-user-42"
+  }
+}
+```
+
+`openai.background` accepts `transparent`, `opaque`, or `auto`; transparent
+outputs require `outputFormat` `png` or `webp`. `openai.outputCompression`
+applies to JPEG/WebP outputs.
 
 Generate one 4K landscape image:
 
