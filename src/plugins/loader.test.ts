@@ -23,7 +23,11 @@ import {
 } from "../tasks/detached-task-runtime-state.js";
 import { withEnv } from "../test-utils/env.js";
 import { clearPluginCommands, getPluginCommandSpecs } from "./command-registry-state.js";
-import { getGlobalHookRunner, resetGlobalHookRunner } from "./hook-runner-global.js";
+import {
+  getGlobalHookRunner,
+  getGlobalPluginRegistry,
+  resetGlobalHookRunner,
+} from "./hook-runner-global.js";
 import { createHookRunner } from "./hooks.js";
 import {
   clearPluginInteractiveHandlerRegistrations,
@@ -77,6 +81,10 @@ import {
   listImportedRuntimePluginIds,
   setActivePluginRegistry,
 } from "./runtime.js";
+import {
+  __testing as runtimeRegistryLoaderTesting,
+  ensurePluginRegistryLoaded,
+} from "./runtime/runtime-registry-loader.js";
 import type { PluginSdkResolutionPreference } from "./sdk-alias.js";
 let cachedBundledTelegramDir = "";
 let cachedBundledMemoryDir = "";
@@ -832,6 +840,7 @@ function expectEscapingEntryRejected(params: {
 
 afterEach(() => {
   clearRuntimeConfigSnapshot();
+  runtimeRegistryLoaderTesting.resetPluginRegistryLoadedForTests();
   resetPluginLoaderTestStateForTest();
 });
 
@@ -3518,6 +3527,46 @@ module.exports = { id: "throws-after-import", register() {} };`,
     delete (globalThis as Record<string, unknown>)[marker];
   });
 
+  it("does not re-register non-bundled plugins after gateway-bindable boot loads", () => {
+    useNoBundledPlugins();
+    const marker = "__openclawGatewayBootRegisterCount";
+    const plugin = writePlugin({
+      id: "costclaw-boot-cache",
+      filename: "costclaw-boot-cache.cjs",
+      body: `module.exports = {
+        id: "costclaw-boot-cache",
+        register() {
+          globalThis.${marker} = (globalThis.${marker} || 0) + 1;
+        },
+      };`,
+    });
+    const config = {
+      plugins: {
+        load: { paths: [plugin.file] },
+        allow: ["costclaw-boot-cache"],
+        entries: {
+          "costclaw-boot-cache": { enabled: true },
+        },
+      },
+    };
+
+    loadOpenClawPlugins({
+      workspaceDir: plugin.dir,
+      config,
+      runtimeOptions: {
+        allowGatewaySubagentBinding: true,
+      },
+    });
+    ensurePluginRegistryLoaded({
+      scope: "all",
+      workspaceDir: plugin.dir,
+      config,
+    });
+
+    expect((globalThis as Record<string, unknown>)[marker]).toBe(1);
+    delete (globalThis as Record<string, unknown>)[marker];
+  });
+
   it("re-initializes global hook runner when serving registry from cache", () => {
     process.env.OPENCLAW_BUNDLED_PLUGINS_DIR = "/nonexistent/bundled/plugins";
     const plugin = writePlugin({
@@ -3547,6 +3596,66 @@ module.exports = { id: "throws-after-import", register() {} };`,
     expect(getGlobalHookRunner()).not.toBeNull();
 
     resetGlobalHookRunner();
+  });
+
+  it("preserves the gateway-bindable hook runner across later default-mode activating loads", () => {
+    useNoBundledPlugins();
+    const gatewayPlugin = writePlugin({
+      id: "gateway-hook-surface",
+      filename: "gateway-hook-surface.cjs",
+      body: `module.exports = { id: "gateway-hook-surface", register(api) {
+        api.on("subagent_ended", () => undefined);
+      } };`,
+    });
+    const defaultPlugin = writePlugin({
+      id: "default-hook-surface",
+      filename: "default-hook-surface.cjs",
+      body: `module.exports = { id: "default-hook-surface", register(api) {
+        api.on("message_sent", () => undefined);
+      } };`,
+    });
+
+    const gatewayRegistry = loadOpenClawPlugins({
+      workspaceDir: gatewayPlugin.dir,
+      config: {
+        plugins: {
+          load: { paths: [gatewayPlugin.file] },
+          allow: ["gateway-hook-surface"],
+          entries: {
+            "gateway-hook-surface": {
+              enabled: true,
+              hooks: { allowConversationAccess: true },
+            },
+          },
+        },
+      },
+      runtimeOptions: {
+        allowGatewaySubagentBinding: true,
+      },
+    });
+    expect(getGlobalPluginRegistry()).toBe(gatewayRegistry);
+    expect(getGlobalHookRunner()?.hasHooks("subagent_ended")).toBe(true);
+
+    const defaultRegistry = loadOpenClawPlugins({
+      workspaceDir: defaultPlugin.dir,
+      config: {
+        plugins: {
+          load: { paths: [defaultPlugin.file] },
+          allow: ["default-hook-surface"],
+          entries: {
+            "default-hook-surface": {
+              enabled: true,
+              hooks: { allowConversationAccess: true },
+            },
+          },
+        },
+      },
+    });
+
+    expect(getActivePluginRegistry()).toBe(defaultRegistry);
+    expect(getGlobalPluginRegistry()).toBe(gatewayRegistry);
+    expect(getGlobalHookRunner()?.hasHooks("subagent_ended")).toBe(true);
+    expect(getGlobalHookRunner()?.hasHooks("message_sent")).toBe(false);
   });
 
   it.each([

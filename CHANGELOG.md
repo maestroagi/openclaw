@@ -10,9 +10,19 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Discord/replies: run `message_sending` plugin hooks for Discord reply delivery, including DM targets, so plugins can transform or cancel outbound Discord replies consistently with other channels. Fixes #59350. (#71094) Thanks @wei840222.
+- Control UI/commands: carry provider-owned thinking option ids/labels in session rows and defaults so fresh sessions show and accept dynamic modes such as `adaptive`, `xhigh`, and `max`. Fixes #71269. Thanks @Young-Khalil.
+- Providers/GitHub Copilot: keep the plugin stream wrapper from claiming transport selection before OpenClaw picks a boundary-aware stream path, avoiding Pi's stale fallback Copilot headers on normal model turns. Thanks @steipete.
 - Discord/subagents: pass runtime config into thread-bound native subagent binding and require it at the helper boundary so Discord channel resolution keeps account-aware config. Fixes #71054. (#70945) Thanks @jai.
+- Slack/Assistant: accept Slack Assistant DM `message_changed` events when their metadata identifies the human sender, while continuing to drop self-authored bot edits. Fixes #55445. Thanks @AlfredPros.
+- Slack/native streaming: suppress reasoning-only payloads before `chat.startStream`/`appendStream`, so Claude extended-thinking blocks no longer appear as visible Slack messages. Fixes #59687. Thanks @vision-ifc.
+- Slack/block replies: keep multi-part block deliveries in the first Slack reply thread when `replyToMode` is `first`, matching text reply threading instead of leaking later blocks into the channel. Fixes #49341. Thanks @pholmstr and @xiwuqi.
+- Slack/thread broadcasts: process `thread_broadcast` events as user messages so replies sent with "Also send to channel" reach the agent instead of becoming metadata-only system events. Fixes #56605 and #4351. Thanks @clawSean and @jlowin.
 - Agents/failover: stop body-less HTTP 400/422 proxy failures from defaulting to `"format"` classification, so embedded retries surface the opaque provider failure instead of falling into a compaction loop. Fixes #66462. (#67024) Thanks @altaywtf and @HongzhuLiu.
 - Plugins/loader: use cached discovery-mode snapshot loads for read-only plugin capability lookups, keep snapshot caches isolated from active Gateway registries, and make same-plugin channel/HTTP route re-registration idempotent so repeated snapshot or hot-reload paths no longer rerun full plugin side effects or accumulate duplicate surfaces. Fixes #51781, #52031, #54181, and #57514. Thanks @livingghost, @okuyam2y, @ShionEria, and @bbshih.
+- Plugins/loader: reuse the compatible active Gateway registry for broad runtime plugin ensure calls after a gateway-bindable boot load, so non-bundled plugins no longer re-run `register()` during the same boot path. Fixes #69250. Thanks @markthebest12.
+- Plugins/hooks: keep the gateway-bindable hook runner installed when later default-mode plugin loads activate a different registry, preserving Gateway subagent lifecycle hooks across runtime cache misses. Fixes #63166.
+
 ## 2026.4.24
 
 ### Breaking
@@ -95,7 +105,11 @@ Docs: https://docs.openclaw.ai
 - Group chats/silent replies: tighten `NO_REPLY` prompt guidance so groups stay quiet without narrating silence or emitting fallback chatter when silence is the intended outcome. (#70954, #71209) Thanks @Takhoffman.
 - WhatsApp/groups+direct: setting `systemPrompt: ""` on a specific `groups.<id>` or `direct.<peerId>` entry now suppresses the wildcard system prompt instead of falling through to it, so users can silence the global prompt for a specific group or peer. (#70381) Thanks @Bluetegu.
 - Browser/tool: tell agents not to pass per-call `timeoutMs` on existing-session type, evaluate, and other Chrome MCP actions that reject timeout overrides. Thanks @steipete.
-- Plugins/Google Meet: use browser automation to classify and clear Meet's microphone-choice interstitial during browser meeting creation instead of reporting a false Google login failure. Thanks @steipete.
+- Browser/tool: use Playwright's current AI aria snapshot API for `refs="aria"` and fall back to role refs when a node browser cannot provide aria refs, so agents can still inspect and click controls such as Google Meet admission buttons. Thanks @steipete.
+- Browser/tool: expose stable `tabId` handles such as `t1` plus optional tab labels, and accept those handles anywhere a browser tab target is needed. Thanks @steipete.
+- Browser/tool: return `suggestedTargetId` first in tab payloads so agents naturally reuse labels or stable tab handles instead of raw DevTools ids. Thanks @steipete.
+- Browser/tool: bundle a `browser-automation` skill with the multi-step snapshot, stable-tab, stale-ref, and manual-blocker loop for agent-controlled pages. Thanks @steipete.
+- Plugins/Google Meet: use browser automation to classify and clear Meet's microphone-choice interstitial during browser meeting creation, and reuse in-progress create tabs on retry instead of opening duplicates. Thanks @steipete.
 - Codex/GPT-5.4: harden fallback, auth-profile, tool-schema, and replay edge cases across native and embedded runtime paths. (#70743) Thanks @100yenadmin.
 - Models/fallback: resolve bare fallback model provider ids before model switching, so configured fallback chains keep working when a fallback is named without an explicit provider prefix. Thanks @steipete.
 - Voice-call/Telnyx: preserve inbound/outbound callback metadata and read transcription text from Telnyx's current `transcription_data` payload. Thanks @steipete.
