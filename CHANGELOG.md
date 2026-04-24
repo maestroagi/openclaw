@@ -6,17 +6,39 @@ Docs: https://docs.openclaw.ai
 
 ### Changes
 
+- Control UI/chat: add a Steer action on queued messages so a browser follow-up can be injected into the active run without retyping it.
+- Control UI/Talk: add browser WebRTC realtime voice sessions backed by OpenAI Realtime, with Gateway-minted ephemeral client secrets and `openclaw_agent_consult` handoff to the full OpenClaw agent.
 - Agents/tools: add optional per-call `timeoutMs` support for image, video, music, and TTS generation tools so agents can extend provider request timeouts only when a specific generation needs it.
 - Agents/subagents: add optional forked context for native `sessions_spawn` runs so agents can let a child inherit the requester transcript when needed, while keeping clean isolated sessions as the default; includes prompt guidance, context-engine hook metadata, docs, and QA coverage.
 - Codex harness: add structured debug logging for embedded harness selection decisions so `/status` stays simple while gateway logs explain auto-selection and Pi fallback reasons. (#70760) Thanks @100yenadmin.
-- Providers/OpenAI: add forward-compatible `gpt-5.5` and `gpt-5.5-pro` support for OpenAI API keys, OpenAI Codex OAuth, and the Codex CLI default model.
+- Dependencies/Pi: update bundled Pi packages to `0.70.0`, use Pi's upstream `gpt-5.5` catalog metadata for OpenAI and OpenAI Codex, and keep only local `gpt-5.5-pro` forward-compat handling.
+- Models/CLI: avoid broad registry enumeration for default `openclaw models list`, reducing default listing latency while preserving configured-row output. (#70883) Thanks @shakkernerd.
+- Models/CLI: split `openclaw models list` row-source orchestration and registry loading into narrower helpers without changing list output behavior. (#70867) Thanks @shakkernerd.
+- Plugins/Google Meet: add a bundled participant plugin with personal Google auth, explicit meeting URL joins, Chrome and Twilio transports, and realtime voice support. (#70765) Thanks @steipete.
+- Plugins/Google Meet: default Chrome realtime sessions to OpenAI plus SoX `rec`/`play` audio bridge commands, so the usual setup only needs the plugin enabled and `OPENAI_API_KEY`.
 - Providers/OpenAI: add image generation and reference-image editing through Codex OAuth, so `openai/gpt-image-2` works without an `OPENAI_API_KEY`. Fixes #70703.
+- Providers/OpenRouter: add image generation and reference-image editing through `image_generate`, so OpenRouter image models work with `OPENROUTER_API_KEY`. Fixes #55066 via #67668. Thanks @notamicrodose.
 - Image generation: let agents request provider-supported quality and output format hints, and pass OpenAI-specific background, moderation, compression, and user hints through the `image_generate` tool. (#70503) Thanks @ottodeng.
+- Plugins/Google Meet: let realtime Meet sessions consult the full OpenClaw agent for deeper answers while staying in the live voice loop.
 
 ### Fixes
 
+- Codex harness: route native `request_user_input` prompts back to the originating chat, preserve queued follow-up answers, and honor newer app-server command approval amendment decisions.
+- Agents/replay: stop OpenAI/Codex transcript replay from synthesizing missing tool results while still preserving synthetic repair on Anthropic, Gemini, and Bedrock transport-owned sessions. (#61556) Thanks @VictorJeon and @vincentkoc.
+- Telegram/media replies: parse remote markdown image syntax into outbound media payloads on the final reply path, so Telegram group chats stop falling back to plain-text image URLs when the model or a tool emits `![...](...)` instead of a `MEDIA:` token. (#66191) Thanks @apezam and @vincentkoc.
+- Agents/WebChat: surface non-retryable provider failures such as billing, auth, and rate-limit errors from the embedded runner instead of logging `surface_error` and leaving webchat with no rendered error. Fixes #70124. (#70848) Thanks @truffle-dev.
+- Memory/CLI: declare the built-in `local` embedding provider in the memory-core manifest, so standalone `openclaw memory status`, `index`, and `search` can resolve local embeddings just like the gateway runtime. Fixes #70836. (#70873) Thanks @mattznojassist.
+- Gateway/WebChat: preserve image attachments for text-only primary models by offloading them as media refs instead of dropping them, so configured image tools can still inspect the original file. Fixes #68513, #44276, #51656, #70212.
+- Plugins/Google Meet: hang up delegated Twilio calls on leave, clean up Chrome realtime audio bridges when launch fails, and use a flat provider-safe tool schema.
+- Media understanding: honor explicit image-model configuration before native-vision skips, including `agents.defaults.imageModel`, `tools.media.image.models`, and provider image defaults such as MiniMax VL when the active chat model is text-only. Fixes #47614, #63722, #69171.
+- Codex/media understanding: support `codex/*` image models through bounded Codex app-server image turns, while keeping `openai-codex/*` on the OpenAI Codex OAuth route and validating app-server responses against generated protocol contracts. Fixes #70201.
+- Providers/OpenAI Codex: synthesize the `openai-codex/gpt-5.5` OAuth model row when Codex catalog discovery omits it, so cron and subagent runs do not fail with `Unknown model` while the account is authenticated.
+- Models/CLI: keep `openclaw models list` read-only while still showing eligible configured-provider rows, so listing models no longer rewrites per-agent `models.json`. (#70847) Thanks @shakkernerd.
+- Providers/Google: honor the private-network SSRF opt-in for Gemini image generation requests, so trusted proxy setups that resolve Google API hosts to private addresses can use `image_generate`. Fixes #67216.
+- Agents/transport: propagate configured attempt timeouts into guarded per-request dispatchers, so slow local LLM calls such as Ollama no longer fail at Undici's default 60-second body timeout. Fixes #70829. (#70831) Thanks @DranboFieldston.
 - Agents/transport: stop embedded runs from lowering the process-wide undici stream timeouts, so slow Gemini image generation and other long-running provider requests no longer inherit short run-attempt headers timeouts. Fixes #70423. Thanks @giangthb.
 - Providers/OpenRouter: send image-understanding prompts as user text before image parts, restoring non-empty vision responses for OpenRouter multimodal models. Fixes #70410.
+- Plugins/providers: mirror runtime auth choices in bundled provider manifests and detect `KIMI_API_KEY` for Moonshot/Kimi web search before plugin runtime loads. Thanks @vincentkoc.
 - Memory/QMD: recreate stale managed QMD collections when startup repair finds the collection name already exists, so root memory narrows back to `MEMORY.md` instead of staying on broad workspace markdown indexing.
 - Agents/OpenAI: surface selected-model capacity failures from PI, Codex, and auto-reply harness paths with a model-switch hint instead of the generic empty-response error. Thanks @vincentkoc.
 - Providers/OpenAI: route `openai/gpt-image-2` through configured Codex OAuth directly when an `openai-codex` profile is active, instead of probing `OPENAI_API_KEY` first.
@@ -50,7 +72,7 @@ Docs: https://docs.openclaw.ai
 - WhatsApp/security: keep contact/vCard/location structured-object free text out of the inline message body and render it through fenced untrusted metadata JSON, limiting hidden prompt-injection payloads in names, phone fields, and location labels/comments.
 - Group-chat/security: keep channel-sourced group names and participant labels out of inline group system prompts and render them through fenced untrusted metadata JSON.
 - Agents/replay: preserve Kimi-style `functions.<name>:<index>` tool-call IDs during strict replay sanitization so custom OpenAI-compatible Kimi routes keep multi-turn tool use intact. (#70693) Thanks @geri4.
-- Plugins/startup: restore bundled plugin `openclaw/plugin-sdk/*` resolution from packaged installs and external runtime-deps stage roots, so Telegram/Discord no longer crash-loop with `Cannot find package 'openclaw'` after missing dependency repair.
+- Plugins/startup: restore bundled plugin `openclaw/plugin-sdk/*` resolution from packaged installs and external runtime-deps stage roots, so Telegram/Discord no longer crash-loop with `Cannot find package 'openclaw'` after missing dependency repair. (#70852) Thanks @simonemacario.
 - CLI/Claude: run the same prompt-build hooks and trigger/channel context on `claude-cli` turns as on direct embedded runs, keeping Claude Code sessions aligned with OpenClaw workspace identity, routing, and hook-driven prompt mutations. (#70625) Thanks @mbelinky.
 - Discord/plugin startup: keep subagent hooks lazy behind Discord's channel entry so packaged entry imports stay narrow and report import failures with the channel id and entry path.
 - Memory/doctor: keep root durable memory canonicalized on `MEMORY.md`, stop treating lowercase `memory.md` as a runtime fallback, and let `openclaw doctor --fix` merge true split-brain root files into `MEMORY.md` with a backup. (#70621) Thanks @mbelinky.

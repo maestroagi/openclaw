@@ -1004,6 +1004,10 @@
                   "install/uninstall",
                   "install/development-channels"
                 ]
+              },
+              {
+                "group": "Advanced setup",
+                "pages": ["start/setup", "pi-dev"]
               }
             ]
           },
@@ -1130,6 +1134,7 @@
                   "plugins/community",
                   "plugins/bundles",
                   "plugins/codex-harness",
+                  "plugins/google-meet",
                   "plugins/webhooks",
                   "plugins/voice-call",
                   "plugins/memory-wiki",
@@ -1154,7 +1159,8 @@
                       "plugins/sdk-setup",
                       "plugins/sdk-testing",
                       "plugins/manifest",
-                      "plugins/architecture"
+                      "plugins/architecture",
+                      "plugins/architecture-internals"
                     ]
                   }
                 ]
@@ -1208,6 +1214,7 @@
                     "group": "Web Browser",
                     "pages": [
                       "tools/browser",
+                      "tools/browser-control",
                       "tools/browser-login",
                       "tools/browser-linux-troubleshooting",
                       "tools/browser-wsl2-windows-remote-cdp-troubleshooting"
@@ -1240,6 +1247,7 @@
                   "tools/agent-send",
                   "tools/subagents",
                   "tools/acp-agents",
+                  "tools/acp-agents-setup",
                   "tools/multi-agent-sandbox-tools"
                 ]
               }
@@ -1362,6 +1370,9 @@
                     "pages": [
                       "gateway/configuration",
                       "gateway/configuration-reference",
+                      "gateway/config-agents",
+                      "gateway/config-channels",
+                      "gateway/config-tools",
                       "gateway/configuration-examples",
                       "gateway/authentication",
                       "auth-credential-semantics",
@@ -1573,6 +1584,7 @@
                   "reference/transcript-hygiene",
                   "reference/memory-config",
                   "reference/rich-output-protocol",
+                  "reference/session-management-compaction",
                   "date-time"
                 ]
               },
@@ -1591,8 +1603,8 @@
                 "pages": ["reference/credits"]
               },
               {
-                "group": "Release policy",
-                "pages": ["reference/RELEASING", "reference/test"]
+                "group": "Release and CI",
+                "pages": ["reference/RELEASING", "reference/test", "ci"]
               }
             ]
           },
@@ -1600,39 +1612,24 @@
             "tab": "Help",
             "groups": [
               {
-                "group": "Help",
-                "pages": ["help/index", "help/troubleshooting", "help/faq"]
+                "group": "Start here",
+                "pages": ["help/index", "help/troubleshooting", "help/debugging"]
               },
               {
-                "group": "Community",
-                "pages": ["start/lore"]
+                "group": "FAQ",
+                "pages": ["help/faq", "help/faq-first-run", "help/faq-models"]
               },
               {
-                "group": "Environment and debugging",
-                "pages": [
-                  "help/environment",
-                  "help/debugging",
-                  "help/testing",
-                  "help/scripts",
-                  "debug/node-issue",
-                  "diagnostics/flags"
-                ]
+                "group": "Testing",
+                "pages": ["help/testing", "help/testing-live", "help/scripts"]
               },
               {
-                "group": "Compaction internals",
-                "pages": ["reference/session-management-compaction"]
+                "group": "Diagnostics",
+                "pages": ["help/environment", "diagnostics/flags", "debug/node-issue"]
               },
               {
-                "group": "Developer setup",
-                "pages": ["start/setup", "pi-dev"]
-              },
-              {
-                "group": "Contributing",
-                "pages": ["ci"]
-              },
-              {
-                "group": "Docs meta",
-                "pages": ["start/hubs", "start/docs-directory"]
+                "group": "Community and meta",
+                "pages": ["start/lore", "start/hubs", "start/docs-directory"]
               }
             ]
           }
