@@ -6,10 +6,16 @@ Docs: https://docs.openclaw.ai
 
 ### Changes
 
+- TUI/dependencies: remove direct `cli-highlight` usage from the OpenClaw TUI code-block renderer, keeping themed code coloring without the extra root dependency. Thanks @vincentkoc.
+- Diagnostics/OTEL: export run, model-call, and tool-execution diagnostic lifecycle events as OTEL spans without retaining live span state. Thanks @vincentkoc.
 - Plugins/activation: expose activation plan reasons and a richer plan API so callers can inspect why a plugin was selected while preserving existing id-list activation behavior. (#70943) Thanks @vincentkoc.
 - Plugins/source metadata: expose normalized install-source facts on provider and channel catalogs so onboarding can explain npm pinning, integrity state, and local availability before runtime loads. (#70951) Thanks @vincentkoc.
 - Plugins/catalog: pin the official external WeCom channel source to an exact npm release plus dist integrity, with a guard that official external sources stay integrity-pinned. (#70997) Thanks @vincentkoc.
+- Plugins/source metadata: warn when `openclaw.install.defaultChoice` is invalid or points at a missing source, keeping catalog diagnostics explicit without breaking existing plugins. Thanks @vincentkoc.
+- Plugins/source metadata: warn when `openclaw.install.expectedIntegrity` is present without a valid npm source, keeping orphaned integrity metadata visible without rejecting existing plugins. Thanks @vincentkoc.
+- Plugins/source metadata: warn when provider or channel catalog package identity drifts from `openclaw.install.npmSpec`, keeping diagnostics visible without rejecting compatible external catalogs. Thanks @vincentkoc.
 - Diagnostics/OTEL: add a lightweight diagnostic trace-context carrier for future span correlation without adding OTEL SDK state to core. Thanks @vincentkoc.
+- Dependencies/SBOM: add an ownership-backed dependency risk report for root closure size, native/build-risk packages, and missing owner records. Thanks @vincentkoc.
 - Diagnostics/OTEL: attach diagnostic trace context to exported OTEL logs so log records can correlate with future spans without adding retained process state. Thanks @vincentkoc.
 - Diagnostics/OTEL: pass immutable per-run diagnostic trace context through agent and tool hook contexts, and parent exported diagnostic spans from validated context without retaining global trace state. Thanks @vincentkoc.
 - Diagnostics/OTEL: make exporter startup restart-safe so config reloads do not retain stale SDKs, log transports, or diagnostic event listeners. Thanks @vincentkoc.
@@ -21,6 +27,7 @@ Docs: https://docs.openclaw.ai
 - Agents/subagents: add optional forked context for native `sessions_spawn` runs so agents can let a child inherit the requester transcript when needed, while keeping clean isolated sessions as the default; includes prompt guidance, context-engine hook metadata, docs, and QA coverage.
 - Codex harness: add structured debug logging for embedded harness selection decisions so `/status` stays simple while gateway logs explain auto-selection and Pi fallback reasons. (#70760) Thanks @100yenadmin.
 - Plugin SDK/Codex harness: add provider-owned transport/auth/follow-up seams and harness result classification so Codex-style runtimes can participate in fallback policy without core special-casing. (#70772) Thanks @100yenadmin.
+- Codex harness: bridge Codex-native tool hooks into OpenClaw plugin hooks and approvals, with bounded relay payloads and approval spam protection. (#71008) Thanks @pashpashpash.
 - Dependencies/Pi: update bundled Pi packages to `0.70.2`, use Pi's upstream `gpt-5.5` and DeepSeek V4 catalog metadata, and keep only local `gpt-5.5-pro` forward-compat handling.
 - Models/CLI: speed up `openclaw models list --all --provider <id>` for bundled providers with safe static catalogs while keeping live and third-party providers on registry discovery. (#70632) Thanks @shakkernerd.
 - Models/CLI: avoid broad registry enumeration for default `openclaw models list`, reducing default listing latency while preserving configured-row output. (#70883) Thanks @shakkernerd.
@@ -39,6 +46,7 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Diagnostics: harden tool and model diagnostic events against hostile errors, blocking listeners, and unsafe stability reason fields. Thanks @vincentkoc.
 - Plugins/onboarding: record local plugin install source metadata without duplicating raw absolute local paths in persisted `plugins.installs`, while preserving linked load-path cleanup. (#70970) Thanks @vincentkoc.
 - Browser/tool: tell agents not to pass per-call `timeoutMs` on existing-session type, evaluate, and other Chrome MCP actions that reject timeout overrides.
 - Codex/GPT-5.4: harden fallback, auth-profile, tool-schema, and replay edge cases across native and embedded runtime paths. (#70743) Thanks @100yenadmin.

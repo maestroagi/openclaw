@@ -208,7 +208,7 @@ OpenClaw scans for plugins in this order (first match wins):
   app-server plugin is selected by `embeddedHarness.runtime: "codex"` or legacy
   `codex/*` model refs
 
-## Troubleshooting Runtime Hooks
+## Troubleshooting runtime hooks
 
 If a plugin appears in `plugins list` but `register(api)` side effects or hooks
 do not run in live chat traffic, check these first:
@@ -393,6 +393,12 @@ Hook guard behavior for typed lifecycle hooks:
 - `before_install`: `{ block: false }` is a no-op and does not clear an earlier block.
 - `message_sending`: `{ cancel: true }` is terminal; lower-priority handlers are skipped.
 - `message_sending`: `{ cancel: false }` is a no-op and does not clear an earlier cancel.
+
+Native Codex app-server runs bridge Codex-native tool events back into this
+hook surface. Plugins can block native Codex tools through `before_tool_call`,
+observe results through `after_tool_call`, and participate in Codex
+`PermissionRequest` approvals. The bridge does not rewrite Codex-native tool
+arguments yet.
 
 For full typed hook behavior, see [SDK Overview](/plugins/sdk-overview#hook-decision-semantics).
 
