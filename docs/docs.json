@@ -61,6 +61,10 @@
       "destination": "/providers/qwen"
     },
     {
+      "source": "/providers/qwen_modelstudio",
+      "destination": "/providers/qwen"
+    },
+    {
       "source": "/platforms/oracle",
       "destination": "/install/oracle"
     },
@@ -1019,30 +1023,40 @@
                 "pages": ["channels/index"]
               },
               {
-                "group": "Messaging platforms",
+                "group": "Mainstream messaging",
                 "pages": [
-                  "channels/bluebubbles",
                   "channels/discord",
-                  "channels/feishu",
+                  "channels/slack",
+                  "channels/telegram",
+                  "channels/whatsapp",
+                  "channels/signal",
+                  "channels/msteams",
                   "channels/googlechat",
                   "channels/imessage",
-                  "channels/irc",
-                  "channels/line",
+                  "channels/bluebubbles",
                   "channels/matrix",
-                  "channels/matrix-push-rules",
+                  "channels/matrix-push-rules"
+                ]
+              },
+              {
+                "group": "Developer and self-hosted",
+                "pages": [
+                  "channels/irc",
                   "channels/mattermost",
-                  "channels/msteams",
                   "channels/nextcloud-talk",
                   "channels/nostr",
-                  "channels/qqbot",
-                  "channels/signal",
-                  "channels/slack",
-                  "channels/synology-chat",
-                  "channels/telegram",
                   "channels/tlon",
-                  "channels/twitch",
+                  "channels/synology-chat",
+                  "channels/twitch"
+                ]
+              },
+              {
+                "group": "Regional platforms",
+                "pages": [
+                  "channels/line",
                   "channels/wechat",
-                  "channels/whatsapp",
+                  "channels/qqbot",
+                  "channels/feishu",
                   "channels/zalo",
                   "channels/zalouser"
                 ]
@@ -1056,7 +1070,8 @@
                   "channels/broadcast-groups",
                   "channels/channel-routing",
                   "channels/location",
-                  "channels/troubleshooting"
+                  "channels/troubleshooting",
+                  "channels/qa-channel"
                 ]
               }
             ]
@@ -1140,7 +1155,7 @@
                   "plugins/memory-wiki",
                   "plugins/zalouser",
                   {
-                    "group": "Building Plugins",
+                    "group": "Building plugins",
                     "pages": [
                       "plugins/building-plugins",
                       "plugins/sdk-channel-plugins",
@@ -1149,7 +1164,7 @@
                     ]
                   },
                   {
-                    "group": "SDK Reference",
+                    "group": "SDK reference",
                     "pages": [
                       "plugins/sdk-overview",
                       "plugins/sdk-subpaths",
@@ -1177,7 +1192,7 @@
                 ]
               },
               {
-                "group": "Automation & Tasks",
+                "group": "Automation and tasks",
                 "pages": [
                   "automation/index",
                   "automation/cron-jobs",
@@ -1211,7 +1226,7 @@
                   "tools/trajectory",
                   "tools/video-generation",
                   {
-                    "group": "Web Browser",
+                    "group": "Web browser",
                     "pages": [
                       "tools/browser",
                       "tools/browser-control",
@@ -1221,7 +1236,7 @@
                     ]
                   },
                   {
-                    "group": "Web Tools",
+                    "group": "Web tools",
                     "pages": [
                       "tools/web-fetch",
                       "tools/web",
@@ -1337,23 +1352,38 @@
               {
                 "group": "macOS companion app",
                 "pages": [
-                  "platforms/mac/dev-setup",
-                  "platforms/mac/menu-bar",
-                  "platforms/mac/voicewake",
-                  "platforms/mac/voice-overlay",
-                  "platforms/mac/webchat",
-                  "platforms/mac/canvas",
-                  "platforms/mac/child-process",
-                  "platforms/mac/health",
-                  "platforms/mac/icon",
-                  "platforms/mac/logging",
-                  "platforms/mac/permissions",
-                  "platforms/mac/remote",
-                  "platforms/mac/signing",
-                  "platforms/mac/bundled-gateway",
-                  "platforms/mac/xpc",
-                  "platforms/mac/skills",
-                  "platforms/mac/peekaboo"
+                  {
+                    "group": "Setup",
+                    "pages": [
+                      "platforms/mac/dev-setup",
+                      "platforms/mac/menu-bar",
+                      "platforms/mac/icon",
+                      "platforms/mac/permissions",
+                      "platforms/mac/signing"
+                    ]
+                  },
+                  {
+                    "group": "Runtime",
+                    "pages": [
+                      "platforms/mac/bundled-gateway",
+                      "platforms/mac/child-process",
+                      "platforms/mac/health",
+                      "platforms/mac/logging",
+                      "platforms/mac/remote",
+                      "platforms/mac/xpc"
+                    ]
+                  },
+                  {
+                    "group": "Features",
+                    "pages": [
+                      "platforms/mac/voicewake",
+                      "platforms/mac/voice-overlay",
+                      "platforms/mac/webchat",
+                      "platforms/mac/canvas",
+                      "platforms/mac/skills",
+                      "platforms/mac/peekaboo"
+                    ]
+                  }
                 ]
               }
             ]
@@ -1366,29 +1396,44 @@
                 "pages": [
                   "gateway/index",
                   {
-                    "group": "Configuration and operations",
+                    "group": "Configuration",
                     "pages": [
                       "gateway/configuration",
                       "gateway/configuration-reference",
                       "gateway/config-agents",
                       "gateway/config-channels",
                       "gateway/config-tools",
-                      "gateway/configuration-examples",
+                      "gateway/configuration-examples"
+                    ]
+                  },
+                  {
+                    "group": "Authentication and secrets",
+                    "pages": [
                       "gateway/authentication",
                       "auth-credential-semantics",
                       "gateway/secrets",
                       "gateway/secrets-plan-contract",
-                      "gateway/trusted-proxy-auth",
+                      "gateway/trusted-proxy-auth"
+                    ]
+                  },
+                  {
+                    "group": "Health and diagnostics",
+                    "pages": [
                       "gateway/health",
                       "gateway/diagnostics",
                       "gateway/heartbeat",
                       "gateway/doctor",
                       "gateway/logging",
                       "logging",
+                      "gateway/troubleshooting"
+                    ]
+                  },
+                  {
+                    "group": "Scaling and operations",
+                    "pages": [
                       "gateway/gateway-lock",
                       "gateway/background-process",
-                      "gateway/multiple-gateways",
-                      "gateway/troubleshooting"
+                      "gateway/multiple-gateways"
                     ]
                   },
                   {
@@ -1604,7 +1649,7 @@
               },
               {
                 "group": "Release and CI",
-                "pages": ["reference/RELEASING", "reference/test", "ci"]
+                "pages": ["reference/RELEASING", "reference/test", "ci", "help/scripts"]
               }
             ]
           },
@@ -1621,7 +1666,7 @@
               },
               {
                 "group": "Testing",
-                "pages": ["help/testing", "help/testing-live", "help/scripts"]
+                "pages": ["help/testing", "help/testing-live"]
               },
               {
                 "group": "Diagnostics",
