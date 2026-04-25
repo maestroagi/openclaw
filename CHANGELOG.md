@@ -25,6 +25,14 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Agents/TTS: preserve legacy `[[audio_as_voice]]` hints on trusted tool-result
+  `MEDIA:` payloads so generated audio still delivers as a voice note. (#46535)
+  Thanks @azade-c.
+- Telegram/STT: frame inbound voice-note transcripts as machine-generated,
+  untrusted text in agent context while preserving raw transcript mention
+  detection. Closes #33360. Thanks @smartchainark.
+- Subagents/browser: show an actionable `/tools` notice when browser automation is configured but filtered out by the active tool profile, and document that coding-profile agents should use `tools.alsoAllow: ["browser"]` rather than subagent allowlists alone.
+- Control UI/Quick Settings: persist the assistant avatar override to browser local storage (mirroring the user avatar) so uploaded image data URLs no longer fail config validation with "Too big: expected string to have <=200 characters". Also lift the gateway-side `ui.assistant.avatar` length cap to match the user avatar size budget for non-UI clients writing the field directly. Thanks @BunsDev.
 - Browser/CDP: make readiness diagnostics use the same discovery-first fallback as reachability for bare `ws://` Browserless and Browserbase CDP URLs. Fixes #69532.
 - ACP/OpenCode: update the bundled acpx runtime to 0.6.0 and cover the OpenCode ACP bind path in Docker live tests.
 - Browser/existing-session: support per-profile Chrome MCP command/args, map `cdpUrl` to `--browserUrl` or `--wsEndpoint`, and avoid combining endpoint flags with `--userDataDir`. Fixes #47879, #48037, and #62706. Thanks @puneet1409, @zhehao, and @madkow1001.
