@@ -56,9 +56,18 @@ Docs: https://docs.openclaw.ai
 - Providers/Local CLI TTS: add a bundled local command speech provider with file/stdout input, voice-note Opus conversion, and telephony PCM output. (#56239) Thanks @solar2ain.
 - Android/Talk Mode: expose Talk Mode in the Voice tab with runtime-owned voice capture modes and microphone foreground-service escalation. Thanks @alex-latitude.
 - Providers/LiteLLM: register `litellm` as an image-generation provider so `image_generate model=litellm/...` calls and `agents.defaults.imageGenerationModel.fallbacks` entries resolve through the LiteLLM proxy. Thanks @zqchris.
+- Codex harness: require Codex app-server `0.125.0` or newer and cover native MCP `PreToolUse`, `PostToolUse`, and `PermissionRequest` payloads through the OpenClaw hook relay.
 
 ### Fixes
 
+- Windows/native: keep CLI startup and bundled provider plugin loading off
+  Windows ESM raw-path failure paths, fixing native onboarding/install smoke on
+  Node 24. Thanks @steipete.
+- Providers/Google: transcode Gemini TTS PCM to Opus for voice-note targets so
+  WhatsApp and other native voice-note replies can play as voice messages.
+- Plugins/runtime deps: reuse existing external bundled-plugin stage roots when
+  mirrored plugin roots are inspected again, avoiding second-generation
+  `openclaw-unknown-*` stages and repeated first-turn restaging. Fixes #71599.
 - iOS/macOS Talk Mode: allow `talk.speechLocale` to set the speech
   recognition locale for non-English voice conversations. Fixes #44688.
 - Plugins/providers: honor explicit plugin candidate lists instead of reading a
@@ -67,6 +76,12 @@ Docs: https://docs.openclaw.ai
 - Plugins/doctor: keep bundled plugin runtime-dependency repairs inside the
   managed OpenClaw stage even when user npm prefix/global config points npm at
   `$HOME/node_modules`. Fixes #71730.
+- ACP/sessions_spawn: reject normal OpenClaw config agent ids when callers
+  explicitly request `runtime="acp"`, while allowing agents configured with
+  `runtime.type="acp"` to resolve to their ACP harness id. Fixes #63914.
+- ACP/models: document that non-Codex ACP model overrides require adapter
+  support for ACP `models` plus `session/set_model`, so unsupported harnesses
+  fail clearly instead of silently falling back to their defaults.
 - Plugins/Voice Call: treat missing provider credentials as setup-incomplete
   during Gateway startup and log the missing keys as a warning instead of a
   runtime startup error, while keeping explicit command/tool errors when used. Thanks
@@ -85,6 +100,9 @@ Docs: https://docs.openclaw.ai
 - Providers/Google: honor `models.providers.google.request.allowPrivateNetwork`
   for Gemini TTS and telephony TTS, matching Google image generation and media
   understanding. (#71723) Thanks @ro-hansolo.
+- Providers/MiniMax: register `minimax-portal` for music and video generation,
+  preserving OAuth auth and regional MiniMax base URLs across the shared
+  `music_generate` and `video_generate` tools. (#63241) Thanks @tars90percent.
 - Plugins/Bonjour: stop the gateway from crash-looping on `CIAO PROBING CANCELLED` when the mDNS watchdog cancels a stuck probe. Restores the rejection-handler wiring dropped during the bonjour plugin migration and shares unhandled-rejection state across module instances so plugin-staged copies of `openclaw/plugin-sdk/runtime` register into the same handler set the host consults. Especially affects Docker on macOS, where mDNS probing reliably hits the watchdog. Thanks @troyhitch.
 - Google Meet: report pinned Chrome nodes as offline or missing capabilities in
   setup/join diagnostics, keep inaccessible nodes out of auto-selection, and
@@ -629,6 +647,9 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Gateway/env: import each missing expected login-shell env var independently,
+  so an existing gateway token no longer prevents `env.shellEnv` from loading
+  plugin credentials such as `TWILIO_*` from `.profile`. Thanks @steipete.
 - macOS/Gateway pairing: silently accept same-host native app
   `metadata-upgrade` reconnects, so macOS patch-version changes update paired
   metadata instead of spamming security audit warnings and `pairing required`
