@@ -62,9 +62,23 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Feishu: accept Schema 2.0 card action callbacks that report
+  `context.open_chat_id` instead of legacy `context.chat_id`, so button
+  callbacks no longer drop as malformed. Fixes #71670. Thanks @eddy1068.
+- QQ Bot: make `qqbot_remind` schedule, list, and remove Gateway cron jobs
+  directly for owner-authorized senders instead of returning `cronParams` and
+  relying on a follow-up generic `cron` tool call. Fixes #70865. (#70937)
+  Thanks @GaosCode.
+- Agents/ACP: hide `sessions_spawn` ACP runtime options unless an ACP backend is
+  loaded, and make `/acp doctor` call out `plugins.allow` blocking bundled
+  `acpx`. Thanks @vincentkoc.
 - Agents/subagents: keep queued subagent announces session-only when the
   requester has no external channel target, avoiding ambiguous multi-channel
   delivery failures. Fixes #59201. Thanks @larrylhollan.
+- Image understanding: preserve configured provider-prefixed vision model
+  metadata when callers request the model without the provider prefix, so custom
+  image models keep their `input: ["text", "image"]` capability. Fixes #33185.
+  Thanks @Kobe9312 and @vincentkoc.
 - Gateway/subagents: keep direct-loopback backend RPCs authenticated with the
   shared gateway token/password off stale CLI paired-device scope baselines, so
   internal calls no longer hit `scope-upgrade` pairing prompts while remote,
@@ -107,6 +121,12 @@ Docs: https://docs.openclaw.ai
 - Providers/Ollama: use Ollama's current `/api/web_search` endpoint and honor
   `https://ollama.com` model-provider base URLs for Ollama Web Search. Fixes
   #71741. Thanks @madhvidua.
+- Memory/Ollama: serialize Ollama memory embedding batches and add an inline
+  batch timeout override, with longer defaults for local/self-hosted embedding
+  providers. Thanks @steipete.
+- Sessions/usage: exclude compaction checkpoint transcript snapshots from usage
+  totals and session discovery, while keeping old checkpoint files removable.
+  Thanks @steipete.
 - CLI/agents: keep `openclaw agents list --json` on the config-only path by
   default, avoiding bundled plugin loading unless callers request
   `--bindings`. Fixes #71739. Thanks @kaloster.
@@ -135,6 +155,8 @@ Docs: https://docs.openclaw.ai
 - ACP/oneshot: reconcile runtime session identity before closing completed
   oneshot ACP runs, so finished `sessions.json` entries do not stay stuck with
   `acp.identity.state="pending"`.
+- ACPX: bundle `acpx@0.6.1` so unsupported generic model overrides fail
+  clearly instead of silently falling back to the target adapter default.
 - ACP/models: document that non-Codex ACP model overrides require adapter
   support for ACP `models` plus `session/set_model`, so unsupported harnesses
   fail clearly instead of silently falling back to their defaults.
