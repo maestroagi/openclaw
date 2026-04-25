@@ -79,7 +79,9 @@ describe("resolveBundledRuntimeDepsNpmRunner", () => {
     ).toEqual({
       PATH: "/usr/bin:/bin",
       npm_config_cache: "/opt/openclaw/runtime-cache",
+      npm_config_global: "false",
       npm_config_legacy_peer_deps: "true",
+      npm_config_location: "project",
       npm_config_package_lock: "false",
       npm_config_save: "false",
     });
@@ -218,6 +220,44 @@ describe("installBundledRuntimeDeps", () => {
         env: expect.not.objectContaining({
           npm_config_prefix: expect.any(String),
         }),
+      }),
+    );
+  });
+
+  it("anchors non-isolated external install roots with a package manifest", () => {
+    const parentRoot = makeTempDir();
+    const installRoot = path.join(parentRoot, ".openclaw", "plugin-runtime-deps", "openclaw-test");
+    fs.mkdirSync(path.join(parentRoot, "node_modules", "@grammyjs"), { recursive: true });
+    spawnSyncMock.mockImplementation((_command, _args, options) => {
+      const cwd = String(options?.cwd ?? "");
+      expect(cwd).toBe(installRoot);
+      expect(JSON.parse(fs.readFileSync(path.join(cwd, "package.json"), "utf8"))).toEqual({
+        name: "openclaw-runtime-deps-install",
+        private: true,
+      });
+      return {
+        pid: 123,
+        output: [],
+        stdout: "",
+        stderr: "",
+        signal: null,
+        status: 0,
+      };
+    });
+
+    installBundledRuntimeDeps({
+      installRoot,
+      missingSpecs: ["@grammyjs/runner@^2.0.3"],
+      env: {
+        HOME: parentRoot,
+      },
+    });
+
+    expect(spawnSyncMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(Array),
+      expect.objectContaining({
+        cwd: installRoot,
       }),
     );
   });

@@ -54,15 +54,37 @@ Docs: https://docs.openclaw.ai
 - Providers/Xiaomi: add MiMo TTS as a bundled speech provider with MP3/WAV output and voice-note Opus transcoding. Fixes #52376. (#55614) Thanks @zoujiejun.
 - Providers/ElevenLabs: include `eleven_v3` in the bundled TTS model catalog so model selection surfaces can offer ElevenLabs v3. (#68321) Thanks @itsuzef.
 - Providers/Local CLI TTS: add a bundled local command speech provider with file/stdout input, voice-note Opus conversion, and telephony PCM output. (#56239) Thanks @solar2ain.
+- Providers/Inworld: add Inworld as a bundled speech provider with streaming TTS synthesis, voice listing, voice-note output, and PCM telephony output. (#55972) Thanks @cshape.
 - Android/Talk Mode: expose Talk Mode in the Voice tab with runtime-owned voice capture modes and microphone foreground-service escalation. Thanks @alex-latitude.
 - Providers/LiteLLM: register `litellm` as an image-generation provider so `image_generate model=litellm/...` calls and `agents.defaults.imageGenerationModel.fallbacks` entries resolve through the LiteLLM proxy. Thanks @zqchris.
 - Codex harness: require Codex app-server `0.125.0` or newer and cover native MCP `PreToolUse`, `PostToolUse`, and `PermissionRequest` payloads through the OpenClaw hook relay.
 
 ### Fixes
 
+- CLI/agents: keep `agents bind`, `agents unbind`, and `agents bindings` on
+  setup-safe channel metadata paths so they do not preload bundled plugin
+  runtimes or stage runtime dependencies. Fixes #71743.
+- Plugins/registry: preserve explicit disabled plugin records during registry migration without persisting every unused bundled plugin discovered on disk. Thanks @shakkernerd.
 - Windows/native: keep CLI startup and bundled provider plugin loading off
   Windows ESM raw-path failure paths, fixing native onboarding/install smoke on
   Node 24. Thanks @steipete.
+- Plugins/doctor: read bundled channel doctor capabilities through the same
+  packaged plugin directory resolver used by plugin loading, so published
+  installs keep Matrix DM allowlist repairs on `channels.matrix.dm.*` instead
+  of writing invalid top-level `dmPolicy` keys. Fixes #71757.
+- Plugins/Windows: keep bundled plugin Jiti loaders off the native import path
+  on Windows so channel plugins such as Telegram no longer crash with
+  `ERR_UNSUPPORTED_ESM_URL_SCHEME` on `C:\...` paths. Fixes #71749. Thanks
+  @smeyer9.
+- Providers/Ollama: use Ollama's current `/api/web_search` endpoint and honor
+  `https://ollama.com` model-provider base URLs for Ollama Web Search. Fixes
+  #71741. Thanks @madhvidua.
+- CLI/agents: keep `openclaw agents list --json` on the config-only path by
+  default, avoiding bundled plugin loading unless callers request
+  `--bindings`. Fixes #71739. Thanks @kaloster.
+- Plugins/install: force plugin dependency installs to stay project-local even
+  when inherited npm config requests global installs, so successful installs
+  still materialize the plugin's staged `node_modules`.
 - Providers/Google: transcode Gemini TTS PCM to Opus for voice-note targets so
   WhatsApp and other native voice-note replies can play as voice messages.
 - Plugins/runtime deps: reuse existing external bundled-plugin stage roots when
@@ -79,6 +101,12 @@ Docs: https://docs.openclaw.ai
 - ACP/sessions_spawn: reject normal OpenClaw config agent ids when callers
   explicitly request `runtime="acp"`, while allowing agents configured with
   `runtime.type="acp"` to resolve to their ACP harness id. Fixes #63914.
+- ACP/sessions_spawn: apply `runTimeoutSeconds` to ACP child turns and dispatch
+  those turns on the background subagent lane, so quota-stalled ACP harnesses do
+  not occupy the main agent lane indefinitely. Fixes #68823.
+- ACP/oneshot: reconcile runtime session identity before closing completed
+  oneshot ACP runs, so finished `sessions.json` entries do not stay stuck with
+  `acp.identity.state="pending"`.
 - ACP/models: document that non-Codex ACP model overrides require adapter
   support for ACP `models` plus `session/set_model`, so unsupported harnesses
   fail clearly instead of silently falling back to their defaults.
@@ -114,6 +142,9 @@ Docs: https://docs.openclaw.ai
 - Plugins/startup: remove ownerless bundled runtime-dependency install locks
   after a short grace window and include lock owner details when startup times
   out waiting for a plugin runtime-deps lock.
+- Plugins/install: anchor bundled runtime-dependency npm installs with an
+  OpenClaw-owned package manifest so Linux updates cannot accidentally write to
+  a parent `$HOME/node_modules` tree. Fixes #71730.
 - Live tests/voice: accept common STT variants for OpenClaw and ElevenLabs
   brand names so provider smoke tests fail on real regressions rather than
   equivalent transcripts.
@@ -512,6 +543,7 @@ Docs: https://docs.openclaw.ai
 - Slack: route native stream fallback replies through the normal chunked sender so long buffered Slack Connect responses are not dropped or duplicated. (#71124) Thanks @martingarramon.
 - WhatsApp: transcribe accepted voice notes before agent dispatch while keeping spoken transcripts out of command authorization. (#64120) Thanks @rogerdigital.
 - Plugins/CLI: expose channel plugin CLI descriptors during discovery-mode plugin loads so snapshot registries keep channel commands visible without activating full runtimes. (#71309) Thanks @gumadeiras.
+- Matrix: separate recovery-key, backup, and owner-trust diagnostics during E2EE recovery, add recovery-key rotation for backup reset, and cover destructive backup restore paths in QA. (#71311) Thanks @gumadeiras.
 - WhatsApp: deliver media generated by tool-result replies while still suppressing text-only tool chatter. (#60968) Thanks @adaclaw.
 - Config/agents: accept `agents.list[].contextTokens` in strict config validation so per-agent overrides survive hot reload, letting `/status` reflect the configured model window instead of the 200k fallback. Fixes #70692. (#71247) Thanks @statxc.
 - Heartbeat: include async exec completion details in heartbeat prompts so command-finished notifications relay the actual output. (#71213) Thanks @GodsBoy.
@@ -647,6 +679,9 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Dependencies: refresh workspace package pins and lockfile entries for AWS SDK,
+  Anthropic SDK, ACP SDK, Matrix crypto, TypeBox, Vite, tsdown, Slack Bolt,
+  CopilotKit AIMock, and related bundled plugin packages. Thanks @steipete.
 - Gateway/env: import each missing expected login-shell env var independently,
   so an existing gateway token no longer prevents `env.shellEnv` from loading
   plugin credentials such as `TWILIO_*` from `.profile`. Thanks @steipete.
