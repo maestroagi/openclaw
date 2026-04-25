@@ -17,6 +17,7 @@ import {
   DEFAULT_REASONING_ONLY_RETRY_LIMIT,
   EMPTY_RESPONSE_RETRY_INSTRUCTION,
   extractPlanningOnlyPlanDetails,
+  hasCommittedUserVisibleToolDelivery,
   isLikelyExecutionAckPrompt,
   PLANNING_ONLY_RETRY_INSTRUCTION,
   REASONING_ONLY_RETRY_INSTRUCTION,
@@ -302,6 +303,7 @@ describe("runEmbeddedPiAgent incomplete-turn safety", () => {
       makeAttemptResult({
         assistantTexts: [],
         didSendViaMessagingTool: true,
+        messagingToolSentTexts: ["Delivered through the message tool."],
         lastAssistant: {
           role: "assistant",
           stopReason: "stop",
@@ -801,7 +803,7 @@ describe("runEmbeddedPiAgent incomplete-turn safety", () => {
     expect(incompleteTurnText).toBeNull();
   });
 
-  it("suppresses the incomplete-turn warning when a messaging tool delivered and the turn ended cleanly", () => {
+  it("suppresses the incomplete-turn warning after committed messaging text delivery", () => {
     const incompleteTurnText = resolveIncompleteTurnPayloadText({
       payloadCount: 0,
       aborted: false,
@@ -809,6 +811,7 @@ describe("runEmbeddedPiAgent incomplete-turn safety", () => {
       attempt: makeAttemptResult({
         assistantTexts: [],
         didSendViaMessagingTool: true,
+        messagingToolSentTexts: ["Delivered through the message tool."],
         lastAssistant: {
           role: "assistant",
           stopReason: "stop",
@@ -822,7 +825,7 @@ describe("runEmbeddedPiAgent incomplete-turn safety", () => {
     expect(incompleteTurnText).toBeNull();
   });
 
-  it("suppresses the incomplete-turn warning when a messaging tool delivered before end_turn", () => {
+  it("suppresses the incomplete-turn warning after committed messaging delivery before end_turn", () => {
     const incompleteTurnText = resolveIncompleteTurnPayloadText({
       payloadCount: 0,
       aborted: false,
@@ -830,6 +833,7 @@ describe("runEmbeddedPiAgent incomplete-turn safety", () => {
       attempt: makeAttemptResult({
         assistantTexts: [],
         didSendViaMessagingTool: true,
+        messagingToolSentTexts: ["Delivered through the message tool."],
         lastAssistant: {
           role: "assistant",
           stopReason: "end_turn",
@@ -849,7 +853,52 @@ describe("runEmbeddedPiAgent incomplete-turn safety", () => {
     expect(incompleteTurnText).toBeNull();
   });
 
-  it("still surfaces the incomplete-turn warning after a messaging tool when the provider signalled an error", () => {
+  it("suppresses the incomplete-turn warning after committed media-only messaging delivery", () => {
+    const incompleteTurnText = resolveIncompleteTurnPayloadText({
+      payloadCount: 0,
+      aborted: false,
+      timedOut: false,
+      attempt: makeAttemptResult({
+        assistantTexts: [],
+        didSendViaMessagingTool: false,
+        messagingToolSentMediaUrls: ["file:///tmp/render.png"],
+        lastAssistant: {
+          role: "assistant",
+          stopReason: "end_turn",
+          provider: "openai",
+          model: "gpt-5.4",
+          content: [],
+        } as unknown as EmbeddedRunAttemptResult["lastAssistant"],
+      }),
+    });
+
+    expect(incompleteTurnText).toBeNull();
+  });
+
+  it("suppresses the incomplete-turn warning after committed messaging delivery even when the provider errored", () => {
+    const incompleteTurnText = resolveIncompleteTurnPayloadText({
+      payloadCount: 0,
+      aborted: false,
+      timedOut: false,
+      attempt: makeAttemptResult({
+        assistantTexts: [],
+        didSendViaMessagingTool: true,
+        messagingToolSentTexts: ["Delivered before the provider error."],
+        lastAssistant: {
+          role: "assistant",
+          stopReason: "error",
+          provider: "ollama",
+          model: "kimi-k2.6:cloud",
+          errorMessage: "provider failed after delivery",
+          content: [],
+        } as unknown as EmbeddedRunAttemptResult["lastAssistant"],
+      }),
+    });
+
+    expect(incompleteTurnText).toBeNull();
+  });
+
+  it("still surfaces the incomplete-turn warning when no messaging delivery was committed", () => {
     const incompleteTurnText = resolveIncompleteTurnPayloadText({
       payloadCount: 0,
       aborted: false,
@@ -869,6 +918,73 @@ describe("runEmbeddedPiAgent incomplete-turn safety", () => {
     });
 
     expect(incompleteTurnText).toContain("verify before retrying");
+  });
+
+  it("does not treat empty committed messaging arrays as user-visible delivery", () => {
+    expect(
+      hasCommittedUserVisibleToolDelivery({
+        messagingToolSentTexts: ["  "],
+        messagingToolSentMediaUrls: [],
+      }),
+    ).toBe(false);
+  });
+
+  it("treats committed messaging media as user-visible delivery", () => {
+    expect(
+      hasCommittedUserVisibleToolDelivery({
+        messagingToolSentTexts: [],
+        messagingToolSentMediaUrls: ["file:///tmp/render.png"],
+      }),
+    ).toBe(true);
+  });
+
+  it("treats committed messaging text as replay-invalid side effect metadata", () => {
+    expect(
+      buildAttemptReplayMetadata({
+        toolMetas: [],
+        didSendViaMessagingTool: false,
+        messagingToolSentTexts: ["Delivered through the message tool."],
+        messagingToolSentMediaUrls: [],
+      }),
+    ).toEqual({ hadPotentialSideEffects: true, replaySafe: false });
+  });
+
+  it("treats committed messaging media as replay-invalid side effect metadata", () => {
+    expect(
+      buildAttemptReplayMetadata({
+        toolMetas: [],
+        didSendViaMessagingTool: false,
+        messagingToolSentTexts: [],
+        messagingToolSentMediaUrls: ["file:///tmp/render.png"],
+      }),
+    ).toEqual({ hadPotentialSideEffects: true, replaySafe: false });
+  });
+
+  it("leaves committed delivery plus tool errors to the tool-error payload path", () => {
+    const incompleteTurnText = resolveIncompleteTurnPayloadText({
+      payloadCount: 0,
+      aborted: false,
+      timedOut: false,
+      attempt: makeAttemptResult({
+        assistantTexts: [],
+        didSendViaMessagingTool: true,
+        messagingToolSentTexts: ["Delivered through the message tool."],
+        lastToolError: {
+          toolName: "message",
+          meta: "send",
+          error: "delivery failed for second target",
+        },
+        lastAssistant: {
+          role: "assistant",
+          stopReason: "error",
+          provider: "openai",
+          model: "gpt-5.4",
+          content: [],
+        } as unknown as EmbeddedRunAttemptResult["lastAssistant"],
+      }),
+    });
+
+    expect(incompleteTurnText).toBeNull();
   });
 
   it("does not retry reasoning-only GPT turns after side effects", () => {
@@ -1136,6 +1252,8 @@ describe("resolvePlanningOnlyRetryInstruction single-action loophole", () => {
       replayMetadata: buildAttemptReplayMetadata({
         toolMetas,
         didSendViaMessagingTool: false,
+        messagingToolSentTexts: [],
+        messagingToolSentMediaUrls: [],
       }),
       clientToolCall: null,
       yieldDetected: false,
