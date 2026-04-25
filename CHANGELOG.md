@@ -61,6 +61,20 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Gateway/subagents: keep direct-loopback backend RPCs authenticated with the
+  shared gateway token/password off stale CLI paired-device scope baselines, so
+  internal calls no longer hit `scope-upgrade` pairing prompts while remote,
+  browser, node, device-token, and explicit-device paths still require normal
+  pairing approval. Fixes #63548.
+- CLI/gateway: keep diagnostic probes from creating first-time read-only device
+  pairings, while still reusing cached device tokens for detailed read probes.
+  Fixes #71766. Thanks @SunboZ.
+- CLI/plugins: keep `message` startup, `channels logs`, `agents delete`, and
+  `agents set-identity` off broad plugin preloading; message delivery still
+  loads plugins when the action actually runs.
+- Image understanding: resolve configured image models such as local LM Studio
+  vision entries before reporting `Unknown model` when the discovery registry
+  has not registered that provider. Fixes #66486. Thanks @zhanggpcsu.
 - CLI/agents: keep `agents bind`, `agents unbind`, and `agents bindings` on
   setup-safe channel metadata paths so they do not preload bundled plugin
   runtimes or stage runtime dependencies. Fixes #71743.
@@ -131,6 +145,9 @@ Docs: https://docs.openclaw.ai
 - Providers/MiniMax: register `minimax-portal` for music and video generation,
   preserving OAuth auth and regional MiniMax base URLs across the shared
   `music_generate` and `video_generate` tools. (#63241) Thanks @tars90percent.
+- Providers/onboarding: keep Runway and Alibaba Model Studio out of the
+  text-inference setup picker by scoping their video-generation auth choices to
+  the media setup flow. (#65856) Thanks @Jah-yee.
 - Plugins/Bonjour: stop the gateway from crash-looping on `CIAO PROBING CANCELLED` when the mDNS watchdog cancels a stuck probe. Restores the rejection-handler wiring dropped during the bonjour plugin migration and shares unhandled-rejection state across module instances so plugin-staged copies of `openclaw/plugin-sdk/runtime` register into the same handler set the host consults. Especially affects Docker on macOS, where mDNS probing reliably hits the watchdog. Thanks @troyhitch.
 - Google Meet: report pinned Chrome nodes as offline or missing capabilities in
   setup/join diagnostics, keep inaccessible nodes out of auto-selection, and
