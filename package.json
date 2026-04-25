@@ -1130,13 +1130,13 @@
       "types": "./dist/plugin-sdk/provider-usage.d.ts",
       "default": "./dist/plugin-sdk/provider-usage.js"
     },
-    "./plugin-sdk/web-content-extractor": {
-      "types": "./dist/plugin-sdk/web-content-extractor.d.ts",
-      "default": "./dist/plugin-sdk/web-content-extractor.js"
-    },
     "./plugin-sdk/document-extractor": {
       "types": "./dist/plugin-sdk/document-extractor.d.ts",
       "default": "./dist/plugin-sdk/document-extractor.js"
+    },
+    "./plugin-sdk/web-content-extractor": {
+      "types": "./dist/plugin-sdk/web-content-extractor.d.ts",
+      "default": "./dist/plugin-sdk/web-content-extractor.js"
     },
     "./plugin-sdk/provider-web-fetch-contract": {
       "types": "./dist/plugin-sdk/provider-web-fetch-contract.d.ts",
@@ -1657,7 +1657,7 @@
     "@types/markdown-it": "^14.1.2",
     "@types/node": "25.6.0",
     "@types/ws": "^8.18.1",
-    "@typescript/native-preview": "7.0.0-dev.20260423.1",
+    "@typescript/native-preview": "7.0.0-dev.20260421.2",
     "@vitest/coverage-v8": "^4.1.5",
     "jscpd": "4.0.9",
     "jsdom": "^29.0.2",
