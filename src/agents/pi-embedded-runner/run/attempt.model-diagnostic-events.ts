@@ -1,7 +1,10 @@
 import type { StreamFn } from "@mariozechner/pi-agent-core";
-import { diagnosticErrorCategory } from "../../../infra/diagnostic-error-metadata.js";
 import {
-  emitDiagnosticEvent,
+  diagnosticErrorCategory,
+  diagnosticProviderRequestIdHash,
+} from "../../../infra/diagnostic-error-metadata.js";
+import {
+  emitTrustedDiagnosticEvent,
   type DiagnosticEventInput,
 } from "../../../infra/diagnostic-events.js";
 import {
@@ -27,6 +30,10 @@ type ModelCallDiagnosticContext = {
 type ModelCallEventBase = Omit<
   Extract<DiagnosticEventInput, { type: "model.call.started" }>,
   "type"
+>;
+type ModelCallErrorFields = Pick<
+  Extract<DiagnosticEventInput, { type: "model.call.error" }>,
+  "errorCategory" | "upstreamRequestIdHash"
 >;
 
 const MODEL_CALL_STREAM_RETURN_TIMEOUT_MS = 1000;
@@ -72,6 +79,14 @@ function baseModelCallEvent(
     ...(ctx.api && { api: ctx.api }),
     ...(ctx.transport && { transport: ctx.transport }),
     trace,
+  };
+}
+
+function modelCallErrorFields(err: unknown): ModelCallErrorFields {
+  const upstreamRequestIdHash = diagnosticProviderRequestIdHash(err);
+  return {
+    errorCategory: diagnosticErrorCategory(err),
+    ...(upstreamRequestIdHash ? { upstreamRequestIdHash } : {}),
   };
 }
 
@@ -122,24 +137,24 @@ async function* observeModelCallIterator<T>(
       yield next.value;
     }
     terminalEmitted = true;
-    emitDiagnosticEvent({
+    emitTrustedDiagnosticEvent({
       type: "model.call.completed",
       ...eventBase,
       durationMs: Date.now() - startedAt,
     });
   } catch (err) {
     terminalEmitted = true;
-    emitDiagnosticEvent({
+    emitTrustedDiagnosticEvent({
       type: "model.call.error",
       ...eventBase,
       durationMs: Date.now() - startedAt,
-      errorCategory: diagnosticErrorCategory(err),
+      ...modelCallErrorFields(err),
     });
     throw err;
   } finally {
     if (!terminalEmitted) {
       await safeReturnIterator(iterator);
-      emitDiagnosticEvent({
+      emitTrustedDiagnosticEvent({
         type: "model.call.error",
         ...eventBase,
         durationMs: Date.now() - startedAt,
@@ -194,7 +209,7 @@ function observeModelCallResult(
       startedAt,
     );
   }
-  emitDiagnosticEvent({
+  emitTrustedDiagnosticEvent({
     type: "model.call.completed",
     ...eventBase,
     durationMs: Date.now() - startedAt,
@@ -210,7 +225,7 @@ export function wrapStreamFnWithDiagnosticModelCallEvents(
     const callId = ctx.nextCallId();
     const trace = freezeDiagnosticTraceContext(createChildDiagnosticTraceContext(ctx.trace));
     const eventBase = baseModelCallEvent(ctx, callId, trace);
-    emitDiagnosticEvent({
+    emitTrustedDiagnosticEvent({
       type: "model.call.started",
       ...eventBase,
     });
@@ -222,11 +237,11 @@ export function wrapStreamFnWithDiagnosticModelCallEvents(
         return result.then(
           (resolved) => observeModelCallResult(resolved, eventBase, startedAt),
           (err) => {
-            emitDiagnosticEvent({
+            emitTrustedDiagnosticEvent({
               type: "model.call.error",
               ...eventBase,
               durationMs: Date.now() - startedAt,
-              errorCategory: diagnosticErrorCategory(err),
+              ...modelCallErrorFields(err),
             });
             throw err;
           },
@@ -234,11 +249,11 @@ export function wrapStreamFnWithDiagnosticModelCallEvents(
       }
       return observeModelCallResult(result, eventBase, startedAt);
     } catch (err) {
-      emitDiagnosticEvent({
+      emitTrustedDiagnosticEvent({
         type: "model.call.error",
         ...eventBase,
         durationMs: Date.now() - startedAt,
-        errorCategory: diagnosticErrorCategory(err),
+        ...modelCallErrorFields(err),
       });
       throw err;
     }

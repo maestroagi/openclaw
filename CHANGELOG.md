@@ -14,6 +14,16 @@ Docs: https://docs.openclaw.ai
 - CLI/Crestodian: open interactive Crestodian in the full OpenClaw TUI shell instead of a basic readline prompt.
 - CLI/Crestodian: shorten the startup greeting to the active planner/model, config state, Gateway probe result, and next debug action instead of dumping every discovered backend.
 - Plugins: migrate the local plugin registry automatically during package install/update, preserving legacy config and install-ledger state while indexing existing plugin manifests for the new cold registry path. Thanks @vincentkoc.
+- Diagnostics/OTEL: align model-call GenAI span attributes with OpenTelemetry stability opt-in semantics, keeping legacy `gen_ai.system` by default while emitting `gen_ai.provider.name` under `OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental`. Thanks @vincentkoc.
+- Plugins/CLI: add `openclaw plugins registry` for explicit persisted-registry inspection and `--refresh` repair without making normal startup rescan plugin locations. Thanks @vincentkoc.
+- Plugins/CLI: make `openclaw plugins list` read the cold persisted registry snapshot by default, leaving module-aware diagnostics to `plugins doctor` and `plugins inspect`. Thanks @vincentkoc.
+- Plugins/startup: move gateway startup plugin planning onto the versioned cold registry index, with postinstall repair for older registry files that predate startup metadata. Thanks @vincentkoc.
+- Plugins/startup: normalize startup and provider plugin enablement through registry aliases so boot paths do not need the legacy manifest alias scan. Thanks @vincentkoc.
+- Providers/plugins: resolve provider ownership, provider discovery scopes, and catalog-hook provider ids from the cold plugin registry instead of rescanning manifests on those paths. Thanks @vincentkoc.
+- Plugins/chat commands: refresh the persisted plugin registry after `/plugins enable` and `/plugins disable`, matching the CLI mutation path. Thanks @vincentkoc.
+- Plugins/compat: mark `OPENCLAW_DISABLE_PERSISTED_PLUGIN_REGISTRY` as a deprecated break-glass switch and point operators at registry repair instead. Thanks @vincentkoc.
+- Plugins/registry: ignore stale persisted registry reads when plugin policy no longer matches current config, and stamp generated registry files with a do-not-edit warning. Thanks @vincentkoc.
+- Diagnostics/OTEL: surface provider request identifiers as bounded hashes on model-call diagnostics and span events, without exporting raw request IDs or metric labels. Thanks @Lidang-Jiang and @vincentkoc.
 - Diagnostics/OTEL: add bounded outbound message delivery lifecycle diagnostics and export them as low-cardinality delivery spans/metrics without message body, recipient, room, or media-path data. (#71471) Thanks @vincentkoc and @jlapenna.
 - Diagnostics/OTEL: emit bounded exec-process diagnostics and export them as `openclaw.exec` spans without exposing command text, working directories, or container identifiers. (#71451) Thanks @vincentkoc and @jlapenna.
 - Diagnostics/OTEL: support `OPENCLAW_OTEL_PRELOADED=1` so the plugin can reuse an already-registered OpenTelemetry SDK while keeping OpenClaw diagnostic listeners wired. (#71450) Thanks @vincentkoc and @jlapenna.
@@ -25,16 +35,29 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
-- Agents/TTS: preserve legacy `[[audio_as_voice]]` hints on trusted tool-result
-  `MEDIA:` payloads so generated audio still delivers as a voice note. (#46535)
-  Thanks @azade-c.
+- Agents/replies: forward sanitized underlying agent failure details on external
+  channels instead of replacing unknown failures with a generic retry message.
+  Thanks @steipete.
+- Browser/CDP: honor configured remote and `attachOnly` CDP HTTP/WebSocket
+  timeouts when opening tabs through raw CDP or `/json/new` fallback. (#54238)
+  Thanks @FuncWei.
+- WhatsApp/TTS: send visible text separately from PTT voice-note audio instead
+  of relying on hidden voice-note captions. Fixes #51081.
+- Agents/TTS: preserve `[[audio_as_voice]]` directives on trusted text
+  tool-result `MEDIA:` payloads so generated audio still delivers as a voice
+  note. (#46535) Thanks @azade-c.
+- Agents/TTS: keep queued tool media when an assistant ends with `NO_REPLY` on
+  non-block delivery paths, so media-only generated audio replies still send.
+  (#60025) Thanks @bradlind1.
 - Telegram/STT: frame inbound voice-note transcripts as machine-generated,
   untrusted text in agent context while preserving raw transcript mention
   detection. Closes #33360. Thanks @smartchainark.
 - Subagents/browser: show an actionable `/tools` notice when browser automation is configured but filtered out by the active tool profile, and document that coding-profile agents should use `tools.alsoAllow: ["browser"]` rather than subagent allowlists alone.
 - Control UI/Quick Settings: persist the assistant avatar override to browser local storage (mirroring the user avatar) so uploaded image data URLs no longer fail config validation with "Too big: expected string to have <=200 characters". Also lift the gateway-side `ui.assistant.avatar` length cap to match the user avatar size budget for non-UI clients writing the field directly. Thanks @BunsDev.
 - Browser/CDP: make readiness diagnostics use the same discovery-first fallback as reachability for bare `ws://` Browserless and Browserbase CDP URLs. Fixes #69532.
+- Browser/CDP: explain that loopback Browserless or other externally managed CDP services need `attachOnly: true` and matching Browserless `EXTERNAL` endpoint when reporting local port ownership conflicts, and fall back to the configured bare WebSocket root when a discovered Browserless endpoint rejects CDP. Fixes #49815.
 - ACP/OpenCode: update the bundled acpx runtime to 0.6.0 and cover the OpenCode ACP bind path in Docker live tests.
+- Providers/OpenCode Go: add DeepSeek V4 Pro and DeepSeek V4 Flash to the Go catalog while the bundled Pi registry catches up. Fixes #71587.
 - Browser/existing-session: support per-profile Chrome MCP command/args, map `cdpUrl` to `--browserUrl` or `--wsEndpoint`, and avoid combining endpoint flags with `--userDataDir`. Fixes #47879, #48037, and #62706. Thanks @puneet1409, @zhehao, and @madkow1001.
 - Media/plugins: bound MIME sniffing and ZIP archive preflight before handing
   untrusted files to `file-type` or `jszip`, reducing parser CPU and memory
@@ -395,6 +418,7 @@ Docs: https://docs.openclaw.ai
 - Agents/sessions: stop session write-lock timeouts from entering model failover, so local lock contention surfaces directly instead of cascading across providers. (#68700) Thanks @MonkeyLeeT.
 - Auto-reply: run inbound reply delivery through `message_sending` hooks so plugins can transform or cancel generated replies before they are sent. (#70118) Thanks @jzakirov.
 - CI/release-checks: pass workflow inputs and matrix values through step environment variables instead of embedding them directly into `run:` shell commands, reducing template-injection surface in the cross-OS release-check workflow. (#66884) Thanks @alexlomt.
+- Agents/failover: classify the bare `An unknown error occurred` stream-wrapper message that pi-ai providers throw when streams end with `stopReason: "aborted" | "error"` as a transient timeout regardless of provider, so configured fallback chains rotate for non-Anthropic providers (Google, OpenRouter, Bedrock, etc.) instead of surfacing the literal string to users. Fixes #71620. Thanks @willamhou and @mattcproctor.
 
 ## 2026.4.23
 
