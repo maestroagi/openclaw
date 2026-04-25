@@ -55,17 +55,31 @@ Docs: https://docs.openclaw.ai
 - Providers/ElevenLabs: include `eleven_v3` in the bundled TTS model catalog so model selection surfaces can offer ElevenLabs v3. (#68321) Thanks @itsuzef.
 - Providers/Local CLI TTS: add a bundled local command speech provider with file/stdout input, voice-note Opus conversion, and telephony PCM output. (#56239) Thanks @solar2ain.
 - Providers/Inworld: add Inworld as a bundled speech provider with streaming TTS synthesis, voice listing, voice-note output, and PCM telephony output. (#55972) Thanks @cshape.
+- Providers/Volcengine: add Volcengine/BytePlus Seed Speech as a bundled TTS provider with API-key auth, native Ogg/Opus voice-note output, and MP3 audio-file output. (#55641) Thanks @xuruiray.
 - Android/Talk Mode: expose Talk Mode in the Voice tab with runtime-owned voice capture modes and microphone foreground-service escalation. Thanks @alex-latitude.
 - Providers/LiteLLM: register `litellm` as an image-generation provider so `image_generate model=litellm/...` calls and `agents.defaults.imageGenerationModel.fallbacks` entries resolve through the LiteLLM proxy. Thanks @zqchris.
 - Codex harness: require Codex app-server `0.125.0` or newer and cover native MCP `PreToolUse`, `PostToolUse`, and `PermissionRequest` payloads through the OpenClaw hook relay.
 
 ### Fixes
 
+- Agents/subagents: keep queued subagent announces session-only when the
+  requester has no external channel target, avoiding ambiguous multi-channel
+  delivery failures. Fixes #59201. Thanks @larrylhollan.
 - Gateway/subagents: keep direct-loopback backend RPCs authenticated with the
   shared gateway token/password off stale CLI paired-device scope baselines, so
   internal calls no longer hit `scope-upgrade` pairing prompts while remote,
   browser, node, device-token, and explicit-device paths still require normal
   pairing approval. Fixes #63548.
+- Providers/Azure OpenAI: give deployment-scoped image generation requests a
+  longer 600s default timeout so slow `gpt-image-2` generations can complete
+  without a per-call `timeoutMs`. Fixes #71705. Thanks @voytas75.
+- Gateway/plugins: link source-checkout bundled runtime dependency caches instead
+  of recursively copying `node_modules` on the gateway main thread, preventing
+  local status, node, and skill probes from timing out during startup cache
+  restores. Thanks @steipete.
+- Skills/remote nodes: only expose remote macOS skill bins for connected nodes,
+  clear stale bin matches when node probes fail, and include probe command,
+  timeout, bin count, and connection state in timeout logs. Thanks @steipete.
 - CLI/gateway: keep diagnostic probes from creating first-time read-only device
   pairings, while still reusing cached device tokens for detailed read probes.
   Fixes #71766. Thanks @SunboZ.
