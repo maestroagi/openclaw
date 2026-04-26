@@ -1,14 +1,18 @@
 #!/usr/bin/env bash
+# Runs bundled plugin runtime-dependency Docker scenarios from a mounted OpenClaw
+# npm tarball. The default image is a clean runner; each scenario installs the
+# tarball so package install behavior is what gets tested.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "$ROOT_DIR/scripts/lib/docker-e2e-image.sh"
+source "$ROOT_DIR/scripts/lib/docker-e2e-package.sh"
 
 IMAGE_NAME="$(docker_e2e_resolve_image "openclaw-bundled-channel-deps-e2e" OPENCLAW_BUNDLED_CHANNEL_DEPS_E2E_IMAGE)"
 UPDATE_BASELINE_VERSION="${OPENCLAW_BUNDLED_CHANNEL_UPDATE_BASELINE_VERSION:-2026.4.20}"
-DOCKER_TARGET="${OPENCLAW_BUNDLED_CHANNEL_DOCKER_TARGET:-e2e-runner}"
+DOCKER_TARGET="${OPENCLAW_BUNDLED_CHANNEL_DOCKER_TARGET:-bare}"
 HOST_BUILD="${OPENCLAW_BUNDLED_CHANNEL_HOST_BUILD:-1}"
-PACKAGE_TGZ="${OPENCLAW_BUNDLED_CHANNEL_PACKAGE_TGZ:-}"
+PACKAGE_TGZ="${OPENCLAW_CURRENT_PACKAGE_TGZ:-}"
 RUN_CHANNEL_SCENARIOS="${OPENCLAW_BUNDLED_CHANNEL_SCENARIOS:-1}"
 RUN_UPDATE_SCENARIO="${OPENCLAW_BUNDLED_CHANNEL_UPDATE_SCENARIO:-1}"
 RUN_ROOT_OWNED_SCENARIO="${OPENCLAW_BUNDLED_CHANNEL_ROOT_OWNED_SCENARIO:-1}"
@@ -22,37 +26,18 @@ docker_e2e_build_or_reuse "$IMAGE_NAME" bundled-channel-deps "$ROOT_DIR/scripts/
 
 prepare_package_tgz() {
   if [ -n "$PACKAGE_TGZ" ]; then
-    if [ ! -f "$PACKAGE_TGZ" ]; then
-      echo "OPENCLAW_BUNDLED_CHANNEL_PACKAGE_TGZ does not exist: $PACKAGE_TGZ" >&2
-      exit 1
-    fi
-    PACKAGE_TGZ="$(cd "$(dirname "$PACKAGE_TGZ")" && pwd)/$(basename "$PACKAGE_TGZ")"
+    PACKAGE_TGZ="$(docker_e2e_prepare_package_tgz bundled-channel-deps "$PACKAGE_TGZ")"
     return 0
   fi
-
-  if [ "$HOST_BUILD" != "0" ]; then
-    echo "Building host package artifacts..."
-    run_logged bundled-channel-deps-host-build pnpm build
-  else
-    echo "Skipping host build (OPENCLAW_BUNDLED_CHANNEL_HOST_BUILD=0)"
-  fi
-
-  echo "Writing package inventory and packing once..."
-  run_logged bundled-channel-deps-inventory node --import tsx --input-type=module -e 'const { writePackageDistInventory } = await import("./src/infra/package-dist-inventory.ts"); await writePackageDistInventory(process.cwd());'
-  local pack_dir
-  pack_dir="$(mktemp -d "${TMPDIR:-/tmp}/openclaw-bundled-channel-pack.XXXXXX")"
-  run_logged bundled-channel-deps-pack npm pack --ignore-scripts --pack-destination "$pack_dir"
-  PACKAGE_TGZ="$(find "$pack_dir" -maxdepth 1 -name 'openclaw-*.tgz' -print -quit)"
-  if [ -z "$PACKAGE_TGZ" ]; then
-    echo "missing packed OpenClaw tarball" >&2
+  if [ "$HOST_BUILD" = "0" ] && [ -z "${OPENCLAW_CURRENT_PACKAGE_TGZ:-}" ]; then
+    echo "OPENCLAW_BUNDLED_CHANNEL_HOST_BUILD=0 requires OPENCLAW_CURRENT_PACKAGE_TGZ" >&2
     exit 1
   fi
-  PACKAGE_TGZ="$(cd "$(dirname "$PACKAGE_TGZ")" && pwd)/$(basename "$PACKAGE_TGZ")"
+  PACKAGE_TGZ="$(docker_e2e_prepare_package_tgz bundled-channel-deps)"
 }
 
 prepare_package_tgz
-DOCKER_PACKAGE_TGZ="/tmp/openclaw-current.tgz"
-PACKAGE_DOCKER_ARGS=(-v "$PACKAGE_TGZ:$DOCKER_PACKAGE_TGZ:ro" -e "OPENCLAW_CURRENT_PACKAGE_TGZ=$DOCKER_PACKAGE_TGZ")
+docker_e2e_package_mount_args "$PACKAGE_TGZ"
 
 run_channel_scenario() {
   local channel="$1"
@@ -65,7 +50,7 @@ run_channel_scenario() {
     -e COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
     -e OPENCLAW_CHANNEL_UNDER_TEST="$channel" \
     -e OPENCLAW_DEP_SENTINEL="$dep_sentinel" \
-    "${PACKAGE_DOCKER_ARGS[@]}" \
+    "${DOCKER_E2E_PACKAGE_ARGS[@]}" \
     -i "$IMAGE_NAME" bash -s >"$run_log" 2>&1 <<'EOF'
 set -euo pipefail
 
@@ -477,7 +462,7 @@ run_root_owned_global_scenario() {
   echo "Running bundled channel root-owned global install Docker E2E..."
   if ! timeout "$DOCKER_RUN_TIMEOUT" docker run --rm --user root \
     -e COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
-    "${PACKAGE_DOCKER_ARGS[@]}" \
+    "${DOCKER_E2E_PACKAGE_ARGS[@]}" \
     -i "$IMAGE_NAME" bash -s >"$run_log" 2>&1 <<'EOF'
 set -euo pipefail
 
@@ -654,7 +639,7 @@ run_setup_entry_scenario() {
   echo "Running bundled channel setup-entry runtime deps Docker E2E..."
   if ! timeout "$DOCKER_RUN_TIMEOUT" docker run --rm \
     -e COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
-    "${PACKAGE_DOCKER_ARGS[@]}" \
+    "${DOCKER_E2E_PACKAGE_ARGS[@]}" \
     -i "$IMAGE_NAME" bash -s >"$run_log" 2>&1 <<'EOF'
 set -euo pipefail
 
@@ -911,7 +896,7 @@ run_disabled_config_scenario() {
   echo "Running bundled channel disabled-config runtime deps Docker E2E..."
   if ! timeout "$DOCKER_RUN_TIMEOUT" docker run --rm \
     -e COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
-    "${PACKAGE_DOCKER_ARGS[@]}" \
+    "${DOCKER_E2E_PACKAGE_ARGS[@]}" \
     -i "$IMAGE_NAME" bash -s >"$run_log" 2>&1 <<'EOF'
 set -euo pipefail
 
@@ -1078,7 +1063,7 @@ run_update_scenario() {
     -e COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
     -e OPENCLAW_BUNDLED_CHANNEL_UPDATE_BASELINE_VERSION="$UPDATE_BASELINE_VERSION" \
     -e "OPENCLAW_BUNDLED_CHANNEL_UPDATE_TARGETS=${OPENCLAW_BUNDLED_CHANNEL_UPDATE_TARGETS:-telegram,discord,slack,feishu,memory-lancedb,acpx}" \
-    "${PACKAGE_DOCKER_ARGS[@]}" \
+    "${DOCKER_E2E_PACKAGE_ARGS[@]}" \
     -i "$IMAGE_NAME" bash -s >"$run_log" 2>&1 <<'EOF'
 set -euo pipefail
 
@@ -1510,7 +1495,7 @@ run_load_failure_scenario() {
   echo "Running bundled channel load-failure isolation Docker E2E..."
   if ! timeout "$DOCKER_RUN_TIMEOUT" docker run --rm \
     -e COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
-    "${PACKAGE_DOCKER_ARGS[@]}" \
+    "${DOCKER_E2E_PACKAGE_ARGS[@]}" \
     -i "$IMAGE_NAME" bash -s >"$run_log" 2>&1 <<'EOF'
 set -euo pipefail
 
