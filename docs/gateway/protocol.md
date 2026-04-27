@@ -84,6 +84,10 @@ Gateway → Client:
     "server": { "version": "…", "connId": "…" },
     "features": { "methods": ["…"], "events": ["…"] },
     "snapshot": { "…": "…" },
+    "auth": {
+      "role": "operator",
+      "scopes": ["operator.read", "operator.write"]
+    },
     "policy": {
       "maxPayload": 26214400,
       "maxBufferedBytes": 52428800,
@@ -94,12 +98,11 @@ Gateway → Client:
 ```
 
 `server`, `features`, `snapshot`, and `policy` are all required by the schema
-(`src/gateway/protocol/schema/frames.ts`). `canvasHostUrl` is optional. `auth`
-reports the negotiated role/scopes when available, and includes `deviceToken`
-when the gateway issues one.
+(`src/gateway/protocol/schema/frames.ts`). `auth` is also required and reports
+the negotiated role/scopes. `canvasHostUrl` is optional.
 
-When no device token is issued, `hello-ok.auth` can still report the negotiated
-permissions:
+When no device token is issued, `hello-ok.auth` reports the negotiated
+permissions without token fields:
 
 ```json
 {
@@ -288,7 +291,7 @@ enumeration of `src/gateway/server-methods/*.ts`.
     - `models.list` returns the runtime-allowed model catalog.
     - `usage.status` returns provider usage windows/remaining quota summaries.
     - `usage.cost` returns aggregated cost usage summaries for a date range.
-    - `doctor.memory.status` returns vector-memory / embedding readiness for the active default agent workspace.
+    - `doctor.memory.status` returns vector-memory / cached embedding readiness for the active default agent workspace. Pass `{ "probe": true }` or `{ "deep": true }` only when the caller explicitly wants a live embedding provider ping.
     - `sessions.usage` returns per-session usage summaries.
     - `sessions.usage.timeseries` returns timeseries usage for one session.
     - `sessions.usage.logs` returns usage log entries for one session.
@@ -366,7 +369,7 @@ enumeration of `src/gateway/server-methods/*.ts`.
   </Accordion>
 
   <Accordion title="Node pairing, invoke, and pending work">
-    - `node.pair.request`, `node.pair.list`, `node.pair.approve`, `node.pair.reject`, and `node.pair.verify` cover node pairing and bootstrap verification.
+    - `node.pair.request`, `node.pair.list`, `node.pair.approve`, `node.pair.reject`, `node.pair.remove`, and `node.pair.verify` cover node pairing and bootstrap verification.
     - `node.list` and `node.describe` return known/connected node state.
     - `node.rename` updates a paired node label.
     - `node.invoke` forwards a command to a connected node.
