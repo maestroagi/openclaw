@@ -200,7 +200,8 @@ gh workflow run openclaw-release-checks.yml \
 `pnpm openclaw qa matrix` defaults to `--profile all`. Do not assume the CLI
 default is the fast release path. Use explicit profiles:
 
-- `--profile fast --fail-fast`: release-critical Matrix transport contract
+- `--profile fast`: release-critical Matrix transport contract; add
+  `--fail-fast` only when the target CLI supports it
 - `--profile transport|media|e2ee-smoke|e2ee-deep|e2ee-cli`: sharded full
   Matrix proof
 - `OPENCLAW_QA_MATRIX_NO_REPLY_WINDOW_MS=3000`: CI-friendly no-reply quiet
@@ -242,6 +243,19 @@ Useful knobs:
 - `live_model_providers=fireworks` (or comma/space separated providers): run one
   targeted Docker live model job instead of the full provider matrix.
 - blank `live_model_providers`: run the full live-model provider matrix.
+
+When live suites are enabled, the workflow shards broad native `pnpm test:live`
+coverage through `scripts/test-live-shard.mjs` instead of one serial `live-all`
+job:
+
+- `native-live-src-agents`
+- `native-live-src-gateway`
+- `native-live-test`
+- `native-live-extensions-a-k`
+- `native-live-extensions-l-z`
+
+Use `node scripts/test-live-shard.mjs <shard> --list` to see the exact files
+before rerunning a failed native live shard.
 
 For model-list or provider-selection fixes, use `live_models_only=true` plus the
 specific `live_model_providers` allowlist. Confirm logs show the expected
