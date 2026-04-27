@@ -148,6 +148,10 @@ servers before raising `agents.defaults.timeoutSeconds`. The provider timeout
 applies only to model HTTP requests, including connect, headers, body streaming,
 and the total guarded-fetch abort.
 
+<Note>
+For custom OpenAI-compatible providers, persisting a non-secret local marker such as `apiKey: "ollama-local"` is accepted when `baseUrl` resolves to loopback, a private LAN, `.local`, or a bare hostname. OpenClaw treats it as a valid local credential instead of reporting a missing key. Use a real value for any provider that accepts a public hostname.
+</Note>
+
 Behavior note for local/proxied `/v1` backends:
 
 - OpenClaw treats these as proxy-style OpenAI-compatible routes, not native
@@ -174,9 +178,12 @@ Compatibility notes for stricter OpenAI-compatible backends:
   text and logs a warning with the run id, provider/model, detected pattern, and
   tool name when available. Treat that as provider/model tool-call
   incompatibility, not a completed tool run.
-- For OpenAI-compatible Chat Completions backends whose tool parser works only
-  when tool use is forced, set a per-model request override instead of relying
-  on text parsing:
+- If tools appear as assistant text instead of running, for example raw JSON,
+  XML, ReAct syntax, or an empty `tool_calls` array in the provider response,
+  first verify the server is using a tool-call-capable chat template/parser. For
+  OpenAI-compatible Chat Completions backends whose parser works only when tool
+  use is forced, set a per-model request override instead of relying on text
+  parsing:
 
   ```json5
   {
@@ -198,6 +205,12 @@ Compatibility notes for stricter OpenAI-compatible backends:
 
   Use this only for models/sessions where every normal turn should call a tool.
   It overrides OpenClaw's default proxy value of `tool_choice: "auto"`.
+  Replace `local/my-local-model` with the exact provider/model ref shown by
+  `openclaw models list`.
+
+  ```bash
+  openclaw config set agents.defaults.models '{"local/my-local-model":{"params":{"extra_body":{"tool_choice":"required"}}}}' --strict-json --merge
+  ```
 
 - Some smaller or stricter local backends are unstable with OpenClaw's full
   agent-runtime prompt shape, especially when tool schemas are included. If the
@@ -229,6 +242,12 @@ Compatibility notes for stricter OpenAI-compatible backends:
   fails on Gemma or another local model? Disable tool schemas first with
   `compat.supportsTools: false`, then retest. If the server still crashes only
   on larger OpenClaw prompts, treat it as an upstream server/model limitation.
+- Tool calls show up as raw JSON/XML/ReAct text, or the provider returns an
+  empty `tool_calls` array? Do not add a proxy that blindly converts assistant
+  text into tool execution. Fix the server chat template/parser first. If the
+  model only works when tool use is forced, add the per-model
+  `params.extra_body.tool_choice: "required"` override above and use that model
+  entry only for sessions where a tool call is expected on every turn.
 - Safety: local models skip provider-side filters; keep agents narrow and compaction on to limit prompt injection blast radius.
 
 ## Related

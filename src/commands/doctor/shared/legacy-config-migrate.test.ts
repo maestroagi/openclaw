@@ -67,6 +67,28 @@ describe("legacy migrate audio transcription", () => {
     expect(res.config?.audio).toBeUndefined();
     expect(res.config?.tools?.media?.audio).toBeUndefined();
   });
+
+  it("rewrites legacy audio {input} placeholders to media templates", () => {
+    const res = migrateLegacyConfigForTest({
+      audio: {
+        transcription: {
+          command: ["whisper-cli", "--model", "small", "{input}", "--input={input}"],
+          timeoutSeconds: 30,
+        },
+      },
+    });
+
+    expect(res.changes).toContain("Moved audio.transcription → tools.media.audio.models.");
+    expect(res.config?.audio).toBeUndefined();
+    expect(res.config?.tools?.media?.audio?.models).toEqual([
+      {
+        type: "cli",
+        command: "whisper-cli",
+        args: ["--model", "small", "{{MediaPath}}", "--input={{MediaPath}}"],
+        timeoutSeconds: 30,
+      },
+    ]);
+  });
 });
 
 describe("legacy migrate mention routing", () => {
@@ -98,6 +120,26 @@ describe("legacy migrate mention routing", () => {
 });
 
 describe("legacy migrate sandbox scope aliases", () => {
+  it("removes legacy agents.defaults.llm timeout config", () => {
+    const res = migrateLegacyConfigForTest({
+      agents: {
+        defaults: {
+          model: { primary: "openai/gpt-5.4" },
+          llm: {
+            idleTimeoutSeconds: 120,
+          },
+        },
+      },
+    });
+
+    expect(res.changes).toContain(
+      "Removed agents.defaults.llm; model idle timeout now follows models.providers.<id>.timeoutSeconds.",
+    );
+    expect(res.config?.agents?.defaults).toEqual({
+      model: { primary: "openai/gpt-5.4" },
+    });
+  });
+
   it("moves legacy embeddedHarness runtime policy into agentRuntime", () => {
     const res = migrateLegacyConfigForTest({
       agents: {

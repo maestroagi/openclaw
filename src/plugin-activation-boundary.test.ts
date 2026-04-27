@@ -34,6 +34,20 @@ const loadPluginManifestRegistry = vi.hoisted(() =>
           slack: ["SLACK_BOT_TOKEN"],
           telegram: ["TELEGRAM_BOT_TOKEN"],
         },
+        modelIdNormalization: {
+          providers: {
+            google: {
+              aliases: {
+                "gemini-3.1-pro": "gemini-3.1-pro-preview",
+              },
+            },
+            xai: {
+              aliases: {
+                "grok-4-fast-reasoning": "grok-4-fast",
+              },
+            },
+          },
+        },
         skills: [],
         hooks: [],
         origin: "bundled",
@@ -118,11 +132,11 @@ describe("plugin activation boundary", () => {
     const staticNormalize = { allowPluginNormalization: false };
     expect(normalizeModelRef("google", "gemini-3.1-pro", staticNormalize)).toEqual({
       provider: "google",
-      model: "gemini-3.1-pro",
+      model: "gemini-3.1-pro-preview",
     });
     expect(normalizeModelRef("xai", "grok-4-fast-reasoning", staticNormalize)).toEqual({
       provider: "xai",
-      model: "grok-4-fast-reasoning",
+      model: "grok-4-fast",
     });
     expect(loadBundledPluginPublicSurfaceModuleSync).not.toHaveBeenCalled();
 
