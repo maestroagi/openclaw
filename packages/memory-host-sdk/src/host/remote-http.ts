@@ -1,11 +1,14 @@
-import { fetchWithSsrFGuard, GUARDED_FETCH_MODE } from "../../../../src/infra/net/fetch-guard.js";
-import { shouldUseEnvHttpProxyForUrl } from "../../../../src/infra/net/proxy-env.js";
 import {
+  fetchWithSsrFGuard,
+  shouldUseEnvHttpProxyForUrl,
   ssrfPolicyFromHttpBaseUrlAllowedHostname,
-  type SsrFPolicy,
-} from "../../../../src/infra/net/ssrf.js";
+} from "./openclaw-runtime-network.js";
+import type { SsrFPolicy } from "./ssrf-policy.js";
 
-export const buildRemoteBaseUrlPolicy = ssrfPolicyFromHttpBaseUrlAllowedHostname;
+export const MEMORY_REMOTE_TRUSTED_ENV_PROXY_MODE = "trusted_env_proxy";
+
+export const buildRemoteBaseUrlPolicy: (baseUrl: string) => SsrFPolicy | undefined =
+  ssrfPolicyFromHttpBaseUrlAllowedHostname;
 
 export async function withRemoteHttpResponse<T>(params: {
   url: string;
@@ -25,7 +28,7 @@ export async function withRemoteHttpResponse<T>(params: {
     init: params.init,
     policy: params.ssrfPolicy,
     auditContext: params.auditContext ?? "memory-remote",
-    ...(shouldUseEnvProxy(params.url) ? { mode: GUARDED_FETCH_MODE.TRUSTED_ENV_PROXY } : {}),
+    ...(shouldUseEnvProxy(params.url) ? { mode: MEMORY_REMOTE_TRUSTED_ENV_PROXY_MODE } : {}),
   });
   try {
     return await params.onResponse(response);
