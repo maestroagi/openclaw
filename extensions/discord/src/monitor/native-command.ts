@@ -3,7 +3,6 @@ import { resolveHumanDelayConfig } from "openclaw/plugin-sdk/agent-runtime";
 import { createChannelReplyPipeline } from "openclaw/plugin-sdk/channel-reply-pipeline";
 import { resolveChannelStreamingBlockEnabled } from "openclaw/plugin-sdk/channel-streaming";
 import { resolveNativeCommandSessionTargets } from "openclaw/plugin-sdk/command-auth-native";
-import { resolveDirectStatusReplyForSession } from "openclaw/plugin-sdk/command-status-runtime";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/config-types";
 import { buildPairingReply } from "openclaw/plugin-sdk/conversation-runtime";
 import { isDangerousNameMatchingEnabled } from "openclaw/plugin-sdk/dangerous-name-runtime";
@@ -17,13 +16,15 @@ import {
   type ChatCommandDefinition,
   type NativeCommandSpec,
 } from "openclaw/plugin-sdk/native-command-registry";
-import * as pluginRuntime from "openclaw/plugin-sdk/plugin-runtime";
 import { resolveChunkMode, resolveTextChunkLimit } from "openclaw/plugin-sdk/reply-chunking";
-import { dispatchReplyWithDispatcher } from "openclaw/plugin-sdk/reply-dispatch-runtime";
 import { createSubsystemLogger, logVerbose } from "openclaw/plugin-sdk/runtime-env";
 import { resolveOpenProviderRuntimeGroupPolicy } from "openclaw/plugin-sdk/runtime-group-policy";
 import { normalizeLowercaseStringOrEmpty } from "openclaw/plugin-sdk/text-runtime";
-import { resolveDiscordMaxLinesPerMessage } from "../accounts.js";
+import {
+  resolveDiscordAccountAllowFrom,
+  resolveDiscordAccountDmPolicy,
+  resolveDiscordMaxLinesPerMessage,
+} from "../accounts.js";
 import {
   Button,
   Command,
@@ -56,7 +57,6 @@ import {
   isDiscordUnknownInteraction,
   safeDiscordInteractionCall,
 } from "./native-command-reply.js";
-import { resolveDiscordNativeInteractionRouteState } from "./native-command-route.js";
 import { maybeDeliverDiscordDirectStatus } from "./native-command-status.js";
 import {
   buildDiscordCommandArgMenu,
@@ -74,55 +74,14 @@ import {
   buildDiscordCommandOptions,
   truncateDiscordCommandDescription,
 } from "./native-command.options.js";
+import { nativeCommandRuntime } from "./native-command.runtime.js";
 import type { DiscordCommandArgs, DiscordConfig } from "./native-command.types.js";
 import { resolveDiscordNativeInteractionChannelContext } from "./native-interaction-channel-context.js";
 import { resolveDiscordSenderIdentity } from "./sender-identity.js";
 import type { ThreadBindingManager } from "./thread-bindings.js";
 
 const log = createSubsystemLogger("discord/native-command");
-let matchPluginCommandImpl = pluginRuntime.matchPluginCommand;
-let executePluginCommandImpl = pluginRuntime.executePluginCommand;
-let dispatchReplyWithDispatcherImpl = dispatchReplyWithDispatcher;
-let resolveDirectStatusReplyForSessionImpl = resolveDirectStatusReplyForSession;
-let resolveDiscordNativeInteractionRouteStateImpl = resolveDiscordNativeInteractionRouteState;
-
-export const __testing = {
-  setMatchPluginCommand(
-    next: typeof pluginRuntime.matchPluginCommand,
-  ): typeof pluginRuntime.matchPluginCommand {
-    const previous = matchPluginCommandImpl;
-    matchPluginCommandImpl = next;
-    return previous;
-  },
-  setExecutePluginCommand(
-    next: typeof pluginRuntime.executePluginCommand,
-  ): typeof pluginRuntime.executePluginCommand {
-    const previous = executePluginCommandImpl;
-    executePluginCommandImpl = next;
-    return previous;
-  },
-  setDispatchReplyWithDispatcher(
-    next: typeof dispatchReplyWithDispatcher,
-  ): typeof dispatchReplyWithDispatcher {
-    const previous = dispatchReplyWithDispatcherImpl;
-    dispatchReplyWithDispatcherImpl = next;
-    return previous;
-  },
-  setResolveDirectStatusReplyForSession(
-    next: typeof resolveDirectStatusReplyForSession,
-  ): typeof resolveDirectStatusReplyForSession {
-    const previous = resolveDirectStatusReplyForSessionImpl;
-    resolveDirectStatusReplyForSessionImpl = next;
-    return previous;
-  },
-  setResolveDiscordNativeInteractionRouteState(
-    next: typeof resolveDiscordNativeInteractionRouteState,
-  ): typeof resolveDiscordNativeInteractionRouteState {
-    const previous = resolveDiscordNativeInteractionRouteStateImpl;
-    resolveDiscordNativeInteractionRouteStateImpl = next;
-    return previous;
-  },
-};
+export { __testing } from "./native-command.runtime.js";
 
 function shouldBypassConfiguredAcpEnsure(commandName: string): boolean {
   const normalized = normalizeLowercaseStringOrEmpty(commandName);
@@ -156,7 +115,7 @@ export function createDiscordNativeCommand(params: {
   } = params;
   const fallbackCommandDefinition = createNativeCommandDefinition(command);
   const commandDefinition =
-    matchPluginCommandImpl(`/${command.name}`) !== null
+    nativeCommandRuntime.matchPluginCommand(`/${command.name}`) !== null
       ? fallbackCommandDefinition
       : (findCommandByNativeName(command.name, "discord", {
           includeBundledChannelFallback: false,
@@ -312,8 +271,13 @@ async function dispatchDiscordCommandInteraction(params: {
     ? interaction.rawData.member.roles.map((roleId: string) => roleId)
     : [];
   const allowNameMatching = isDangerousNameMatchingEnabled(discordConfig);
+  const configuredDmAllowFrom =
+    resolveDiscordAccountAllowFrom({
+      cfg,
+      accountId,
+    }) ?? [];
   const { ownerAllowList, ownerAllowed: ownerOk } = resolveDiscordOwnerAccess({
-    allowFrom: discordConfig?.allowFrom ?? discordConfig?.dm?.allowFrom ?? [],
+    allowFrom: configuredDmAllowFrom,
     sender: {
       id: sender.id,
       name: sender.name,
@@ -357,10 +321,10 @@ async function dispatchDiscordCommandInteraction(params: {
       })
     : null;
   let nativeRouteStatePromise:
-    | ReturnType<typeof resolveDiscordNativeInteractionRouteStateImpl>
+    | ReturnType<typeof nativeCommandRuntime.resolveDiscordNativeInteractionRouteState>
     | undefined;
   const getNativeRouteState = () =>
-    (nativeRouteStatePromise ??= resolveDiscordNativeInteractionRouteStateImpl({
+    (nativeRouteStatePromise ??= nativeCommandRuntime.resolveDiscordNativeInteractionRouteState({
       cfg,
       accountId,
       guildId: interaction.guild?.id ?? undefined,
@@ -414,7 +378,7 @@ async function dispatchDiscordCommandInteraction(params: {
     }
   }
   const dmEnabled = discordConfig?.dm?.enabled ?? true;
-  const dmPolicy = discordConfig?.dmPolicy ?? discordConfig?.dm?.policy ?? "pairing";
+  const dmPolicy = resolveDiscordAccountDmPolicy({ cfg, accountId }) ?? "pairing";
   let commandAuthorized = true;
   if (isDirectMessage) {
     if (!dmEnabled || dmPolicy === "disabled") {
@@ -424,7 +388,7 @@ async function dispatchDiscordCommandInteraction(params: {
     const dmAccess = await resolveDiscordDmCommandAccess({
       accountId,
       dmPolicy,
-      configuredAllowFrom: discordConfig?.allowFrom ?? discordConfig?.dm?.allowFrom ?? [],
+      configuredAllowFrom: configuredDmAllowFrom,
       sender: {
         id: sender.id,
         name: sender.name,
@@ -551,7 +515,7 @@ async function dispatchDiscordCommandInteraction(params: {
     return { accepted: true };
   }
 
-  const pluginMatch = matchPluginCommandImpl(prompt);
+  const pluginMatch = nativeCommandRuntime.matchPluginCommand(prompt);
   if (pluginMatch && commandName !== "status") {
     if (suppressReplies) {
       return { accepted: true };
@@ -560,7 +524,7 @@ async function dispatchDiscordCommandInteraction(params: {
     const messageThreadId = !isDirectMessage && isThreadChannel ? channelId : undefined;
     const pluginThreadParentId = !isDirectMessage && isThreadChannel ? threadParentId : undefined;
     const { effectiveRoute } = await getNativeRouteState();
-    const pluginReply = await executePluginCommandImpl({
+    const pluginReply = await nativeCommandRuntime.executePluginCommand({
       command: pluginMatch.command,
       args: pluginMatch.args,
       senderId: sender.id,
@@ -643,7 +607,7 @@ async function dispatchDiscordCommandInteraction(params: {
   const directStatusResult = await maybeDeliverDiscordDirectStatus({
     commandName,
     suppressReplies,
-    resolveDirectStatusReplyForSession: resolveDirectStatusReplyForSessionImpl,
+    resolveDirectStatusReplyForSession: nativeCommandRuntime.resolveDirectStatusReplyForSession,
     cfg,
     discordConfig,
     accountId,
@@ -704,7 +668,7 @@ async function dispatchDiscordCommandInteraction(params: {
   const blockStreamingEnabled = resolveChannelStreamingBlockEnabled(discordConfig);
 
   let didReply = false;
-  const dispatchResult = await dispatchReplyWithDispatcherImpl({
+  const dispatchResult = await nativeCommandRuntime.dispatchReplyWithDispatcher({
     ctx: ctxPayload,
     cfg,
     dispatcherOptions: {
