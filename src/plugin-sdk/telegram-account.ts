@@ -1,10 +1,32 @@
 import type { OpenClawConfig } from "./config-types.js";
 import { loadBundledPluginPublicSurfaceModuleSync } from "./facade-loader.js";
 
-export type { ResolvedTelegramAccount } from "../../extensions/telegram/api.js";
+/**
+ * @deprecated Compatibility type for the `openclaw/plugin-sdk/telegram-account` facade.
+ * New channel plugins should prefer injected runtime helpers and generic SDK subpaths.
+ */
+export type TelegramAccountConfig = NonNullable<
+  NonNullable<OpenClawConfig["channels"]>["telegram"]
+>;
+
+/**
+ * @deprecated Compatibility type for the `openclaw/plugin-sdk/telegram-account` facade.
+ * New channel plugins should prefer injected runtime helpers and generic SDK subpaths.
+ */
+export type ResolvedTelegramAccount = {
+  accountId: string;
+  enabled: boolean;
+  name?: string;
+  token: string;
+  tokenSource: "env" | "tokenFile" | "config" | "none";
+  config: TelegramAccountConfig;
+};
 
 type TelegramAccountFacadeModule = {
-  resolveTelegramAccount: typeof import("../../extensions/telegram/api.js").resolveTelegramAccount;
+  resolveTelegramAccount: (params: {
+    cfg: OpenClawConfig;
+    accountId?: string | null;
+  }) => ResolvedTelegramAccount;
 };
 
 function loadTelegramAccountFacadeModule(): TelegramAccountFacadeModule {
@@ -21,6 +43,6 @@ function loadTelegramAccountFacadeModule(): TelegramAccountFacadeModule {
 export function resolveTelegramAccount(params: {
   cfg: OpenClawConfig;
   accountId?: string | null;
-}): ReturnType<TelegramAccountFacadeModule["resolveTelegramAccount"]> {
+}): ResolvedTelegramAccount {
   return loadTelegramAccountFacadeModule().resolveTelegramAccount(params);
 }
