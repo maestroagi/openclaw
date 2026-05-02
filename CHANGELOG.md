@@ -13,6 +13,10 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Gateway/responses: emit every client tool call from `/v1/responses` JSON and SSE responses when the agent invokes multiple client tools in a single turn, so multi-tool plans, graph orchestration calls, and similar batched flows no longer drop every call but the last. Fixes #52288. Thanks @CharZhou and @bonelli.
+- Control UI/Gateway: avoid full session-list reloads for locally applied message-phase session updates, carry known session keys through transcript-file update events, and defer media provider listing when explicit generation model config is present. Refs #76236, #76203, #76188, #76107, and #76166. Thanks @BunsDev.
+- Install/update: prune the obsolete `plugin-runtime-deps` state directory during packaged postinstall so upgrades from pre-2026.5.2 releases reclaim old bundled-plugin dependency caches without touching external plugin installs.
+- Auto-reply/queue: treat reset-triggered `/new` and `/reset` turns as interrupt runs across active-run queue handling, so steer/followup modes cannot delay a fresh session behind existing work. Fixes #74093. (#74144) Thanks @ruji9527 and @yelog.
 - Gateway: keep directly requested plugin tools invokable under restrictive tool profiles while preserving explicit deny lists and the HTTP safety deny list, preventing catalog/invoke mismatches that surface as "Tool not available". Thanks @BunsDev.
 - Gateway/update: allow beta binaries to refresh gateway services when the config was last written by the matching stable release version, avoiding false newer-config downgrade blocks during beta channel updates.
 - Channels: keep Matrix and Mattermost bundled in the core package instead of advertising external npm installs before those channels are cut over. Thanks @vincentkoc.
@@ -22,6 +26,8 @@ Docs: https://docs.openclaw.ai
 - Doctor/plugins: update configured plugin installs whose stale manifests still declare channels without `channelConfigs`, so beta upgrades repair old Discord-style package payloads during `doctor --fix`.
 - Active Memory: keep non-empty `memory_search` results from being fast-failed as empty when debug telemetry reports zero hits.
 - Plugins/externalization: repair missing configured plugin installs from npm by default, reserve ClawHub downloads for explicit `clawhubSpec` metadata, and cover agent-runtime/env-selected plugin repair. Thanks @vincentkoc.
+- Plugins/install: allow official catalog-matched npm channel plugins such as Feishu to pass the trusted install scanner path while keeping spoofed package names blocked. Thanks @vincentkoc.
+- Feishu: keep timeout env parsing separate from the HTTP client wrapper so package security scans no longer report a false env-harvesting hit during install. Thanks @vincentkoc.
 - Upgrade/config: validate configured web-search providers and statically suppressed model/provider pairs against the active plugin set at config load, so stale plugin state fails loud before runtime fallback.
 - Status/update: resolve beta update-channel checks from the installed version when config still says `stable`, and let `status --deep` reuse live gateway channel credential state instead of warning on command-path-only token misses.
 - Doctor/plugins: preserve unmanaged third-party plugin `node_modules` during `doctor --fix`, while still pruning OpenClaw-managed runtime dependency caches.
@@ -44,6 +50,7 @@ Docs: https://docs.openclaw.ai
 - Agents/sessions: preserve terminal lifecycle state when final run metadata persists from a stale in-memory snapshot, preventing `main` sessions from staying stuck as running after completed or timed-out turns.
 - Gateway/CLI: make `openclaw gateway start` repair stale managed service definitions that point at old OpenClaw versions, missing binaries, or temporary installer paths before starting.
 - Heartbeat/scheduler: make heartbeat phase scheduling active-hours-aware so the scheduler seeks forward to the first in-window phase slot instead of arming timers for quiet-hours slots and relying solely on the runtime guard. Non-UTC `activeHours.timezone` values (e.g. `Asia/Shanghai`) now correctly influence when the next heartbeat timer fires, avoiding wasted quiet-hours ticks and long dormant gaps after gateway restarts. Fixes #75487. Thanks @amknight.
+- Providers/Arcee AI: mark Trinity Large Thinking as tool-incompatible so main-session runs use the same text-only request shape that made subagent runs recover, avoiding the remaining main-session response-shape mismatch after the #62848 transport failover fix. Fixes #62851 and #62847; carries forward #62848. Thanks @Adam-Researchh.
 - Status: show the `openai-codex` OAuth profile for `openai/gpt-*` sessions running through the native Codex runtime instead of reporting auth as unknown. (#76197) Thanks @mbelinky.
 - Gateway: avoid repeated plugin tool descriptor config hashing so large runtime configs do not block reply startup and trigger reconnect/timeouts. (#75944) Thanks @joshavant.
 - Plugins/externalization: keep diagnostics ClawHub packages and persisted bundled-plugin relocation on npm-first install metadata for launch, and omit Discord from the core package now that its external package is published. Thanks @vincentkoc.
@@ -145,6 +152,7 @@ Docs: https://docs.openclaw.ai
 - Anthropic-compatible streams: recover text deltas that arrive before their matching content block, so Kimi Code and similar providers do not finish as empty `incomplete_result` replies. Fixes #76007. Thanks @vliuyt.
 - fix(infra): block workspace state-directory env override [AI]. (#75940) Thanks @pgondhi987.
 - MCP/OpenAI: normalize parameter-free tool schemas whose top-level object `properties` is missing, null, or invalid before sending tools to OpenAI, so MCP tools without params stay usable. Fixes #75362. Thanks @tolkonepiu and @SymbolStar.
+- Control UI/WebChat: add server-side chat-draft microphone dictation via the existing audio transcription pipeline, avoiding browser Web Speech while keeping provider credentials on the Gateway. Fixes #47311. Thanks @jmomford.
 - TTS: honor explicit short `[[tts:text]]...[[/tts:text]]` blocks while keeping untagged short auto-TTS suppressed, so tagged voice replies are synthesized instead of being dropped as empty voice-only payloads. Fixes #73758. Thanks @yfge.
 - Hooks/doctor: warn when `hooks.transformsDir` points outside the canonical hooks transform directory, so invalid workspace skill paths get a direct recovery hint before the Gateway crash-loops. Fixes #75853. Thanks @midobk.
 - Proxy/audio: convert standard `FormData` bodies before proxy-backed undici fetches, so audio transcription and multipart uploads no longer send `[object FormData]` when `HTTP_PROXY` or `HTTPS_PROXY` is configured. Fixes #48554. Thanks @dco5.
@@ -352,6 +360,10 @@ Docs: https://docs.openclaw.ai
 
 ## 2026.4.30
 
+### Highlights
+
+- Plugins/file-transfer: add bundled file-transfer plugin with `file_fetch`, `dir_list`, `dir_fetch`, and `file_write` agent tools for binary file ops on paired nodes; default-deny per-node path policy under `plugins.entries.file-transfer.config.nodes` with operator approval, symlink traversal refused by default (opt-in `followSymlinks`), and a 16 MB byte ceiling per round-trip. (#74742) Thanks @omarshahine.
+
 ### Changes
 
 - Dependencies: refresh bundled runtime and plugin dependency pins, including Pi 0.71.1, OpenAI 6.35.0, Codex 0.128.0, Zod 4.4.1, and Matrix 41.4.0. Thanks @mariozechner.
@@ -470,6 +482,7 @@ Docs: https://docs.openclaw.ai
 - Telegram/agents: keep typing indicators and optional generation tools off the reply critical path, so fresh Telegram replies no longer stall while provider catalogs and media models load. (#75360) Thanks @obviyus.
 - Agents/commitments: run hidden follow-up extraction on the configured agent/default model instead of falling back to direct OpenAI, so OpenAI Codex OAuth-only gateways no longer spam background API-key failures. Fixes #75334. Thanks @sene1337.
 - Agents/media: keep async music generation completions on the requester-session wake path even when direct-send completion is enabled, so finished audio stays agent-mediated while video can still opt into direct channel delivery. (#75335) Thanks @vincentkoc.
+- Agents/media: keep image and video provider inventory internal when tool output is hidden, so shared chat surfaces no longer expose provider/model/auth-hint details from list results. Fixes #75166. Thanks @MkDev11.
 - Security/config-audit: redact CLI argv and execArgv secrets before persisting config audit records, covering write, observe, and recovery paths. Fixes #60826. Thanks @koshaji.
 - Gateway/models: keep default and configured model-list views responsive when provider catalog discovery stalls, without hiding real catalog load failures, while `--all` still waits for the exact full catalog. Fixes #75297; refs #74404. Thanks @lisandromachado and @najef1979-code.
 - Plugins/runtime-deps: accept already materialized package-level runtime-deps supersets as converged, so later lazy plugin activation no longer prunes and relaunches `pnpm install` after gateway startup pre-staging, reducing event-loop pressure from repeated runtime-deps repair on packaged installs. Fixes #75283; refs #75297 and #72338. Thanks @brokemac79, @lisandromachado, and @midhunmonachan.
