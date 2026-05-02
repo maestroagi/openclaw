@@ -6,6 +6,7 @@ Docs: https://docs.openclaw.ai
 
 ### Changes
 
+- Agents/runtime: reuse the startup-loaded plugin registry for request-time providers, tools, channel actions, web/capability/memory/migration helpers, and memoized provider extra-params so stable embedded-run inputs no longer repeat plugin registry resolution while model-specific transport hook patches stay isolated. Thanks @DmitryPogodaev.
 - Agents/runtime: memoize transcript replay-policy resolution for stable config and process-env runs while preserving custom-env provider hook behavior. Thanks @DmitryPogodaev.
 - Infra/path-guards: add a fast path for canonical absolute POSIX containment checks, avoiding repeated `path.resolve` and `path.relative` work in hot filesystem walkers. Refs #75895, #75575, and #68782. Thanks @Enderfga.
 - Tools: add a platform-level tool descriptor planner for descriptor-first visibility, generic availability checks, and executor references. Thanks @shakkernerd.
@@ -32,10 +33,19 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Control UI: contain the standalone iOS PWA viewport with safe-area-aware document locking, so Add-to-Home-Screen launches cannot scroll past the device bounds. Refs #76072. Thanks @kvncrw.
+- Agents/restart recovery: match cleaned transcript locks by exact transcript lock paths plus the canonical session fallback, so interrupted main sessions using topic-suffixed transcripts resume after gateway restart. Refs #76052. Thanks @anyech.
+- Agents/runtime: cache the stable system-prompt prefix and reuse prompt-report tool schema stats during dispatch prep, reducing repeated CPU work before streaming starts. Fixes #75999; supersedes #76061. Thanks @zackchiutw and @STLI69.
+- Control UI/WebChat: use high-contrast text selection colors so highlighted chat text stays visible across themes. Fixes #60850; supersedes #60854. Thanks @Badschaff and @efe-arv.
+- Telegram/native commands: pass persisted session files into plugin commands for topic-bound sessions, so `/codex bind` works from Telegram forum topics. Refs #75845 and #76049. Thanks @MatthewSchleder.
+- Security audit/plugins: ignore plugin install backup, disabled, and dependency debris directories when enumerating installed plugin roots, avoiding false-positive findings for `.openclaw-install-backups` after plugin updates. Fixes #75456.
 - Telegram: honor runtime conversation bindings for native slash commands in bound top-level groups, so commands like `/status@bot` route to the active non-`main` session instead of falling back to the default route. Fixes #75405; supersedes #75558. Thanks @ziptbm and @yfge.
+- Gateway/tasks: make task registry maintenance use pass-local backing-session lookups and fresh active child-session indexes, avoiding repeated full task snapshots and session-store clones on large stale registries. Fixes #73517 and #75708; supersedes #74406 and #75709. Thanks @Lightningxxl, @glfruit, and @jared-rebel.
+- Auth/sessions: JSON-clone auth-profile cache/runtime snapshots and remaining session cleanup previews instead of using `structuredClone`, preserving mutation isolation while avoiding native-memory growth on large stores. Fixes #45438. Thanks @markus-lassfolk.
 - Models CLI: restore `openclaw models list --provider <id>` catalog and registry fallback rows for unconfigured providers, so provider-specific verification commands no longer report "No models found." Fixes #75517; supersedes #75615. Thanks @lotsoftick and @koshaji.
 - Gateway/macOS: write LaunchAgent services with a canonical system PATH and stop preserving old plist PATH entries, so Volta, asdf, fnm, and pnpm shell paths no longer affect gateway child-process Node resolution. Fixes #75233; supersedes #75246. Thanks @nphyde2.
 - Slack/hooks: preserve bot alert attachment text in message-received hook content when command text is blank. Fixes #76035; refs #76036. Thanks @amsminn.
+- Sessions/agents: route Gateway session-store writes, CLI cleanup maintenance, and agent-delete session purges through a dedicated in-process writer and borrow the validated mutable cache during the writer slot, avoiding runtime file locks plus repeated `sessions.json` rereads and JSON clones on hot metadata updates. Refs #68554. Thanks @henkterharmsel.
 - Control UI/chat: show inline feedback when local slash-command dispatch is unavailable or fails unexpectedly instead of clearing the composer silently. Fixes #52105. Thanks @MooreQiao.
 - Memory/markdown: replace CRLF managed blocks in place and collapse duplicate marker blocks without rewriting unmanaged markdown, so Dreaming and Memory Wiki files self-heal from repeated generated sections. Fixes #75491; supersedes #75495, #75810, and #76008. Thanks @asaenokkostya-coder, @ottodeng, @everettjf, and @lrg913427-dot.
 - Agents/tools: return critical tool-loop circuit-breaker stops as blocked tool results instead of thrown tool failures, so models see the guardrail and stop retrying the same call. Thanks @rayraiser.
@@ -59,6 +69,7 @@ Docs: https://docs.openclaw.ai
 - Proxy/audio: convert standard `FormData` bodies before proxy-backed undici fetches, so audio transcription and multipart uploads no longer send `[object FormData]` when `HTTP_PROXY` or `HTTPS_PROXY` is configured. Fixes #48554. Thanks @dco5.
 - Discord: allow explicitly configured ack reactions in tool-only guild channels while keeping automatic lifecycle/status reactions suppressed. Fixes #74922. Thanks @samvilian and @BlueBirdBack.
 - Discord: enable session-backed A2A announce target lookup so `sessions_send` uses the target session's `deliveryContext.accountId` or `lastAccountId` instead of falling back to the default bot in multi-account setups. Fixes #42652; refs #51626 and #44773; supersedes #73975. Thanks @irchelper, @dpalfox, and @Lanfei.
+- Discord/setup: write resolved guild/channel allowlist selections to the selected guild and channel instead of falling back to the wildcard guild during setup. Supersedes #47788. Thanks @Eldersonar.
 - Discord: treat abort-time Carbon reconnect-exhausted events as expected shutdown during stale-socket restarts, so health-monitor restarts no longer reject the monitor lifecycle. Carries forward #58216; supersedes #73949. Thanks @Perttulands.
 - Discord/native commands: return an explicit warning when slash command dispatch or direct plugin execution produces no visible reply instead of a success-style completion ack. Fixes #58986; supersedes #62057. Thanks @jb510.
 - Discord: keep typing indicators alive during long tool runs and auto-compaction while keepalive ticks continue, so active sessions do not appear stalled before the final reply. Thanks @Squirbie.
@@ -164,6 +175,7 @@ Docs: https://docs.openclaw.ai
 - Telegram: split long default markdown sends and media follow-up text into safe HTML chunks, so outbound messages over Telegram's limit no longer fail as one oversized Bot API request. Fixes #75868. Thanks @zhengsx.
 - Gateway/chat history: merge Claude CLI transcript imports for Anthropic-routed sessions that still have a Claude CLI binding, so local chat history does not hide CLI JSONL turns. Fixes #75850. Thanks @alfredjbclaw.
 - Media: trim serialized JSON suffixes after local `MEDIA:` directive file extensions, so generated-image metadata cannot pollute the parsed media path and cause false `ENOENT` delivery failures. Fixes #75182. Thanks @TnzGit and @hclsys.
+- Plugins/runtime: hot-reload Gateway plugin runtime surfaces after plugin enable/disable changes while keeping source-changing plugin install, update, and uninstall operations restart-backed so loaded module code is not reused. Fixes #72097.
 - Cron: make scheduler reload schedule comparison tolerate malformed persisted jobs, so one bad cron entry no longer aborts the whole tick. Fixes #75886. Thanks @samfox-ai.
 - Doctor/channels: warn after migrations when default Telegram or Discord accounts have no configured token and their env fallback (`TELEGRAM_BOT_TOKEN` or `DISCORD_BOT_TOKEN`) is unavailable, with secret-safe migration docs for checking state-dir `.env`. Fixes #74298. Thanks @lolaopenclaw.
 - Gateway/diagnostics: keep idle liveness samples in telemetry instead of visible warning logs unless diagnostic work is active, waiting, or queued. Thanks @vincentkoc.
