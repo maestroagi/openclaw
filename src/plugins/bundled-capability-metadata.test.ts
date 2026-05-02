@@ -10,7 +10,7 @@ import {
   hasBundledPluginContractSnapshotCapabilities,
 } from "./contracts/inventory/bundled-capability-metadata.js";
 import { pluginTestRepoRoot as repoRoot } from "./generated-plugin-test-helpers.js";
-import { isPackageIncludedInCoreBundle, type OpenClawPackageManifest } from "./manifest.js";
+import type { OpenClawPackageManifest } from "./manifest.js";
 import type { PluginManifest } from "./manifest.js";
 
 function readManifestRecords(): PluginManifest[] {
@@ -27,9 +27,6 @@ function readManifestRecords(): PluginManifest[] {
       const packageJson = JSON.parse(fs.readFileSync(packagePath, "utf-8")) as {
         openclaw?: OpenClawPackageManifest;
       };
-      if (!isPackageIncludedInCoreBundle(packageJson.openclaw)) {
-        return false;
-      }
       return normalizeBundledPluginStringList(packageJson.openclaw?.extensions).length > 0;
     })
     .map(
