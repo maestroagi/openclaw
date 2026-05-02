@@ -19,7 +19,15 @@ import {
   resolvePluginRuntimeLoadContext,
 } from "./runtime/load-context.js";
 import { findUndeclaredPluginToolNames } from "./tool-contracts.js";
+import {
+  buildPluginToolFactoryCacheKey,
+  readCachedPluginToolFactoryResult,
+  type PluginToolFactoryResult,
+  writeCachedPluginToolFactoryResult,
+} from "./tool-factory-cache.js";
 import type { OpenClawPluginToolContext } from "./types.js";
+
+export { resetPluginToolFactoryCache } from "./tool-factory-cache.js";
 
 export type PluginToolMeta = {
   pluginId: string;
@@ -394,6 +402,15 @@ export function resolvePluginTools(params: {
   const blockedPlugins = new Set<string>();
   const factoryTimingStartedAt = Date.now();
   const factoryTimings: PluginToolFactoryTiming[] = [];
+  let currentRuntimeConfigForFactoryCache: PluginLoadOptions["config"] | null | undefined =
+    params.context.runtimeConfig;
+  if (currentRuntimeConfigForFactoryCache === undefined && params.context.getRuntimeConfig) {
+    try {
+      currentRuntimeConfigForFactoryCache = params.context.getRuntimeConfig();
+    } catch {
+      currentRuntimeConfigForFactoryCache = null;
+    }
+  }
 
   for (const entry of registry.tools) {
     if (!scopedPluginIds.has(entry.pluginId)) {
@@ -428,26 +445,55 @@ export function resolvePluginTools(params: {
     ) {
       continue;
     }
-    let resolved: AnyAgentTool | AnyAgentTool[] | null | undefined = null;
+    let resolved: PluginToolFactoryResult = null;
     let factoryFailed = false;
     const factoryStartedAt = Date.now();
-    try {
-      resolved = entry.factory(params.context);
-    } catch (err) {
-      factoryFailed = true;
-      context.logger.error(`plugin tool failed (${entry.pluginId}): ${String(err)}`);
-    } finally {
-      const factoryEndedAt = Date.now();
-      const result = describePluginToolFactoryResult(resolved, factoryFailed);
+    const factoryCacheKey = buildPluginToolFactoryCacheKey({
+      ctx: params.context,
+      currentRuntimeConfig: currentRuntimeConfigForFactoryCache,
+    });
+    const cached = readCachedPluginToolFactoryResult({
+      factory: entry.factory,
+      cacheKey: factoryCacheKey,
+    });
+    if (cached.hit) {
+      resolved = cached.result;
+      const result = describePluginToolFactoryResult(resolved, false);
       factoryTimings.push({
         pluginId: entry.pluginId,
         names: declaredNames,
-        durationMs: toElapsedMs(factoryEndedAt - factoryStartedAt),
-        elapsedMs: toElapsedMs(factoryEndedAt - factoryTimingStartedAt),
+        durationMs: 0,
+        elapsedMs: toElapsedMs(Date.now() - factoryTimingStartedAt),
         result: result.result,
         resultCount: result.resultCount,
         optional: entry.optional,
       });
+    } else {
+      try {
+        resolved = entry.factory(params.context);
+      } catch (err) {
+        factoryFailed = true;
+        context.logger.error(`plugin tool failed (${entry.pluginId}): ${String(err)}`);
+      } finally {
+        const factoryEndedAt = Date.now();
+        const result = describePluginToolFactoryResult(resolved, factoryFailed);
+        factoryTimings.push({
+          pluginId: entry.pluginId,
+          names: declaredNames,
+          durationMs: toElapsedMs(factoryEndedAt - factoryStartedAt),
+          elapsedMs: toElapsedMs(factoryEndedAt - factoryTimingStartedAt),
+          result: result.result,
+          resultCount: result.resultCount,
+          optional: entry.optional,
+        });
+        if (!factoryFailed) {
+          writeCachedPluginToolFactoryResult({
+            factory: entry.factory,
+            cacheKey: factoryCacheKey,
+            result: resolved,
+          });
+        }
+      }
     }
     if (factoryFailed) {
       continue;
