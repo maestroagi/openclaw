@@ -40,6 +40,8 @@ const providerConfig = {
     secretEnv: "OPENAI_API_KEY",
     authChoice: "openai-api-key",
     model: "openai/gpt-5.5",
+    baseUrl: "https://api.openai.com/v1",
+    timeoutSeconds: 600,
   },
   anthropic: {
     extensionId: "anthropic",
@@ -91,7 +93,7 @@ export const CROSS_OS_GATEWAY_STATUS_COMMAND_TIMEOUT_MS =
   CROSS_OS_GATEWAY_STATUS_RPC_TIMEOUT_MS + 45_000;
 export const CROSS_OS_GATEWAY_READY_TIMEOUT_MS = 3 * 60_000;
 export const CROSS_OS_WINDOWS_GATEWAY_READY_TIMEOUT_MS = 5 * 60_000;
-export const CROSS_OS_AGENT_TURN_TIMEOUT_SECONDS = 360;
+export const CROSS_OS_AGENT_TURN_TIMEOUT_SECONDS = 600;
 
 if (isMainModule()) {
   try {
@@ -1840,6 +1842,38 @@ async function runInstalledModelsSet(params) {
     logPath: params.logPath,
     timeoutMs: 2 * 60 * 1000,
   });
+  if (typeof params.providerConfig.timeoutSeconds === "number") {
+    if (typeof params.providerConfig.baseUrl === "string") {
+      await runInstalledCli({
+        cliPath: params.cliPath,
+        args: [
+          "config",
+          "set",
+          `models.providers.${params.providerConfig.extensionId}.baseUrl`,
+          JSON.stringify(params.providerConfig.baseUrl),
+          "--strict-json",
+        ],
+        cwd: params.cwd,
+        env: params.env,
+        logPath: params.logPath,
+        timeoutMs: 2 * 60 * 1000,
+      });
+    }
+    await runInstalledCli({
+      cliPath: params.cliPath,
+      args: [
+        "config",
+        "set",
+        `models.providers.${params.providerConfig.extensionId}.timeoutSeconds`,
+        String(params.providerConfig.timeoutSeconds),
+        "--strict-json",
+      ],
+      cwd: params.cwd,
+      env: params.env,
+      logPath: params.logPath,
+      timeoutMs: 2 * 60 * 1000,
+    });
+  }
   await runInstalledCli({
     cliPath: params.cliPath,
     args: [
@@ -1875,7 +1909,7 @@ async function runInstalledAgentTurn(params) {
         cwd: params.cwd,
         env: params.env,
         logPath: params.logPath,
-        timeoutMs: 10 * 60 * 1000,
+        timeoutMs: (CROSS_OS_AGENT_TURN_TIMEOUT_SECONDS + 60) * 1000,
       });
       if (!agentOutputHasExpectedOkMarker(result.stdout, { logPath: params.logPath })) {
         throw new Error("Agent output did not contain the expected OK marker.");
@@ -2616,6 +2650,36 @@ async function runModelsSet(params) {
     logPath: params.logPath,
     timeoutMs: 2 * 60 * 1000,
   });
+  if (typeof params.providerConfig.timeoutSeconds === "number") {
+    if (typeof params.providerConfig.baseUrl === "string") {
+      await runOpenClaw({
+        lane: params.lane,
+        env: params.env,
+        args: [
+          "config",
+          "set",
+          `models.providers.${params.providerConfig.extensionId}.baseUrl`,
+          JSON.stringify(params.providerConfig.baseUrl),
+          "--strict-json",
+        ],
+        logPath: params.logPath,
+        timeoutMs: 2 * 60 * 1000,
+      });
+    }
+    await runOpenClaw({
+      lane: params.lane,
+      env: params.env,
+      args: [
+        "config",
+        "set",
+        `models.providers.${params.providerConfig.extensionId}.timeoutSeconds`,
+        String(params.providerConfig.timeoutSeconds),
+        "--strict-json",
+      ],
+      logPath: params.logPath,
+      timeoutMs: 2 * 60 * 1000,
+    });
+  }
   await runOpenClaw({
     lane: params.lane,
     env: params.env,
@@ -2648,7 +2712,7 @@ async function runAgentTurn(params) {
         env: params.env,
         args: buildReleaseAgentTurnArgs(sessionId),
         logPath: params.logPath,
-        timeoutMs: 10 * 60 * 1000,
+        timeoutMs: (CROSS_OS_AGENT_TURN_TIMEOUT_SECONDS + 60) * 1000,
       });
       if (!agentOutputHasExpectedOkMarker(result.stdout, { logPath: params.logPath })) {
         throw new Error("Agent output did not contain the expected OK marker.");
