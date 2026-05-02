@@ -7,11 +7,16 @@ Docs: https://docs.openclaw.ai
 ### Changes
 
 - Plugins/CLI: include package dependency install state in `openclaw plugins list --json` so scripts can spot missing plugin dependencies without runtime-loading plugins.
+- Plugins/update: on the beta OpenClaw update channel, default-line npm and ClawHub plugin updates try `@beta` first and fall back to default/latest when no plugin beta release exists.
 
 ### Fixes
 
+- Agents/sessions: preserve terminal lifecycle state when final run metadata persists from a stale in-memory snapshot, preventing `main` sessions from staying stuck as running after completed or timed-out turns.
+- Gateway/CLI: make `openclaw gateway start` repair stale managed service definitions that point at old OpenClaw versions, missing binaries, or temporary installer paths before starting.
 - Status: show the `openai-codex` OAuth profile for `openai/gpt-*` sessions running through the native Codex runtime instead of reporting auth as unknown. (#76197) Thanks @mbelinky.
+- Plugins/externalization: keep diagnostics ClawHub packages and persisted bundled-plugin relocation on npm-first install metadata for launch, and omit Discord from the core package now that its external package is published. Thanks @vincentkoc.
 - Plugins/Codex: allow the official npm Codex plugin to install without the unsafe-install override, keep `/codex` command ownership, and cover the real npm Docker live path through managed `.openclaw/npm` dependencies plus uninstall failure proof.
+- Gateway/status: add concrete service, config, listener-owner, and log collection next steps when gateway probes fail and Bonjour finds no local gateway, so frozen or port-conflict reports include the data needed for root-cause triage. Refs #49012. Thanks @vincentkoc.
 
 ## 2026.5.2
 
