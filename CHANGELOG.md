@@ -2,6 +2,19 @@
 
 Docs: https://docs.openclaw.ai
 
+## Unreleased
+
+### Changes
+
+- Gateway/startup: skip plugin-backed auth-profile overlays during startup secrets preflight, reducing gateway readiness latency while keeping reload and OAuth recovery paths overlay-capable. (#68327) Thanks @JIRBOY.
+
+### Fixes
+
+- Control UI/sessions: bound the default Sessions tab query to recent activity and fewer rows, avoiding expensive full-history loads while keeping filters editable. Fixes #76050. (#76051) Thanks @Neomail2.
+- Gateway/channels: cap startup fanout at four channel/account handoffs and recover from Bonjour ciao self-probe races, reducing Windows startup stalls with many Telegram accounts. Fixes #75687.
+- CLI/update: treat inherited Gateway service markers as origin hints and only block package replacement when the managed Gateway is still live, so self-updates can stop the service and continue safely. (#75729) Thanks @hxy91819.
+- Agents/failover: exempt run-level timeouts that fire during tool execution from model fallback, timeout-triggered compaction, and generic timeout payload synthesis. Long `process(poll)`, browser, or `exec` tool calls that exceed `agents.defaults.timeoutSeconds` previously rotated auth profiles, switched to a fallback model, and surfaced a misleading "LLM request timed out" error even though the primary model had already responded. Mirrors the existing `timedOutDuringCompaction` precedent (#46889). Fixes #52147. (#75873) Thanks @simonusa.
+
 ## 2026.5.2
 
 ### Changes
@@ -10,6 +23,7 @@ Docs: https://docs.openclaw.ai
 - Agents/runtime: memoize transcript replay-policy resolution for stable config and process-env runs while preserving custom-env provider hook behavior. Thanks @DmitryPogodaev.
 - Infra/path-guards: add a fast path for canonical absolute POSIX containment checks, avoiding repeated `path.resolve` and `path.relative` work in hot filesystem walkers. Refs #75895, #75575, and #68782. Thanks @Enderfga.
 - Tools: add a platform-level tool descriptor planner for descriptor-first visibility, generic availability checks, and executor references. Thanks @shakkernerd.
+- Plugins/tools: cache plugin tool descriptors captured from `api.registerTool(...)` so repeated prompt-time planning can skip plugin runtime loading while execution still loads the live plugin tool. (#76079) Thanks @shakkernerd.
 - Docs/Codex: clarify that ChatGPT/Codex subscription setups should use `openai/gpt-*` with `agentRuntime.id: "codex"` for native Codex runtime, while `openai-codex/*` remains the PI OAuth route. Thanks @pashpashpash.
 - Plugins/source checkout: load bundled plugins from the `extensions/*` pnpm workspace tree in source checkouts, so plugin-local dependencies and edits are used directly while packaged installs keep using the built runtime tree. Thanks @vincentkoc.
 - Plugins/beta: externalize ACPX behind the official `@openclaw/acpx` package so packaged installs keep ACP harness adapter binaries out of core until the ACP backend is installed. Thanks @vincentkoc.
@@ -24,6 +38,7 @@ Docs: https://docs.openclaw.ai
 - Plugins/ClawHub: prefer versioned ClawPack artifacts when ClawHub publishes digest metadata, verifying the ClawPack response header and downloaded bytes before installing. Thanks @vincentkoc.
 - Plugins/ClawHub: persist ClawPack digest metadata on ClawHub plugin install and update records so registry refreshes and download verification can reuse stored artifact facts. Thanks @vincentkoc.
 - Plugins/ClawHub: allow official bundled-plugin cutovers to prefer ClawHub installs with npm fallback only when the ClawHub package or version is absent. Thanks @vincentkoc.
+- Plugins/onboarding: allow install-on-demand provider setup entries to prefer ClawHub packages before npm/local fallback and persist ClawHub artifact metadata after install. Thanks @vincentkoc.
 - Plugins/Crestodian: add ClawHub plugin search plus Crestodian plugin list/search/install/uninstall operations, with approval and audit coverage for install and uninstall.
 - Channels/thread bindings: replace split subagent/ACP thread-spawn toggles with `threadBindings.spawnSessions`, default thread-bound spawns on, and let `openclaw doctor --fix` migrate the legacy keys. (#75943)
 - Providers/OpenAI: add `extraBody`/`extra_body` passthrough for OpenAI-compatible TTS endpoints, so custom speech servers can receive fields such as `lang` in `/audio/speech` requests. Fixes #39900. Thanks @R3NK0R.
@@ -33,6 +48,7 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Sessions/transcripts: use one `session.writeLock.acquireTimeoutMs` policy for session transcript lock acquisitions and raise the default wait to 60 seconds, avoiding user-visible lock timeouts during legitimate slow prep, cleanup, compaction, and mirror work. Fixes #75894. Thanks @shandutta.
 - Control UI: contain the standalone iOS PWA viewport with safe-area-aware document locking, so Add-to-Home-Screen launches cannot scroll past the device bounds. Refs #76072. Thanks @kvncrw.
 - Agents/restart recovery: match cleaned transcript locks by exact transcript lock paths plus the canonical session fallback, so interrupted main sessions using topic-suffixed transcripts resume after gateway restart. Refs #76052. Thanks @anyech.
 - Agents/runtime: cache the stable system-prompt prefix and reuse prompt-report tool schema stats during dispatch prep, reducing repeated CPU work before streaming starts. Fixes #75999; supersedes #76061. Thanks @zackchiutw and @STLI69.
@@ -265,6 +281,8 @@ Docs: https://docs.openclaw.ai
 - Gateway/startup: return the shared retryable startup-sidecars error for startup-gated control-plane RPCs such as sessions.create, sessions.send, sessions.abort, agent.wait, and tools.effective, so clients can retry early sidecar races. (#76012) Thanks @scoootscooob.
 - Providers/Google: fix Gemini 2.5 Flash-Lite `reasoning: "minimal"` rejections by raising its thinking-budget floor to 512 while preserving the existing Gemini 2.5 Pro and Flash minimal presets. (#70629) Thanks @ericberic.
 - Agents/status: resolve `session_status(sessionKey="current")` for sparse channel-plugin sessions after literal current lookups miss, so Scope, Slack, Discord, and other plugin-driven agents avoid retrying through `Unknown sessionKey: current`. Fixes #74141. (#72306) Thanks @bittoby.
+- Cron: retry recurring wake-now main-session jobs through temporary heartbeat busy skips before recording success, so queued cron events no longer appear as ok ghost runs while the main lane is still busy. Fixes #75964. (#76083) Thanks @kshetrajna12 and @xuruiray.
+- Providers/Google: keep Gemini thinking-signature-only stream chunks active during reasoning, so Gemini 3.1 Pro Preview replies no longer hit idle timeouts before visible text. Fixes #76071. (#76080) Thanks @marcoschierhorn and @zhangguiping-xydt.
 
 ## 2026.4.30
 
@@ -304,6 +322,7 @@ Docs: https://docs.openclaw.ai
 - Agents/tools: reuse the auth profile store already loaded for the active run when deciding media and generation tool availability, avoiding repeated provider-auth runtime discovery during reply startup. Thanks @shakkernerd.
 - Agents/tools: keep image, video, and music generation tool registration on manifest/auth control-plane checks instead of loading runtime provider registries during reply startup, reducing live-path tool-prep blocking while leaving provider runtime resolution for execution and list actions. Thanks @shakkernerd.
 - Discord: document canonical mention formatting in agent prompt hints and channel docs so outbound replies use `<@USER_ID>`, `<#CHANNEL_ID>`, and `<@&ROLE_ID>` instead of legacy nickname mentions. (#75173)
+- Heartbeat scheduler: gate exec-event/notification/spawn/retry wakes through a centralized cooldown so backgrounded `process.start` exit notifications can no longer self-feed runaway heartbeat runs (configured `every: "30m"` was firing every ~10s in production, pegging the gateway event loop with `eventLoopDelayMaxMs >6s` spikes that stalled control-UI asset serving and TUI handshakes). Documented wake-now paths (`manual`, `wake`, task completion, blocked-task follow-up, `/hooks/wake mode=now`, and cron `--wake now`) remain immediate; retryable busy skips no longer poison the cooldown for the next retry; per-agent flood guard caps any unexpected feedback loop at 5 runs/60s. (#64016, refs #17797 and #75436) Thanks @hexsprite.
 - fix: block workspace CLOUDSDK_PYTHON override and always set trusted interpreter for gcloud. (#74492) Thanks @pgondhi987.
 - Providers/Z.AI: move the bundled GLM catalog and auth env metadata into the plugin manifest, so `models list --all --provider zai` shows the full known catalog without duplicated runtime seed data. Thanks @shakkernerd.
 - Providers/Qianfan and Providers/Stepfun: declare setup auth metadata (`api-key` method, `QIANFAN_API_KEY`, `STEPFUN_API_KEY`) in the plugin manifest so onboarding and `models setup` surface the expected env var without falling back to legacy `providerAuthEnvVars` runtime seed data. Thanks @shakkernerd.
