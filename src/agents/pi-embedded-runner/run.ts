@@ -1093,6 +1093,7 @@ export async function runEmbeddedPiAgent(
             skillsSnapshot: params.skillsSnapshot,
             prompt,
             transcriptPrompt: params.transcriptPrompt,
+            currentTurnContext: params.currentTurnContext,
             images: params.images,
             imageOrder: params.imageOrder,
             clientTools: params.clientTools,
@@ -1161,11 +1162,15 @@ export async function runEmbeddedPiAgent(
             ownerOnlyToolAllowlist: params.ownerOnlyToolAllowlist,
             disableMessageTool: params.disableMessageTool,
             forceMessageTool: params.forceMessageTool,
+            enableHeartbeatTool: params.enableHeartbeatTool,
+            forceHeartbeatTool: params.forceHeartbeatTool,
             requireExplicitMessageTarget: params.requireExplicitMessageTarget,
             internalEvents: params.internalEvents,
             bootstrapPromptWarningSignaturesSeen,
             bootstrapPromptWarningSignature:
               bootstrapPromptWarningSignaturesSeen[bootstrapPromptWarningSignaturesSeen.length - 1],
+            suppressNextUserMessagePersistence: params.suppressNextUserMessagePersistence,
+            onUserMessagePersisted: params.onUserMessagePersisted,
           });
           const attempt = normalizeEmbeddedRunAttemptResult(rawAttempt);
 
