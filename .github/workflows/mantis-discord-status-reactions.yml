@@ -14,7 +14,7 @@ on:
         default: main
         type: string
       pr_number:
-        description: Optional PR number to receive the QA evidence comment
+        description: Optional bug or fix PR number to receive the QA evidence comment
         required: false
         type: string
 
@@ -266,14 +266,28 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
+      - name: Create Mantis GitHub App token
+        id: mantis_app_token
+        if: ${{ always() && inputs.pr_number != '' }}
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.MANTIS_GITHUB_APP_ID }}
+          private-key: ${{ secrets.MANTIS_GITHUB_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-issues: write
+          permission-pull-requests: write
+
       - name: Comment PR with inline QA screenshots
         if: ${{ always() && inputs.pr_number != '' && steps.run_mantis.outputs.output_dir != '' }}
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.mantis_app_token.outputs.token }}
           TARGET_PR: ${{ inputs.pr_number }}
           ARTIFACT_URL: ${{ steps.upload_artifact.outputs.artifact-url }}
           BASELINE_SHA: ${{ needs.validate_refs.outputs.baseline_revision }}
           CANDIDATE_SHA: ${{ needs.validate_refs.outputs.candidate_revision }}
+          MANTIS_COMMENT_BOT_LOGIN: ${{ vars.MANTIS_GITHUB_APP_BOT_LOGIN || 'openclaw-mantis-qa[bot]' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -334,6 +348,8 @@ jobs:
           <!-- mantis-discord-status-reactions -->
           ## Mantis Discord Status Reactions QA
 
+          Summary: Mantis reran Discord status reactions against the known queued-only baseline and the candidate ref. The baseline reproduced the bug, while the candidate showed the expected queued -> thinking -> done reaction sequence.
+
           - Scenario: \`discord-status-reactions-tool-only\`
           - Run: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
           - Artifact: ${ARTIFACT_URL}
@@ -350,15 +366,20 @@ jobs:
 
           comment_id="$(
             gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${TARGET_PR}/comments" \
-              --jq '.[] | select(.body | contains("<!-- mantis-discord-status-reactions -->")) | .id' \
+              --jq ".[] | select(.body | contains(\"<!-- mantis-discord-status-reactions -->\")) | select(.user.login == \"${MANTIS_COMMENT_BOT_LOGIN}\") | .id" \
               | tail -n 1
           )"
 
           if [[ -n "$comment_id" ]]; then
             comment_payload="$(mktemp)"
             jq -n --rawfile body "$comment_file" '{ body: $body }' > "$comment_payload"
-            gh api --method PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${comment_id}" --input "$comment_payload" >/dev/null
-            echo "Updated Mantis QA screenshot comment on PR #${TARGET_PR}."
+            if gh api --method PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${comment_id}" --input "$comment_payload" >/dev/null; then
+              echo "Updated Mantis QA screenshot comment on PR #${TARGET_PR}."
+            else
+              echo "::warning::Could not update existing Mantis QA screenshot comment ${comment_id}; creating a new one."
+              gh pr comment "$TARGET_PR" --body-file "$comment_file"
+              echo "Created Mantis QA screenshot comment on PR #${TARGET_PR}."
+            fi
           else
             gh pr comment "$TARGET_PR" --body-file "$comment_file"
             echo "Created Mantis QA screenshot comment on PR #${TARGET_PR}."
