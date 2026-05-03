@@ -18,6 +18,7 @@ Docs: https://docs.openclaw.ai
 - Gateway/config: stop Gateway startup and hot reload from auto-restoring invalid config; invalid config now fails closed and `openclaw doctor --fix` owns last-known-good repair.
 - Gateway/performance: lazy-load early runtime discovery and shutdown-hook helpers, defer maintenance timers until after readiness, and trim duplicate plugin auto-enable work during Gateway startup.
 - QA/Mantis: add a `pnpm openclaw qa mantis discord-smoke` runner and manual GitHub workflow that verify the Mantis Discord bot can see the configured guild/channel, post a smoke message, add a reaction, and upload artifacts.
+- QA/Slack: add a Slack live transport QA runner with canary and mention-gating coverage for the private bot-to-bot harness. Thanks @vincentkoc.
 - Gateway/performance: lazy-load the heavy cron runtime after the rest of Gateway startup, defer restart-sentinel refresh after readiness, and let the Gateway startup benchmark write per-run V8 CPU profiles with `--cpu-prof-dir`.
 - Gateway/performance: keep raw channel-config schema parsing from discovering bundled plugin runtime metadata, and add `pnpm gateway:watch --benchmark-no-force` for profiling startup without the default port cleanup.
 - Plugins/onboarding: let Manual setup install optional official plugins, including ClawHub-backed diagnostics with npm fallback, and expose the external Codex plugin as a selectable provider setup choice. Thanks @vincentkoc.
@@ -31,11 +32,15 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Google Meet: use the local call-control microphone button instead of disabled remote participant mute buttons, and block realtime speech when the OpenClaw Meet microphone remains muted.
 - Google Meet: refresh realtime browser state during status and retry delayed speech after Meet finishes joining, so a just-opened in-call tab no longer leaves speech stuck behind stale `not-in-call` health.
+- Plugins/install: recover the install ledger from the managed npm root when `plugins/installs.json` is empty or partial, so reinstalling Discord and Codex no longer makes the other installed plugin disappear.
 - Google Meet: grant Meet media permissions through the Playwright browser context when CDP grants do not affect the attached Chrome page, and report in-call microphone/speaker permission problems instead of marking realtime speech ready.
-- Google Chat: update the setup example to use the accepted `groups.<space>.enabled` key instead of the legacy `allow` alias, with a schema regression for the documented group shape. Thanks @vincentkoc.
+- QA/Slack: fail the live mention-gating scenario on any unexpected SUT reply, even when the reply does not echo the expected marker. Thanks @vincentkoc.
+- Tlon: expose `groupInviteAllowlist` in the channel config schema and clarify that group invite auto-accept fails closed without an invite allowlist. Thanks @vincentkoc.
 - Control UI/WebChat: collapse duplicate in-flight internal text sends onto the active Gateway run so rapid repeat submits do not start fresh `agent:main:main` dispatches. Fixes #75737. Thanks @dsdsddd1 and @BunsDev.
 - Mattermost: accept the documented `channels.mattermost.streaming` config and honor `streaming: "off"` by disabling draft preview posts. Thanks @vincentkoc.
+- Discord: keep progress draft boundary callbacks bound during streaming replies, so extension lint stays green while progress previews transition between assistant and reasoning blocks. Thanks @vincentkoc.
 - Channels/streaming: expose `streaming.progress.label`, `labels`, `maxLines`, and `toolProgress` in bundled channel config metadata so progress draft settings appear in config, docs, and control surfaces. Thanks @vincentkoc.
 - Channels/streaming: normalize whitespace and case for `streaming.progress.label: "auto"` so progress draft labels keep using the built-in label pool instead of rendering a literal `auto` title. Thanks @vincentkoc.
 - Gateway/install: prefer supported system Node over nvm/fnm/volta/asdf/mise when regenerating managed gateway services, so `gateway install --force` no longer recreates service definitions that doctor immediately flags as version-manager-backed. Fixes #76339. Thanks @brokemac79.
