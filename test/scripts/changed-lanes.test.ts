@@ -320,6 +320,19 @@ describe("scripts/changed-lanes", () => {
     expect(plan.commands.map((command) => command.args[0])).not.toContain("test");
   });
 
+  it("routes VS Code workspace settings to tooling instead of all lanes", () => {
+    const result = detectChangedLanes([".vscode/settings.json", ".vscode/extensions.json"]);
+    const plan = createChangedCheckPlan(result);
+
+    expect(result.lanes).toMatchObject({
+      tooling: true,
+      all: false,
+    });
+    expect(plan.commands.map((command) => command.args[0])).toContain("lint:scripts");
+    expect(plan.commands.map((command) => command.args[0])).not.toContain("tsgo:all");
+    expect(plan.commands.map((command) => command.args[0])).not.toContain("test");
+  });
+
   it("routes legacy root sandbox Dockerfile moves to tooling instead of all lanes", () => {
     const result = detectChangedLanes([
       "Dockerfile.sandbox",
@@ -730,7 +743,10 @@ describe("scripts/changed-lanes", () => {
   });
 
   it("routes root test/support changes to the tooling test lane instead of all lanes", () => {
-    const result = detectChangedLanes(["test/git-hooks-pre-commit.test.ts"]);
+    const result = detectChangedLanes([
+      "test/git-hooks-pre-commit.test.ts",
+      "test-fixtures/legacy-root-fixture.json",
+    ]);
     const plan = createChangedCheckPlan(result);
 
     expect(result.lanes).toMatchObject({

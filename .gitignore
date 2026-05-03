@@ -94,7 +94,10 @@ tmp/
 IDENTITY.md
 USER.md
 *.tgz
+*.tar.gz
+*.zip
 .idea
+.vscode/
 
 # local tooling
 .serena/
@@ -153,6 +156,9 @@ apps/ios/LocalSigning.xcconfig
 apps/ios/build/
 apps/shared/OpenClawKit/build/
 Swabble/build/
+*.xcresult
+*.trace
+*.profraw
 
 # Generated protocol schema (produced via pnpm protocol:gen)
 dist/protocol.schema.json
@@ -185,12 +191,21 @@ changelog/fragments/
 
 # Local scratch workspace
 .tmp/
+.cache/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
 .vmux*
 .artifacts/
 .openclaw-config-doc-cache/
 openclaw-path-alias-*/
 /.pi/
 /C:\\openclaw/
+*.log
+*.tmp
+*.heapsnapshot
+*.cpuprofile
+*.prof
 test/fixtures/openclaw-vitest-unit-report.json
 analysis/
 .artifacts/qa-e2e/
