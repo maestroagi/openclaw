@@ -29,16 +29,27 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Discord/native commands: skip slash-command registration and cleanup REST calls when `channels.discord.commands.native=false`, letting low-power gateways start without waiting on disabled native-command lifecycle requests. Fixes #76202. Thanks @vincentkoc.
+- Plugins/commands: normalize empty plugin command handler results and let Telegram native plugin commands send the empty-response fallback instead of throwing when a handler returns `undefined`. Fixes #74800. Thanks @vincentkoc.
+- Plugins/OpenRouter: advertise DeepSeek V4 thinking levels, including `xhigh` and `max`, through the runtime and lightweight provider policy surfaces so `/think` validation no longer rejects OpenRouter-routed DeepSeek V4 models. Fixes #74788. Thanks @vincentkoc.
+- Status/sessions: ignore malformed non-string persisted session provider/model metadata instead of throwing while rendering status summaries. Thanks @vincentkoc.
+- CLI/config: remove only the targeted array element for `openclaw config unset array[index]` instead of replaying the unset during config write and deleting the shifted next element. Fixes #76290. Thanks @SymbolStar and @vincentkoc.
+- Plugins/voice-call: treat abnormal local Gateway close code 1006 as a standalone CLI fallback case, so `voicecall smoke` and related commands can still run the provider check path when the Gateway socket closes before returning a response.
 - Agents/tools: stop treating `tools.deny: ["write"]` as an implicit `apply_patch` deny; operators who want to block patch writes should deny `apply_patch` or `group:fs` explicitly. Fixes #76749. (#76795) Thanks @Nek-12 and @hclsys.
 - Plugins/release: verify published plugin npm tarballs expose compiled runtime entries after publish, catching TS-only package artifacts before release closeout. Thanks @vincentkoc.
+- CLI/message: exit cleanly with a nonzero status when message-command plugin registry loading fails before dispatch, preventing `openclaw-message` children from staying alive after plugin load errors. Fixes #76168.
 - Gateway/update: recover an installed-but-unloaded macOS LaunchAgent after package updates, rerun Gateway health/version/channel readiness checks, and print restart, reinstall, and rollback guidance before reporting update failure. (#76790) Thanks @jonathanlindsay.
 - CLI/plugins: explain when a missing plugin command alias belongs to a bundled plugin that is disabled by default, including the `openclaw plugins enable <plugin>` repair command. (#76835)
+- Gateway/Bonjour: auto-start LAN multicast discovery only on macOS hosts while preserving explicit `openclaw plugins enable bonjour` startup elsewhere, so Linux servers and containers that do not need LAN discovery avoid default mDNS probing and watchdog churn. Refs #74209.
 - Google Meet: route stateful CLI session commands through the gateway-owned runtime so joined realtime sessions survive after the starting CLI process exits. Fixes #76344. Thanks @coltonharris-wq.
 - Memory/status: split builtin sqlite-vec store readiness from embedding-provider readiness in `memory status --deep` and `openclaw status`, so local vector-store failures no longer look like provider failures and provider failures no longer hide a healthy local vector store.
 - CLI/doctor: trust a ready gateway memory probe when CLI-side active memory backend resolution is unavailable, preventing false "No active memory plugin is registered" warnings for healthy runtime setups. Fixes #76792. Thanks @som-686.
 - Memory/status: keep plain `openclaw memory status` and `openclaw memory status --json` on the cheap read-only path by reserving vector and embedding provider probes for `--deep` or `--index`. Fixes #76769. Thanks @daruire.
 - Telegram: suppress stale same-session replies when a newer accepted message arrives before an older in-flight Telegram dispatch finalizes. Fixes #76642. Thanks @chinar-amrutkar.
+- Gateway/diagnostics: throttle repeated long-running active-work session warnings so healthy cron or subagent runs no longer print the same `recovery=none` line every heartbeat.
+- Slack: collapse routine Socket Mode pong-timeout reconnects into one OpenClaw reconnect line and suppress the duplicate Slack SDK pong warning.
 - Gateway/diagnostics: abort-drain embedded runs after an extended no-progress stall so a single dead session no longer leaves queued Discord/channel turns blocked behind repeated `recovery=none` liveness warnings.
+- Plugins/ClawHub: accept the live artifact resolver `kind`/`sha256` field names alongside the typed `artifactKind`/`artifactSha256` form so `clawhub:` installs of npm-pack and legacy ZIP packages no longer miss downloadable artifacts. Thanks @romneyda.
 - Control UI/Sessions: avoid full `sessions.list` reloads for chat-turn `sessions.changed` payloads, so large session stores no longer add multi-second delays while chat responses are being delivered. (#76676) Thanks @VACInc.
 - Gateway/watch: run `doctor --fix --non-interactive` once and retry when the dev Gateway child exits during startup, so stale local plugin install/config state does not leave the tmux watch session disappearing without a repair attempt.
 - Doctor/Telegram: warn when selected Telegram quote replies can suppress `streaming.preview.toolProgress`, and document the `replyToMode` trade-off without changing runtime delivery. Fixes #73487. Thanks @GodsBoy.
