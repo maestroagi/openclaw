@@ -3613,6 +3613,22 @@ export const GENERATED_BUNDLED_CHANNEL_CONFIG_METADATA = [
         label: "Discord Draft Tool Progress",
         help: "Show tool/progress activity in the live draft preview message (default: true). Set false to keep tool updates as separate messages.",
       },
+      "streaming.progress.label": {
+        label: "Discord Progress Label",
+        help: 'Initial progress draft title. Use "auto" for built-in single-word labels, a custom string, or false to hide the title.',
+      },
+      "streaming.progress.labels": {
+        label: "Discord Progress Label Pool",
+        help: 'Candidate labels for streaming.progress.label="auto". Leave unset to use OpenClaw built-in progress labels.',
+      },
+      "streaming.progress.maxLines": {
+        label: "Discord Progress Max Lines",
+        help: "Maximum number of compact progress lines to keep below the draft label (default: 8).",
+      },
+      "streaming.progress.toolProgress": {
+        label: "Discord Progress Tool Lines",
+        help: "Show compact tool/progress lines in progress draft mode (default: true). Set false to keep only the label until final delivery.",
+      },
       "retry.attempts": {
         label: "Discord Retry Attempts",
         help: "Max retry attempts for outbound Discord API calls (default: 3).",
@@ -7999,6 +8015,24 @@ export const GENERATED_BUNDLED_CHANNEL_CONFIG_METADATA = [
       },
       additionalProperties: false,
     },
+    uiHints: {
+      "streaming.progress.label": {
+        label: "Matrix Progress Label",
+        help: 'Initial progress draft title. Use "auto" for built-in single-word labels, a custom string, or false to hide the title.',
+      },
+      "streaming.progress.labels": {
+        label: "Matrix Progress Label Pool",
+        help: 'Candidate labels for streaming.progress.label="auto". Leave unset to use OpenClaw built-in progress labels.',
+      },
+      "streaming.progress.maxLines": {
+        label: "Matrix Progress Max Lines",
+        help: "Maximum number of compact progress lines to keep below the draft label (default: 8).",
+      },
+      "streaming.progress.toolProgress": {
+        label: "Matrix Progress Tool Lines",
+        help: "Show compact tool/progress lines in progress draft mode (default: true). Set false to keep only the label until final delivery.",
+      },
+    },
   },
   {
     pluginId: "mattermost",
@@ -8163,6 +8197,101 @@ export const GENERATED_BUNDLED_CHANNEL_CONFIG_METADATA = [
         chunkMode: {
           type: "string",
           enum: ["length", "newline"],
+        },
+        streaming: {
+          anyOf: [
+            {
+              type: "string",
+              enum: ["off", "partial", "block", "progress"],
+            },
+            {
+              type: "boolean",
+            },
+            {
+              type: "object",
+              properties: {
+                mode: {
+                  type: "string",
+                  enum: ["off", "partial", "block", "progress"],
+                },
+                chunkMode: {
+                  type: "string",
+                  enum: ["length", "newline"],
+                },
+                preview: {
+                  type: "object",
+                  properties: {
+                    toolProgress: {
+                      type: "boolean",
+                    },
+                  },
+                  additionalProperties: false,
+                },
+                progress: {
+                  type: "object",
+                  properties: {
+                    label: {
+                      anyOf: [
+                        {
+                          type: "string",
+                        },
+                        {
+                          type: "boolean",
+                          const: false,
+                        },
+                      ],
+                    },
+                    labels: {
+                      type: "array",
+                      items: {
+                        type: "string",
+                      },
+                    },
+                    maxLines: {
+                      type: "integer",
+                      exclusiveMinimum: 0,
+                      maximum: 9007199254740991,
+                    },
+                    toolProgress: {
+                      type: "boolean",
+                    },
+                  },
+                  additionalProperties: false,
+                },
+                block: {
+                  type: "object",
+                  properties: {
+                    enabled: {
+                      type: "boolean",
+                    },
+                    coalesce: {
+                      type: "object",
+                      properties: {
+                        minChars: {
+                          type: "integer",
+                          exclusiveMinimum: 0,
+                          maximum: 9007199254740991,
+                        },
+                        maxChars: {
+                          type: "integer",
+                          exclusiveMinimum: 0,
+                          maximum: 9007199254740991,
+                        },
+                        idleMs: {
+                          type: "integer",
+                          minimum: 0,
+                          maximum: 9007199254740991,
+                        },
+                      },
+                      additionalProperties: false,
+                    },
+                  },
+                  additionalProperties: false,
+                },
+              },
+              additionalProperties: false,
+            },
+          ],
         },
         blockStreaming: {
           type: "boolean",
@@ -8465,6 +8594,101 @@ export const GENERATED_BUNDLED_CHANNEL_CONFIG_METADATA = [
               chunkMode: {
                 type: "string",
                 enum: ["length", "newline"],
+              },
+              streaming: {
+                anyOf: [
+                  {
+                    type: "string",
+                    enum: ["off", "partial", "block", "progress"],
+                  },
+                  {
+                    type: "boolean",
+                  },
+                  {
+                    type: "object",
+                    properties: {
+                      mode: {
+                        type: "string",
+                        enum: ["off", "partial", "block", "progress"],
+                      },
+                      chunkMode: {
+                        type: "string",
+                        enum: ["length", "newline"],
+                      },
+                      preview: {
+                        type: "object",
+                        properties: {
+                          toolProgress: {
+                            type: "boolean",
+                          },
+                        },
+                        additionalProperties: false,
+                      },
+                      progress: {
+                        type: "object",
+                        properties: {
+                          label: {
+                            anyOf: [
+                              {
+                                type: "string",
+                              },
+                              {
+                                type: "boolean",
+                                const: false,
+                              },
+                            ],
+                          },
+                          labels: {
+                            type: "array",
+                            items: {
+                              type: "string",
+                            },
+                          },
+                          maxLines: {
+                            type: "integer",
+                            exclusiveMinimum: 0,
+                            maximum: 9007199254740991,
+                          },
+                          toolProgress: {
+                            type: "boolean",
+                          },
+                        },
+                        additionalProperties: false,
+                      },
+                      block: {
+                        type: "object",
+                        properties: {
+                          enabled: {
+                            type: "boolean",
+                          },
+                          coalesce: {
+                            type: "object",
+                            properties: {
+                              minChars: {
+                                type: "integer",
+                                exclusiveMinimum: 0,
+                                maximum: 9007199254740991,
+                              },
+                              maxChars: {
+                                type: "integer",
+                                exclusiveMinimum: 0,
+                                maximum: 9007199254740991,
+                              },
+                              idleMs: {
+                                type: "integer",
+                                minimum: 0,
+                                maximum: 9007199254740991,
+                              },
+                            },
+                            additionalProperties: false,
+                          },
+                        },
+                        additionalProperties: false,
+                      },
+                    },
+                    additionalProperties: false,
+                  },
+                ],
               },
               blockStreaming: {
                 type: "boolean",
@@ -9231,6 +9455,18 @@ export const GENERATED_BUNDLED_CHANNEL_CONFIG_METADATA = [
       "streaming.progress.label": {
         label: "MS Teams Progress Label",
         help: 'Initial progress title. Use "auto" for built-in single-word labels, a custom string, or false to hide the title.',
+      },
+      "streaming.progress.labels": {
+        label: "MS Teams Progress Label Pool",
+        help: 'Candidate labels for streaming.progress.label="auto". Leave unset to use OpenClaw built-in progress labels.',
+      },
+      "streaming.progress.maxLines": {
+        label: "MS Teams Progress Max Lines",
+        help: "Maximum number of compact progress lines to keep below the progress title (default: 8).",
+      },
+      "streaming.progress.toolProgress": {
+        label: "MS Teams Progress Tool Lines",
+        help: "Show compact tool/progress lines in progress mode (default: true). Set false to keep only the title until final delivery.",
       },
     },
   },
@@ -13604,6 +13840,22 @@ export const GENERATED_BUNDLED_CHANNEL_CONFIG_METADATA = [
         label: "Slack Draft Tool Progress",
         help: "Show tool/progress activity in the live draft preview message (default: true). Set false to keep tool updates as separate messages.",
       },
+      "streaming.progress.label": {
+        label: "Slack Progress Label",
+        help: 'Initial progress draft title. Use "auto" for built-in single-word labels, a custom string, or false to hide the title.',
+      },
+      "streaming.progress.labels": {
+        label: "Slack Progress Label Pool",
+        help: 'Candidate labels for streaming.progress.label="auto". Leave unset to use OpenClaw built-in progress labels.',
+      },
+      "streaming.progress.maxLines": {
+        label: "Slack Progress Max Lines",
+        help: "Maximum number of compact progress lines to keep below the draft label (default: 8).",
+      },
+      "streaming.progress.toolProgress": {
+        label: "Slack Progress Tool Lines",
+        help: "Show compact tool/progress lines in progress draft mode (default: true). Set false to keep only the label until final delivery.",
+      },
       "thread.historyScope": {
         label: "Slack Thread History Scope",
         help: 'Scope for Slack thread history context ("thread" isolates per thread; "channel" reuses channel history).',
@@ -15926,6 +16178,22 @@ export const GENERATED_BUNDLED_CHANNEL_CONFIG_METADATA = [
       "streaming.preview.toolProgress": {
         label: "Telegram Draft Tool Progress",
         help: "Show tool/progress activity in the live draft preview message (default: true when preview streaming is active). Set false to keep tool updates out of the edited Telegram preview.",
+      },
+      "streaming.progress.label": {
+        label: "Telegram Progress Label",
+        help: 'Initial progress draft title. Use "auto" for built-in single-word labels, a custom string, or false to hide the title.',
+      },
+      "streaming.progress.labels": {
+        label: "Telegram Progress Label Pool",
+        help: 'Candidate labels for streaming.progress.label="auto". Leave unset to use OpenClaw built-in progress labels.',
+      },
+      "streaming.progress.maxLines": {
+        label: "Telegram Progress Max Lines",
+        help: "Maximum number of compact progress lines to keep below the draft label (default: 8).",
+      },
+      "streaming.progress.toolProgress": {
+        label: "Telegram Progress Tool Lines",
+        help: "Show compact tool/progress lines in progress draft mode (default: true). Set false to keep only the label until final delivery.",
       },
       "retry.attempts": {
         label: "Telegram Retry Attempts",

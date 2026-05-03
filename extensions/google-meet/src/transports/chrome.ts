@@ -327,52 +327,58 @@ function meetStatusScript(params: {
   autoJoin: boolean;
   captureCaptions: boolean;
   guestName: string;
+  readOnly?: boolean;
 }) {
   return `() => {
   const text = (node) => (node?.innerText || node?.textContent || "").trim();
   const allowMicrophone = ${JSON.stringify(params.allowMicrophone)};
   const captureCaptions = ${JSON.stringify(params.captureCaptions)};
+  const readOnly = ${JSON.stringify(Boolean(params.readOnly))};
   const buttons = [...document.querySelectorAll('button')];
+  const buttonLabel = (button) =>
+    [
+      button.getAttribute("aria-label"),
+      button.getAttribute("data-tooltip"),
+      text(button),
+    ]
+      .filter(Boolean)
+      .join(" ");
+  const buttonLabels = buttons.map(buttonLabel).filter(Boolean);
   const notes = [];
   const findButton = (pattern) =>
     buttons.find((button) => {
-      const label = [
-        button.getAttribute("aria-label"),
-        button.getAttribute("data-tooltip"),
-        text(button),
-      ]
-        .filter(Boolean)
-        .join(" ");
+      const label = buttonLabel(button);
       return pattern.test(label) && !button.disabled;
     });
   const input = [...document.querySelectorAll('input')].find((el) =>
     /your name/i.test(el.getAttribute('aria-label') || el.placeholder || '')
   );
-  if (${JSON.stringify(params.autoJoin)} && input && !input.value) {
+  if (!readOnly && ${JSON.stringify(params.autoJoin)} && input && !input.value) {
     input.focus();
     input.value = ${JSON.stringify(params.guestName)};
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.dispatchEvent(new Event('change', { bubbles: true }));
   }
   const pageText = text(document.body).toLowerCase();
+  const permissionText = [pageText, ...buttonLabels].join("\\n");
   const host = location.hostname.toLowerCase();
   const pageUrl = location.href;
-  const permissionNeeded = /permission needed|allow.*(microphone|camera)|blocked.*(microphone|camera)|permission.*(microphone|camera|speaker)/i.test(pageText);
+  const permissionNeeded = /permission needed|microphone problem|speaker problem|allow.*(microphone|camera)|blocked.*(microphone|camera)|permission.*(microphone|camera|speaker)/i.test(permissionText);
   const mic = buttons.find((button) => /turn off microphone|turn on microphone|microphone/i.test(button.getAttribute('aria-label') || text(button)));
-  if (!allowMicrophone && mic && /turn off microphone/i.test(mic.getAttribute('aria-label') || text(mic))) {
+  if (!readOnly && !allowMicrophone && mic && /turn off microphone/i.test(mic.getAttribute('aria-label') || text(mic))) {
     mic.click();
     notes.push("Muted Meet microphone for observe-only mode.");
   }
-  const join = ${JSON.stringify(params.autoJoin)}
+  const join = !readOnly && ${JSON.stringify(params.autoJoin)}
     ? findButton(/join now|ask to join/i)
     : null;
   if (join) join.click();
   const microphoneChoice = findButton(/\\buse microphone\\b/i);
   const noMicrophoneChoice = findButton(/\\b(continue|join|use) without (microphone|mic)\\b|\\bnot now\\b/i);
-  if (allowMicrophone && microphoneChoice) {
+  if (!readOnly && allowMicrophone && microphoneChoice) {
     microphoneChoice.click();
     notes.push("Accepted Meet microphone prompt with browser automation.");
-  } else if (!allowMicrophone && noMicrophoneChoice) {
+  } else if (!readOnly && !allowMicrophone && noMicrophoneChoice) {
     noMicrophoneChoice.click();
     notes.push("Skipped Meet microphone prompt for observe-only mode.");
   }
@@ -427,7 +433,7 @@ function meetStatusScript(params: {
     }
   };
   if (captionState) {
-    if (inCall && !captionState.enabledAttempted) {
+    if (!readOnly && inCall && !captionState.enabledAttempted) {
       const captionButton = findButton(/turn on captions|show captions|captions/i);
       const captionLabel = captionButton ? (captionButton.getAttribute("aria-label") || captionButton.getAttribute("data-tooltip") || text(captionButton)) : "";
       if (captionButton) {
@@ -665,6 +671,7 @@ async function inspectRecoverableMeetTab(params: {
   callBrowser: BrowserRequestCaller;
   config: GoogleMeetConfig;
   mode?: "realtime" | "transcribe";
+  readOnly?: boolean;
   timeoutMs: number;
   tab: BrowserTab;
   targetId: string;
@@ -676,11 +683,13 @@ async function inspectRecoverableMeetTab(params: {
     body: { targetId: params.targetId },
     timeoutMs: Math.min(params.timeoutMs, 5_000),
   });
-  const permissionNotes = await grantMeetMediaPermissions({
-    allowMicrophone,
-    callBrowser: params.callBrowser,
-    timeoutMs: params.timeoutMs,
-  });
+  const permissionNotes = params.readOnly
+    ? []
+    : await grantMeetMediaPermissions({
+        allowMicrophone,
+        callBrowser: params.callBrowser,
+        timeoutMs: params.timeoutMs,
+      });
   const evaluated = await params.callBrowser({
     method: "POST",
     path: "/act",
@@ -692,6 +701,7 @@ async function inspectRecoverableMeetTab(params: {
         captureCaptions: params.mode === "transcribe",
         guestName: params.config.chrome.guestName,
         autoJoin: false,
+        readOnly: params.readOnly,
       }),
     },
     timeoutMs: Math.min(params.timeoutMs, 10_000),
@@ -720,6 +730,7 @@ async function inspectRecoverableMeetTab(params: {
 export async function recoverCurrentMeetTab(params: {
   config: GoogleMeetConfig;
   mode?: "realtime" | "transcribe";
+  readOnly?: boolean;
   url?: string;
 }): Promise<{
   transport: "chrome";
@@ -756,6 +767,7 @@ export async function recoverCurrentMeetTab(params: {
       callBrowser: callLocalBrowserRequest,
       config: params.config,
       mode: params.mode,
+      readOnly: params.readOnly,
       timeoutMs,
       tab,
       targetId,
@@ -767,6 +779,7 @@ export async function recoverCurrentMeetTabOnNode(params: {
   runtime: PluginRuntime;
   config: GoogleMeetConfig;
   mode?: "realtime" | "transcribe";
+  readOnly?: boolean;
   url?: string;
 }): Promise<{
   transport: "chrome-node";
@@ -819,6 +832,7 @@ export async function recoverCurrentMeetTabOnNode(params: {
         }),
       config: params.config,
       mode: params.mode,
+      readOnly: params.readOnly,
       timeoutMs,
       tab,
       targetId,

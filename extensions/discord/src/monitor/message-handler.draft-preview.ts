@@ -70,6 +70,7 @@ export function createDiscordDraftPreviewController(params: {
   let hasStreamedMessage = false;
   let finalizedViaPreviewMessage = false;
   let finalDeliveryHandled = false;
+  let progressDraftStarted = false;
   const previewToolProgressEnabled =
     Boolean(draftStream) && resolveChannelStreamingPreviewToolProgress(params.discordConfig);
   const suppressDefaultToolProgressMessages =
@@ -102,6 +103,9 @@ export function createDiscordDraftPreviewController(params: {
     draftStream,
     previewToolProgressEnabled,
     suppressDefaultToolProgressMessages,
+    get isProgressMode() {
+      return discordStreamMode === "progress";
+    },
     get finalizedViaPreviewMessage() {
       return finalizedViaPreviewMessage;
     },
@@ -116,6 +120,9 @@ export function createDiscordDraftPreviewController(params: {
       if (!draftStream || discordStreamMode !== "progress") {
         return;
       }
+      if (progressDraftStarted) {
+        return;
+      }
       const previewText = formatChannelProgressDraftText({
         entry: params.discordConfig,
         lines: [],
@@ -124,6 +131,7 @@ export function createDiscordDraftPreviewController(params: {
       if (!previewText || previewText === lastPartialText) {
         return;
       }
+      progressDraftStarted = true;
       lastPartialText = previewText;
       draftText = previewText;
       hasStreamedMessage = true;
@@ -247,7 +255,12 @@ export function createDiscordDraftPreviewController(params: {
         },
       });
     },
-    handleAssistantMessageBoundary: forceNewMessageIfNeeded,
+    handleAssistantMessageBoundary() {
+      if (discordStreamMode === "progress") {
+        return;
+      }
+      forceNewMessageIfNeeded();
+    },
     async flush() {
       if (!draftStream) {
         return;

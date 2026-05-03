@@ -430,6 +430,12 @@ export async function processDiscordMessage(
           return;
         }
         const draftStream = draftPreview.draftStream;
+        if (draftStream && draftPreview.isProgressMode && info.kind === "block") {
+          const reply = resolveSendableOutboundReplyParts(payload);
+          if (!reply.hasMedia && !payload.isError) {
+            return;
+          }
+        }
         if (draftStream && isFinal) {
           draftPreview.markFinalDeliveryHandled();
           const reply = resolveSendableOutboundReplyParts(payload);
@@ -618,8 +624,9 @@ export async function processDiscordMessage(
             limit: historyLimit,
           },
           onPreDispatchFailure: settleDispatchBeforeStart,
-          runDispatch: () =>
-            dispatchInboundMessage({
+          runDispatch: async () => {
+            await draftPreview.startProgressDraft();
+            return await dispatchInboundMessage({
               ctx: ctxPayload,
               cfg,
               dispatcher,
@@ -712,7 +719,8 @@ export async function processDiscordMessage(
                   await statusReactions.setThinking();
                 },
               },
-            }),
+            });
+          },
         }),
       },
     });
