@@ -120,6 +120,7 @@ export type AppViewState = {
   realtimeTalkDetail: string | null;
   realtimeTalkTranscript: string | null;
   chatManualRefreshInFlight: boolean;
+  chatHeaderControlsHidden: boolean;
   chatMobileControlsOpen: boolean;
   nodesLoading: boolean;
   nodes: Array<Record<string, unknown>>;
@@ -330,6 +331,7 @@ export type AppViewState = {
   | "cronStatus"
   | "cronError"
   | "cronForm"
+  | "cronFormCollapsed"
   | "cronFieldErrors"
   | "cronEditingJobId"
   | "cronRunsJobId"
