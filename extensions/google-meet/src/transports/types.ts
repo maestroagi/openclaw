@@ -1,11 +1,11 @@
-import type { GoogleMeetMode, GoogleMeetTransport } from "../config.js";
+import type { GoogleMeetMode, GoogleMeetModeInput, GoogleMeetTransport } from "../config.js";
 
 type GoogleMeetSessionState = "active" | "ended";
 
 export type GoogleMeetJoinRequest = {
   url: string;
   transport?: GoogleMeetTransport;
-  mode?: GoogleMeetMode;
+  mode?: GoogleMeetModeInput;
   message?: string;
   timeoutMs?: number;
   dialInNumber?: string;
@@ -71,6 +71,9 @@ export type GoogleMeetChromeHealth = {
   realtimeReady?: boolean;
   audioInputActive?: boolean;
   audioOutputActive?: boolean;
+  audioOutputRouted?: boolean;
+  audioOutputDeviceLabel?: string;
+  audioOutputRouteError?: string;
   lastInputAt?: string;
   lastOutputAt?: string;
   lastSuppressedInputAt?: string;
@@ -100,8 +103,10 @@ export type GoogleMeetSession = {
   participantIdentity: string;
   realtime: {
     enabled: boolean;
+    strategy?: string;
     provider?: string;
     model?: string;
+    transcriptionProvider?: string;
     toolPolicy: string;
   };
   chrome?: {
