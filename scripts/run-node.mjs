@@ -487,6 +487,15 @@ const resolveRunNodeCpuProfileArgs = (deps) => {
   return ["--cpu-prof", `--cpu-prof-dir=${absoluteProfileDir}`, `--cpu-prof-name=${profileName}`];
 };
 
+const resolveRunNodeDiagnosticArgs = (deps) => {
+  const args = [...resolveRunNodeCpuProfileArgs(deps)];
+  if (deps.env.OPENCLAW_TRACE_SYNC_IO === "1") {
+    logRunner("Enabling Node --trace-sync-io for startup I/O diagnostics.", deps);
+    args.push("--trace-sync-io");
+  }
+  return args;
+};
+
 const waitForSpawnedProcess = async (childProcess, deps) => {
   let forwardedSignal = null;
   let onSigInt;
@@ -557,8 +566,8 @@ const getInterruptedSpawnExitCode = (res) => {
 };
 
 const runOpenClaw = async (deps) => {
-  const cpuProfileArgs = resolveRunNodeCpuProfileArgs(deps);
-  const nodeProcess = deps.spawn(deps.execPath, [...cpuProfileArgs, "openclaw.mjs", ...deps.args], {
+  const diagnosticArgs = resolveRunNodeDiagnosticArgs(deps);
+  const nodeProcess = deps.spawn(deps.execPath, [...diagnosticArgs, "openclaw.mjs", ...deps.args], {
     cwd: deps.cwd,
     env: deps.env,
     stdio: deps.outputTee ? ["inherit", "pipe", "pipe"] : "inherit",
@@ -796,6 +805,7 @@ const shouldUseExistingDistForGatewayClient = (deps, buildRequirement) =>
   statMtime(deps.distEntry, deps.fs) != null;
 
 const isQaParityReportCommand = (args) => args[0] === "qa" && args[1] === "parity-report";
+const isQaCoverageReportCommand = (args) => args[0] === "qa" && args[1] === "coverage";
 
 const shouldRunQaParityReportFromSource = (deps, buildRequirement) =>
   buildRequirement.reason === "missing_private_qa_dist" &&
@@ -803,8 +813,34 @@ const shouldRunQaParityReportFromSource = (deps, buildRequirement) =>
   deps.env.OPENCLAW_FORCE_BUILD !== "1" &&
   statMtime(path.join(deps.cwd, "extensions", "qa-lab", "src", "cli.runtime.ts"), deps.fs) != null;
 
+const shouldRunQaCoverageReportFromSource = (deps, buildRequirement) =>
+  buildRequirement.reason === "missing_private_qa_dist" &&
+  isQaCoverageReportCommand(deps.args) &&
+  deps.env.OPENCLAW_FORCE_BUILD !== "1" &&
+  statMtime(path.join(deps.cwd, "extensions", "qa-lab", "src", "cli.runtime.ts"), deps.fs) != null;
+
 const runQaParityReportFromSource = async (deps) => {
   const sourceEntrypoint = path.join(deps.cwd, "scripts", "qa-parity-report.ts");
+  const nodeProcess = deps.spawn(
+    deps.execPath,
+    ["--import", "tsx", sourceEntrypoint, ...deps.args.slice(2)],
+    {
+      cwd: deps.cwd,
+      env: deps.env,
+      stdio: deps.outputTee ? ["inherit", "pipe", "pipe"] : "inherit",
+    },
+  );
+  pipeSpawnedOutput(nodeProcess, deps);
+  const res = await waitForSpawnedProcess(nodeProcess, deps);
+  const interruptedExitCode = getInterruptedSpawnExitCode(res);
+  if (interruptedExitCode !== null) {
+    return interruptedExitCode;
+  }
+  return res.exitCode ?? 1;
+};
+
+const runQaCoverageReportFromSource = async (deps) => {
+  const sourceEntrypoint = path.join(deps.cwd, "scripts", "qa-coverage-report.ts");
   const nodeProcess = deps.spawn(
     deps.execPath,
     ["--import", "tsx", sourceEntrypoint, ...deps.args.slice(2)],
@@ -862,12 +898,18 @@ export async function runNodeMain(params = {}) {
       buildRequirement,
     );
     const useQaParityReportSource = shouldRunQaParityReportFromSource(deps, buildRequirement);
+    const useQaCoverageReportSource = shouldRunQaCoverageReportFromSource(deps, buildRequirement);
     if (useExistingGatewayClientDist) {
       buildRequirement = { shouldBuild: false, reason: "gateway_client_existing_dist" };
     }
     if (useQaParityReportSource) {
       logRunner("Running QA parity report from source without rebuilding private QA dist.", deps);
       exitCode = await runQaParityReportFromSource(deps);
+      return await closeRunNodeOutputTee(deps, exitCode);
+    }
+    if (useQaCoverageReportSource) {
+      logRunner("Running QA coverage report from source without rebuilding private QA dist.", deps);
+      exitCode = await runQaCoverageReportFromSource(deps);
       return await closeRunNodeOutputTee(deps, exitCode);
     }
     if (!buildRequirement.shouldBuild) {
