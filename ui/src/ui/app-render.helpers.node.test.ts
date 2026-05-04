@@ -39,6 +39,7 @@ import {
   isCronSessionKey,
   parseSessionKey,
   resolveAssistantAttachmentAuthToken,
+  resolveDashboardHeaderContext,
   resolveSessionOptionGroups,
   resolveSessionDisplayName,
   switchChatSession,
@@ -132,6 +133,7 @@ function createChatSessionState(overrides: Partial<AppViewState> = {}) {
     client: { request: vi.fn() },
     sessionsLoading: false,
     sessionsError: null,
+    sessionsShowArchived: false,
     sessionsResult: {
       ts: 0,
       path: "",
@@ -452,6 +454,50 @@ describe("resolveSessionDisplayName", () => {
   });
 });
 
+describe("resolveDashboardHeaderContext", () => {
+  it("uses the active agent identity name", () => {
+    expect(
+      resolveDashboardHeaderContext({
+        sessionKey: "agent:deep-chat:imessage:sample-thread",
+        agentsList: {
+          defaultId: "deep-chat",
+          mainKey: "main",
+          scope: "user",
+          agents: [{ id: "deep-chat", identity: { name: "Deep Chat" } }],
+        },
+      } as unknown as AppViewState),
+    ).toEqual({ agentLabel: "Deep Chat" });
+  });
+
+  it("falls back to the configured agent name", () => {
+    expect(
+      resolveDashboardHeaderContext({
+        sessionKey: "agent:beta:main",
+        agentsList: {
+          defaultId: "beta",
+          mainKey: "main",
+          scope: "user",
+          agents: [{ id: "beta", name: "Coding" }],
+        },
+      } as unknown as AppViewState),
+    ).toEqual({ agentLabel: "Coding" });
+  });
+
+  it("falls back to the agent id", () => {
+    expect(
+      resolveDashboardHeaderContext({
+        sessionKey: "agent:beta:subagent:maintainer-v2",
+        agentsList: {
+          defaultId: "main",
+          mainKey: "main",
+          scope: "user",
+          agents: [],
+        },
+      } as unknown as AppViewState),
+    ).toEqual({ agentLabel: "beta" });
+  });
+});
+
 describe("isCronSessionKey", () => {
   it("returns true for cron: prefixed keys", () => {
     expect(isCronSessionKey("cron:abc-123")).toBe(true);
@@ -488,12 +534,10 @@ describe("resolveSessionOptionGroups", () => {
     );
   });
 
-  it("keeps scoped fallbacks for active grouped sessions without useful row metadata", () => {
+  it("does not synthesize active grouped sessions without a listed row", () => {
     const sessionKey = "agent:main:subagent:4f2146de-887b-4176-9abe-91140082959b";
 
-    expect(labelsForSessionOptions({ sessionKey })).toContain(
-      "subagent:4f2146de-887b-4176-9abe-91140082959b",
-    );
+    expect(labelsForSessionOptions({ sessionKey })).toEqual([]);
     expect(
       labelsForSessionOptions({
         sessionKey,
@@ -577,6 +621,7 @@ describe("createChatSession", () => {
         limit: 0,
         includeGlobal: true,
         includeUnknown: true,
+        showArchived: false,
       },
     );
     expect(state.sessionKey).toBe("agent:ops:dashboard:new-chat");
@@ -765,6 +810,7 @@ describe("switchChatSession", () => {
       limit: 0,
       includeGlobal: true,
       includeUnknown: true,
+      showArchived: false,
     });
   });
 

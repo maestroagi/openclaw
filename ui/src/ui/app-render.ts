@@ -11,6 +11,7 @@ import {
   renderChatSessionSelect,
   renderTab,
   resolveAssistantAttachmentAuthToken,
+  resolveDashboardHeaderContext,
   renderSidebarConnectionStatus,
   renderTopbarThemeModeToggle,
   createChatSession,
@@ -645,6 +646,7 @@ export function renderApp(state: AppViewState) {
   const chatFocus = isChat && (state.settings.chatFocusMode || state.onboarding);
   const navDrawerOpen = state.navDrawerOpen && !chatFocus && !state.onboarding;
   const navCollapsed = state.settings.navCollapsed && !navDrawerOpen;
+  const dashboardHeaderContext = resolveDashboardHeaderContext(state);
   const showThinking = state.onboarding ? false : state.settings.chatShowThinking;
   const showToolCalls = state.onboarding ? true : state.settings.chatShowToolCalls;
   const localAssistantAvatarOverride =
@@ -1362,6 +1364,7 @@ export function renderApp(state: AppViewState) {
             <dashboard-header
               .tab=${state.tab}
               .basePath=${state.basePath}
+              .agentLabel=${dashboardHeaderContext.agentLabel}
               @navigate=${(event: CustomEvent<Tab>) => {
                 state.setTab(event.detail);
               }}
@@ -1677,6 +1680,8 @@ export function renderApp(state: AppViewState) {
                 limit: state.sessionsFilterLimit,
                 includeGlobal: state.sessionsIncludeGlobal,
                 includeUnknown: state.sessionsIncludeUnknown,
+                showArchived: state.sessionsShowArchived,
+                filtersCollapsed: state.sessionsFiltersCollapsed,
                 basePath: state.basePath,
                 searchQuery: state.sessionsSearchQuery,
                 agentIdentityById: state.agentIdentityById,
@@ -1695,6 +1700,19 @@ export function renderApp(state: AppViewState) {
                   state.sessionsFilterLimit = next.limit;
                   state.sessionsIncludeGlobal = next.includeGlobal;
                   state.sessionsIncludeUnknown = next.includeUnknown;
+                  state.sessionsShowArchived = next.showArchived;
+                  state.sessionsSelectedKeys = new Set();
+                  state.sessionsPage = 0;
+                  void loadSessions(state, {
+                    activeMinutes: Number(next.activeMinutes) || 0,
+                    limit: Number(next.limit) || 0,
+                    includeGlobal: next.includeGlobal,
+                    includeUnknown: next.includeUnknown,
+                    showArchived: next.showArchived,
+                  });
+                },
+                onToggleFiltersCollapsed: () => {
+                  state.sessionsFiltersCollapsed = !state.sessionsFiltersCollapsed;
                 },
                 onSearchChange: (q) => {
                   state.sessionsSearchQuery = q;
