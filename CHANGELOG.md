@@ -47,11 +47,14 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Doctor/config: restore legacy group chat config migrations for `routing.allowFrom`, `routing.groupChat.*`, and `channels.telegram.requireMention` so upgrades keep WhatsApp, Telegram, and iMessage group mention gates and history settings instead of leaving configs invalid or silently blocked. Thanks @scoootscooob.
 - fix(gateway): clamp unbound websocket auth scopes [AI]. (#77413) Thanks @pgondhi987.
 - Gate zalouser startup name matching [AI]. (#77411) Thanks @pgondhi987.
+- Active Memory: send a bounded latest-message search query to the recall worker so channel/runtime metadata does not become the memory search string. Fixes #65309. Thanks @joeykrug, @westley3601, @pimenov, and @tasi333.
 - fix(device-pair): require pairing scope for pair command [AI]. (#76377) Thanks @pgondhi987.
 - fix(qqbot): keep private commands off framework surface [AI]. (#77212) Thanks @pgondhi987.
 - Claude CLI: honor non-off `/think` levels by passing Claude Code's session-scoped `--effort` flag through the CLI backend seam, so chat bridges no longer show an inert thinking control. Fixes #77303. Thanks @Petr1t.
+- Agents/subagents: refresh deferred final-delivery payloads when same-session completion output changes, so retried parent notifications use the final child summary instead of stale progress text. Thanks @vincentkoc.
 - Memory/wiki: preserve representation from both corpora in `corpus=all` searches while backfilling unused result capacity, so memory hits are not starved by numerically higher wiki integer scores. Fixes #77337. Thanks @hclsys.
 - Telegram: clean up tool-only draft previews after assistant message boundaries so transient `Surfacing...` tool-status bubbles do not linger when no matching final preview arrives. Thanks @BunsDev.
 - Cron: surface failed isolated-run diagnostics in `cron show`, status, and run history when requested tools are unavailable, so blocked cron runs report the actual tool-policy failure instead of a misleading green result. Fixes #75763. Thanks @RyanSandoval.
@@ -208,6 +211,8 @@ Docs: https://docs.openclaw.ai
 - Security/Windows: validate `SystemRoot`/`WINDIR` env values through the Windows install-root validator and add them to the dangerous-host-env policy when resolving `icacls.exe`/`whoami.exe` for `openclaw security audit`, so workspace `.env` overrides and bare command names cannot redirect Windows ACL helpers to attacker-controlled binaries. (#74458) Thanks @mmaps.
 - Security/Windows: pin Windows registry-probe `reg.exe` resolution to the canonical Windows install root in install-root probing, so `SystemRoot`/`WINDIR` env overrides cannot redirect registry queries during Windows host detection. (#74454) Thanks @mmaps.
 - QQBot: preserve the framework command authorization decision when converting framework command contexts into engine slash command contexts, so downstream slash handlers see `commandAuthorized` matching the channel's resolved `isAuthorizedSender` instead of a hardcoded `true`. (#77453) Thanks @drobison00.
+- Security/Windows: block `LOCALAPPDATA` from workspace `.env` and resolve Windows update-flow portable Git path prepends from the trusted process-local `LOCALAPPDATA` only, so workspace-supplied values cannot redirect `git` discovery during `openclaw update`. (#77470) Thanks @drobison00.
+- Browser/SSRF: enforce the existing current-tab URL navigation policy before tab-scoped debug, export, and read routes (console, page errors, network requests, trace start/stop, response body, screenshot, snapshot, storage, etc.) collect from an already-selected tab, so blocked tabs return a policy error instead of being read first and redacted only at response time. (#75731) Thanks @eleqtrizit.
 
 ## 2026.5.3-1
 
@@ -324,6 +329,7 @@ Docs: https://docs.openclaw.ai
 - CLI/message: exit cleanly with a nonzero status when message-command plugin registry loading fails before dispatch, preventing `openclaw-message` children from staying alive after plugin load errors. Fixes #76168.
 - Plugins/config: report configured plugins that are present but blocked by path-safety checks as blocked instead of stale `plugin not found` entries, and deduplicate repeated blocked-candidate warnings during discovery. Fixes #76144. Thanks @mayank6136.
 - Gateway/update: recover an installed-but-unloaded macOS LaunchAgent after package updates, rerun Gateway health/version/channel readiness checks, and print restart, reinstall, and rollback guidance before reporting update failure. (#76790) Thanks @jonathanlindsay.
+- Codex/runtime: preserve native Codex thread bindings across dynamic-tool reorder and no-tool maintenance turns, and project mirrored history when a legacy Codex run must start without a native binding, preventing follow-up requests from losing conversation context. (#76824) Thanks @VACInc.
 - CLI/plugins: explain when a missing plugin command alias belongs to a bundled plugin that is disabled by default, including the `openclaw plugins enable <plugin>` repair command. (#76835)
 - Gateway/Bonjour: auto-start LAN multicast discovery only on macOS hosts while preserving explicit `openclaw plugins enable bonjour` startup elsewhere, so Linux servers and containers that do not need LAN discovery avoid default mDNS probing and watchdog churn. Refs #74209.
 - Gateway/macOS: stop `doctor` and LaunchAgent recovery from running `launchctl kickstart -k` after a fresh bootstrap, avoiding an immediate SIGTERM of the just-started gateway while still nudging already-loaded launchd jobs. Fixes #76261. Thanks @solosage1.
