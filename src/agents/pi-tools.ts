@@ -2,7 +2,6 @@ import { createCodingTools, createReadTool } from "@mariozechner/pi-coding-agent
 import { HEARTBEAT_RESPONSE_TOOL_NAME } from "../auto-reply/heartbeat-tool-response.js";
 import type { ModelCompatConfig } from "../config/types.models.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-import type { ToolLoopDetectionConfig } from "../config/types.tools.js";
 import type { DiagnosticTraceContext } from "../infra/diagnostic-trace-context.js";
 import { resolveMergedSafeBinProfileFixtures } from "../infra/exec-safe-bin-runtime-policy.js";
 import { logWarn } from "../logger.js";
@@ -27,7 +26,10 @@ import type { ModelAuthMode } from "./model-auth.js";
 import { resolveOpenClawPluginToolsForOptions } from "./openclaw-plugin-tools.js";
 import { createOpenClawTools } from "./openclaw-tools.js";
 import { wrapToolWithAbortSignal } from "./pi-tools.abort.js";
-import { wrapToolWithBeforeToolCallHook } from "./pi-tools.before-tool-call.js";
+import {
+  type ToolOutcomeObserver,
+  wrapToolWithBeforeToolCallHook,
+} from "./pi-tools.before-tool-call.js";
 import { applyDeferredFollowupToolDescriptions } from "./pi-tools.deferred-followup.js";
 import { filterToolsByMessageProvider } from "./pi-tools.message-provider-policy.js";
 import {
@@ -62,6 +64,7 @@ import {
   PROCESS_TOOL_DISPLAY_SUMMARY,
 } from "./tool-description-presets.js";
 import { createToolFsPolicy, resolveToolFsConfig } from "./tool-fs-policy.js";
+import { resolveToolLoopDetectionConfig } from "./tool-loop-detection-config.js";
 import {
   applyToolPolicyPipeline,
   buildDefaultToolPolicyPipelineSteps,
@@ -230,32 +233,7 @@ function resolveExecConfig(params: { cfg?: OpenClawConfig; agentId?: string }) {
   };
 }
 
-export function resolveToolLoopDetectionConfig(params: {
-  cfg?: OpenClawConfig;
-  agentId?: string;
-}): ToolLoopDetectionConfig | undefined {
-  const global = params.cfg?.tools?.loopDetection;
-  const agent =
-    params.agentId && params.cfg
-      ? resolveAgentConfig(params.cfg, params.agentId)?.tools?.loopDetection
-      : undefined;
-
-  if (!agent) {
-    return global;
-  }
-  if (!global) {
-    return agent;
-  }
-
-  return {
-    ...global,
-    ...agent,
-    detectors: {
-      ...global.detectors,
-      ...agent.detectors,
-    },
-  };
-}
+export { resolveToolLoopDetectionConfig } from "./tool-loop-detection-config.js";
 
 export const __testing = {
   cleanToolSchemaForGemini,
@@ -378,6 +356,8 @@ export function createOpenClawCodingTools(options?: {
   onYield?: (message: string) => Promise<void> | void;
   /** Optional instrumentation callback for tool preparation stage timing. */
   recordToolPrepStage?: (name: string) => void;
+  /** Live observer called after wrapped tool outcomes are recorded. */
+  onToolOutcome?: ToolOutcomeObserver;
 }): AnyAgentTool[] {
   const execToolName = "exec";
   const sandbox = options?.sandbox?.enabled ? options.sandbox : undefined;
@@ -838,6 +818,7 @@ export function createOpenClawCodingTools(options?: {
       runId: options?.runId,
       ...(options?.trace ? { trace: options.trace } : {}),
       loopDetection: resolveToolLoopDetectionConfig({ cfg: options?.config, agentId }),
+      onToolOutcome: options?.onToolOutcome,
     }),
   );
   options?.recordToolPrepStage?.("tool-hooks");
