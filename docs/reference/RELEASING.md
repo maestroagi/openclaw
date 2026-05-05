@@ -322,7 +322,10 @@ Use `release_profile` to select live/provider breadth:
 
 Use `run_release_soak=true` with `stable` when the release-blocking lanes are
 green and you want the exhaustive live/E2E, Docker release-path, and
-all-since-2026.4.23 upgrade-survivor sweep before promotion. `full` implies
+bounded published upgrade-survivor sweep before promotion. That sweep covers
+the latest four stable packages plus pinned `2026.4.23` and `2026.5.2`
+baselines plus older `2026.4.15` coverage, with duplicate baselines removed and
+each baseline sharded into its own Docker runner job. `full` implies
 `run_release_soak=true`.
 
 `OpenClaw Release Checks` uses the trusted workflow ref to resolve the target
@@ -379,7 +382,10 @@ runs only the release-only plugin child, `release-checks` runs every release
 box, and the narrower release groups are `install-smoke`, `cross-os`,
 `live-e2e`, `package`, `qa`, `qa-parity`, `qa-live`, and `npm-telegram`.
 Focused `npm-telegram` reruns require `npm_telegram_package_spec`; full/all runs
-with `release_profile=full` use the release-checks package artifact.
+with `release_profile=full` use the release-checks package artifact. Focused
+cross-OS reruns can add `cross_os_suite_filter=windows/packaged-upgrade` or
+another OS/suite filter. QA release-check failures are advisory; a QA-only
+failure does not block release validation.
 
 ### Vitest
 
