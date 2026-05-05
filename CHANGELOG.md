@@ -6,10 +6,13 @@ Docs: https://docs.openclaw.ai
 
 ### Changes
 
+- PR triage: mark external pull requests with `proof: supplied` when Barnacle finds structured real behavior proof, keep stale negative proof labels in sync across CRLF-edited PR bodies, and let ClawSweeper own the stronger `proof: sufficient` judgement.
+- Sessions CLI: show the selected agent runtime in the `openclaw sessions` table so terminal output matches the runtime visibility already present in JSON/status surfaces. Thanks @vincentkoc.
 - Google Meet/Voice Call: make Twilio dial-in joins speak through the realtime Gemini voice bridge with paced audio streaming, backpressure-aware buffering, barge-in queue clearing, same-session agent consult routing, duplicate-consult coalescing, and no TwiML fallback during realtime speech, giving Meet participants a much snappier OpenClaw voice agent. (#77064) Thanks @scoootscooob.
 - Voice Call/realtime: add opt-in OpenClaw agent voice context capsules and consult-cadence guidance so Gemini/OpenAI realtime calls can sound like the configured agent without consulting the full agent on every ordinary turn. Thanks @scoootscooob.
 - Docker/Gateway: harden the gateway container by dropping `NET_RAW` and `NET_ADMIN` capabilities and enabling `no-new-privileges` in the bundled `docker-compose.yml`. Thanks @VintageAyu.
 - Telegram: accept plugin-owned numeric forum-topic targets in the agent message tool and keep reply-dispatch provider chunks behind a real stable runtime alias during in-place package updates. Fixes #77137. Thanks @richardmqq.
+- Telegram/streaming: keep draft preview rotation from reusing a pre-tool assistant preview after visible tool or media output lands between compaction replay and the next assistant message. Thanks @vincentkoc.
 - Channels/WhatsApp: support explicit WhatsApp Channel/Newsletter `@newsletter` outbound message targets with channel session metadata instead of DM routing. Fixes #13417; carries forward the narrow outbound target idea from #13424. Thanks @vincentkoc and @agentz-manfred.
 - TTS/telephony: honor provider voice/model overrides in telephony synthesis providers so Google Meet agent speech logs match the backend that actually produced the audio. Thanks @vincentkoc.
 - Voice Call/realtime: bound the paced Twilio audio queue and close overloaded realtime streams before provider audio can pile up behind the websocket backpressure guard. Thanks @vincentkoc.
@@ -86,7 +89,9 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Gateway/shutdown: cancel delayed post-ready maintenance during close and suppress maintenance/cron startup after quick restarts, preventing orphaned background timers. Thanks @vincentkoc.
 - Agents/generated media: treat attachment-style message tool actions as completed chat sends, preventing duplicate fallback media posts when generated files were already uploaded.
+- Control UI/sessions: show each session's agent runtime in the Sessions table and allow filtering by runtime labels, matching the Agents panel runtime wording. Thanks @vincentkoc.
 - Discord/streaming: show live reasoning text in progress drafts instead of a bare `Reasoning` status line.
 - Doctor/status: warn when `OPENCLAW_GATEWAY_TOKEN` would shadow a different active `gateway.auth.token` source for local CLI commands, while avoiding false positives when config points at the same env token. Fixes #74271. Thanks @yelog.
 - Gateway/HTTP: avoid loading managed outgoing-image media handlers for unrelated requests, so disabled OpenAI-compatible routes return 404 without waiting on lazy media sidecars. Thanks @vincentkoc.
@@ -104,8 +109,10 @@ Docs: https://docs.openclaw.ai
 - OpenAI/Google Meet: fail realtime voice connection attempts when the socket closes before `session.updated`, avoiding stuck Meet joins waiting on a bridge that never became ready. Thanks @vincentkoc.
 - Hooks/session-memory: run reset memory capture off the command reply path and make model-generated memory filename slugs opt-in with `llmSlug: true`, so `/new` and `/reset` no longer block WhatsApp and other message-channel reset replies on hook housekeeping or a nested model call. Thanks @vincentkoc.
 - CLI/plugins: handle closed stdin during `plugins uninstall` confirmation prompt and exit 1 with actionable `--force` guidance instead of crashing with Node exit 13 unsettled top-level await. Fixes #73562. (#73566) Thanks @ai-hpc.
+- CLI/channels: skip config, proxy, channel-option catalog, banner-config, and plugin startup bootstrap for the bare `openclaw channels` parent-help command, so it exits promptly after printing help instead of loading configured channel plugins. Thanks @vincentkoc.
 - CLI/gateway: pause non-TTY stdin after full CLI command completion and stop `openclaw agent` from falling back to embedded mode after gateway request/auth failures, so parent help commands exit cleanly and scoped delivery probes surface the real Gateway error immediately. Thanks @vincentkoc.
 - Gateway/model catalog: cache empty read-only model catalog results until reload, so TUI and control-plane refresh loops cannot hammer plugin metadata reads when no usable models are currently discovered. Thanks @vincentkoc.
+- CLI/update: make dev-channel preflight lint opt-in and constrained when enabled, so `openclaw update --channel dev` no longer walks back otherwise-good main commits when Ubuntu hosts OOM-kill or fail parallel oxlint shards. Thanks @vincentkoc.
 - Google Meet: fork the caller's current agent transcript into agent-mode meeting consultant sessions, so Meet replies inherit the context from the tool call that joined the meeting.
 - Google Meet: log the concrete agent-mode TTS provider, model, voice, output format, and sample rate after speech synthesis, so Meet logs show which voice backend spoke each reply.
 - Google Meet: log the resolved audio provider model when starting Chrome and paired-node Meet talk-back bridges, so agent-mode joins show the STT model and bidi joins show the realtime voice model.
