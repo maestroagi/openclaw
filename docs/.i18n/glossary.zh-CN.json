@@ -36,6 +36,10 @@
     "target": "频道消息 API"
   },
   {
+    "source": "Talk mode",
+    "target": "Talk 模式"
+  },
+  {
     "source": "Azure Speech",
     "target": "Azure Speech"
   },
@@ -578,6 +582,14 @@
   {
     "source": "Manage plugins",
     "target": "管理插件"
+  },
+  {
+    "source": "Plugin path ownership",
+    "target": "插件路径所有权"
+  },
+  {
+    "source": "Docker permissions",
+    "target": "Docker 权限"
   },
   {
     "source": "Plugin manifest",
