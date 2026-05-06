@@ -16,18 +16,22 @@ Internal note for the docs publish pipeline. This file is under `docs/.i18n`, wh
 1. `openclaw/openclaw` syncs English docs into `openclaw/docs`.
 2. GitHub Pages deploys English/source changes immediately from the sync commit.
 3. `Translate All` is triggered by the sync commit, release dispatch, manual dispatch, or weekly schedule.
-4. The coordinator waits a short cooldown window before starting translation.
+4. The coordinator waits a cooldown window before starting translation.
 5. After the cooldown, the coordinator reads the current `origin/main` source metadata.
 6. If a newer docs sync arrived during cooldown, the coordinator uses the newer source state.
 7. Per-locale translation jobs run in parallel with `fail-fast: false`.
 8. Each locale job uploads an artifact for the requested source SHA.
 9. The finalizer downloads available artifacts, ignores stale or failed payloads, and pushes one aggregate i18n commit.
+10. After the aggregate commit lands, the finalizer dispatches the Pages deploy once.
+11. The Pages workflow dispatches live smoke after deployment.
 
 ## Debounce policy
 
-The coordinator waits 5 minutes after a docs sync or release dispatch, then re-reads `origin/main`.
+The coordinator waits 1 hour after a docs sync or release dispatch, then re-reads `origin/main`.
 
-If `.openclaw-sync/source.json` changed during the wait, it waits again from the newer state. If `main` keeps moving, the wait is capped at 20 minutes and the newest observed state is translated.
+The default cooldown is controlled by the publish repo variable `OPENCLAW_DOCS_TRANSLATION_COOLDOWN_SECONDS`, which defaults to `3600`. Repository dispatch callers may override it with `client_payload.cooldown_seconds`, and manual runs may set `cooldown_seconds`.
+
+If `.openclaw-sync/source.json` changed during the wait, it waits again from the newer state. If `main` keeps moving, the wait is capped by `OPENCLAW_DOCS_TRANSLATION_MAX_WAIT_SECONDS`, which defaults to the cooldown value. The newest observed state is translated after the cap.
 
 Manual and weekly runs do not wait by default.
 
@@ -40,6 +44,8 @@ Normal runs translate only:
 - missing locale pages
 - locale pages with stale `x-i18n.source_hash`
 - pages affected by source deletion/pruning
+
+Internal files under `docs/.i18n/**` are not translation inputs. Push-triggered runs that only change internal i18n files skip before the locale matrix.
 
 If a locale job fails, its artifact is marked failed and carries no payload. The finalizer still commits successful locales. The failed locale remains stale and is picked up by the next incremental run because its source hashes still do not match.
 
@@ -98,6 +104,8 @@ The weekly run is the repair mechanism for LLM flakiness, partial failures, and 
 
 English deploys from source sync commits.
 
-Translations deploy from the aggregate i18n commit. A hot docs day should produce many fast English deploys, but only a small number of locale deploys.
+Translations deploy after the aggregate i18n commit. The finalizer dispatches GitHub Pages once because GitHub suppresses normal push-triggered workflow runs from `GITHUB_TOKEN` commits. The Pages workflow dispatches live smoke after deployment so the smoke test checks the deployed site instead of racing the deploy.
+
+A hot docs day should produce many fast English deploys, but only a small number of locale deploys.
 
 If external deploy providers such as Mintlify watch every push, the aggregate i18n commit is the load reducer. Avoid restoring per-locale pushes to `main`.
