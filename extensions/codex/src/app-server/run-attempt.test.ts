@@ -8,6 +8,7 @@ import {
   type EmbeddedRunAttemptParams,
 } from "openclaw/plugin-sdk/agent-harness";
 import {
+  buildAgentRuntimePlan,
   embeddedAgentLog,
   nativeHookRelayTesting,
   onAgentEvent,
@@ -61,25 +62,25 @@ function createParamsWithRuntimePlan(
   workspaceDir: string,
 ): EmbeddedRunAttemptParams {
   const params = createParams(sessionFile, workspaceDir);
-  useLightweightCodexRuntimePlan(params);
-  return params;
+  return {
+    ...params,
+    runtimePlan: buildCodexRuntimePlan(params, workspaceDir),
+  };
 }
 
-function useLightweightCodexRuntimePlan(params: EmbeddedRunAttemptParams): void {
-  params.runtimePlan = {
-    auth: {},
-    prompt: {
-      resolveSystemPromptContribution: () => undefined,
-    },
-    tools: {
-      normalize: (tools: unknown) => tools,
-      logDiagnostics: () => undefined,
-    },
-    observability: {
-      resolvedRef: `${params.provider}/${params.modelId}`,
-      harnessId: "codex",
-    },
-  } as unknown as NonNullable<EmbeddedRunAttemptParams["runtimePlan"]>;
+function buildCodexRuntimePlan(params: EmbeddedRunAttemptParams, workspaceDir: string) {
+  return buildAgentRuntimePlan({
+    provider: params.provider,
+    modelId: params.modelId,
+    model: params.model,
+    modelApi: params.model.api,
+    harnessId: "codex",
+    harnessRuntime: "codex",
+    config: params.config,
+    workspaceDir,
+    agentDir: tempDir,
+    thinkingLevel: params.thinkLevel,
+  });
 }
 
 function threadStartResult(threadId = "thread-1") {
@@ -504,7 +505,7 @@ describe("runCodexAppServerAttempt", () => {
     params.config = { tools: { profile: "coding" } };
     params.sourceReplyDeliveryMode = "message_tool_only";
     params.messageProvider = "whatsapp";
-    useLightweightCodexRuntimePlan(params);
+    params.runtimePlan = buildCodexRuntimePlan(params, workspaceDir);
     let seenForceMessageTool: boolean | undefined;
     __testing.setOpenClawCodingToolsFactoryForTests((options) => {
       seenForceMessageTool = options?.forceMessageTool;
@@ -545,7 +546,7 @@ describe("runCodexAppServerAttempt", () => {
       session: { store: sessionsPath, mainKey: "main", scope: "per-sender" },
       tools: { profile: "coding" },
     };
-    useLightweightCodexRuntimePlan(params);
+    params.runtimePlan = buildCodexRuntimePlan(params, workspaceDir);
     await fs.writeFile(
       sessionsPath,
       JSON.stringify({
@@ -951,7 +952,7 @@ describe("runCodexAppServerAttempt", () => {
     expect(inputText).toContain("make the default webpage openclaw");
   });
 
-  it("passes OpenClaw bootstrap files through Codex config instructions", async () => {
+  it("passes OpenClaw bootstrap files through Codex developer instructions", async () => {
     const sessionFile = path.join(tempDir, "session.jsonl");
     const workspaceDir = path.join(tempDir, "workspace");
     await fs.mkdir(workspaceDir, { recursive: true });
@@ -966,14 +967,18 @@ describe("runCodexAppServerAttempt", () => {
     await run;
 
     const threadStart = harness.requests.find((request) => request.method === "thread/start");
-    const config = (threadStart?.params as { config?: { instructions?: string } }).config;
-    expect(config).toEqual(
-      expect.objectContaining({
-        instructions: expect.stringContaining("Soul voice goes here."),
-      }),
-    );
-    expect(config?.instructions).toContain("Codex loads AGENTS.md natively");
-    expect(config?.instructions).not.toContain("Follow AGENTS guidance.");
+    const params = threadStart?.params as {
+      config?: { instructions?: string };
+      developerInstructions?: string;
+    };
+    const config = params.config;
+
+    // Regression for #77363: persona/style bootstrap (SOUL.md) must reach the
+    // explicit developerInstructions field, not config.instructions.
+    expect(params.developerInstructions).toContain("Soul voice goes here.");
+    expect(params.developerInstructions).toContain("Codex loads AGENTS.md natively");
+    expect(params.developerInstructions).not.toContain("Follow AGENTS guidance.");
+    expect(config?.instructions).toBeUndefined();
   });
 
   it("fires llm_input, llm_output, and agent_end hooks for codex turns", async () => {
