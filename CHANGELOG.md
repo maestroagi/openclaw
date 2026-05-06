@@ -6,10 +6,13 @@ Docs: https://docs.openclaw.ai
 
 ### Changes
 
+- Docs/iMessage: deprecate BlueBubbles for new OpenClaw setups, document the upstream server-release rationale, and point new iMessage deployments toward the native `imsg` path while keeping BlueBubbles as a supported legacy fallback.
+- Discord/streaming: default Discord replies to progress draft previews so tool/work activity appears in one edited Discord message unless `channels.discord.streaming.mode` is set to `off`.
 - Plugins/install: add `npm-pack:<path.tgz>` installs so local npm pack artifacts run through the same managed npm-root install, lockfile verification, dependency scan, and install-record path as registry npm plugins.
 - Plugin skills/Windows: publish plugin-provided skill directories as junctions on Windows so standard users without Developer Mode can register plugin skills without symlink EPERM failures. Fixes #77958. (#77971) Thanks @hclsys and @jarro.
 - MS Teams: surface blocked Bot Framework egress by logging JWKS fetch network failures and adding a Bot Connector send hint for transport-level reply failures. Fixes #77674. (#78081) Thanks @Beandon13.
 - Gateway/sessions: fast-path already-qualified model refs while building session-list rows so `openclaw sessions` and Control UI session lists avoid heavyweight model resolution on large stores. (#77902) Thanks @ragesaq.
+- Contributor PRs: remind external contributors to redact private information like IP addresses, API keys, phone numbers, and non-public endpoints from real behavior proof. Thanks @pashpashpash.
 - Codex/approvals: in Codex approval modes, stop installing the pre-guardian native `PermissionRequest` hook by default so Codex's reviewer can approve safe commands before OpenClaw surfaces an approval, remember `allow-always` decisions for identical Codex native `PermissionRequest` payloads within the active session window, and make plugin approval requests validate/render their actual allowed decisions so Telegram and other native approval UIs cannot offer stale actions. Thanks @shakkernerd.
 - PR triage: mark external pull requests with `proof: supplied` when Barnacle finds structured real behavior proof, keep stale negative proof labels in sync across CRLF-edited PR bodies, and let ClawSweeper own the stronger `proof: sufficient` judgement.
 - Sessions CLI: show the selected agent runtime in the `openclaw sessions` table so terminal output matches the runtime visibility already present in JSON/status surfaces. Thanks @vincentkoc.
@@ -50,6 +53,7 @@ Docs: https://docs.openclaw.ai
 - QA/Mantis: add `pnpm openclaw qa mantis slack-desktop-smoke` to run Slack live QA inside a Crabbox VNC desktop, open Slack Web, and capture desktop screenshots beside the Slack QA artifacts.
 - QA/Mantis: add an opt-in Discord thread attachment before/after scenario that creates a real thread, calls `message.thread-reply` with `filePath`, and captures baseline/candidate screenshot evidence.
 - Discord: preserve `filePath` and `path` attachments when replying to a thread with the message tool.
+- Discord/message: parse provider-prefixed targets like `discord:channel:<id>` as channel sends instead of legacy Discord DM targets, so cross-channel agent `message(action="send")` calls no longer misroute channel IDs into misleading `Unknown Channel` failures. Fixes #78572. (#78625) Thanks @Patrick-Erichsen.
 - QA/Mantis: add visual desktop tasks with Crabbox MP4 recording, screenshot capture, and optional image-understanding assertions, and preserve video artifacts in Mantis before/after reports.
 - QA/WhatsApp: add `pnpm openclaw qa whatsapp` for live DM canary and pairing-gate coverage using two pre-linked WhatsApp Web sessions from the QA credential pool.
 - QA/Mantis: pass the runtime env through desktop-browser Crabbox and artifact-copy child commands, so embedded Mantis callers can provide Crabbox credentials without mutating the parent process. Thanks @vincentkoc.
@@ -114,6 +118,7 @@ Docs: https://docs.openclaw.ai
 - Telegram/native commands: show the current thinking level above the `/think` level picker so users can see the active setting before changing it. (#78278) Thanks @obviyus.
 - Plugins/hooks: add a `before_agent_run` pass/block gate that can stop a user prompt before model submission while preserving a redacted transcript entry for the user, and clarify that raw conversation hooks require `hooks.allowConversationAccess=true`. (#75035) Thanks @jesse-merhi.
 - Config/Nix: keep startup-derived plugin enablement, gateway auth tokens, control UI origins, and owner-display secrets runtime-only instead of rewriting `openclaw.json`; in Nix mode, config writers, mutating `openclaw update`, plugin lifecycle mutators, and doctor repair/token-generation now refuse with agent-first nix-openclaw guidance. (#78047) Thanks @joshp123.
+- Agents/context engine: invalidate cached assembled context views when source history shrinks or assembly fails, preventing stale pre-reset history from being reused. Fixes #77968. (#78163) Thanks @brokemac79 and @ChrisBot2026.
 
 ### Fixes
 
@@ -136,6 +141,7 @@ Docs: https://docs.openclaw.ai
 - Dependencies: override transitive `ip-address` to `10.2.0` so the runtime lockfile no longer includes the vulnerable `10.1.0` build flagged by Dependabot alert 109. Thanks @vincentkoc.
 - Plugins/install: apply OpenClaw's npm security overrides inside managed external plugin npm roots so hoisted plugin dependencies inherit the host package hardening. Thanks @vincentkoc.
 - Plugins/install: skip npm peer resolution in managed plugin roots so installing peer-based plugins such as Opik cannot pull a stale registry `openclaw` copy beside Codex/Discord/WhatsApp and trigger `ERESOLVE`. Thanks @vincentkoc.
+- Plugins/uninstall: run managed npm cleanup even when a plugin package directory is already missing, preventing stale package manifests from reinstalling removed plugins on the next npm install.
 - Feishu: hydrate missing native topic starter thread IDs before session routing so first turns and follow-ups stay in the same topic session. Fixes #78262. Thanks @joeyzenghuan.
 - Memory Wiki: skip empty and whitespace-only source pages when refreshing generated Related blocks, preventing blank pages from being rewritten into Related-only stubs. Fixes #78121. Thanks @amknight.
 - LINE: reject `dmPolicy: "open"` configs without wildcard `allowFrom` so webhook DMs fail validation instead of being acknowledged and silently blocked before inbound processing. Fixes #78316.
@@ -460,6 +466,8 @@ Docs: https://docs.openclaw.ai
 - Telegram/streaming: finalize text replies by stopping the edited stream message instead of sending a second answer bubble, so Telegram turns cannot duplicate the streamed final response. (#77947) Thanks @obviyus.
 - web_search/Brave: fix provider selection when Brave is installed as an external plugin and `tools.web.search.provider: "brave"` is explicitly configured — a redundant provider re-resolution at startup could race and return an empty list, causing a spurious `WEB_SEARCH_PROVIDER_INVALID_AUTODETECT` warning and treating the explicitly configured provider as absent. Fixes #77676. Thanks @openperf.
 - Doctor/plugins: discover doctor contracts from load-path channel plugins during `openclaw doctor --fix`, so plugin-owned legacy config repair runs before validation. (#77477) Thanks @jalehman.
+- Dependencies: bump transitive `basic-ftp` to 5.3.1 so the runtime lockfile no longer includes the vulnerable 5.3.0 build flagged by the production dependency audit. (#78637) Thanks @sallyom.
+- Agents/compaction: clamp compaction summary reserve tokens to each model's output limit so high-context compaction no longer requests invalid `max_tokens` values. (#54392) Thanks @adzendo.
 
 ## 2026.5.3-1
 
