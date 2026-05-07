@@ -61,6 +61,7 @@ Docs: https://docs.openclaw.ai
 - QA/Mantis: return the copied Slack desktop screenshot path even when remote Slack QA fails, so the CLI still prints the failure screenshot artifact. Thanks @vincentkoc.
 - QA/Mantis: accept Blacksmith Testbox `tbx_...` lease ids from desktop smoke warmup, so provider overrides do not fail before inspect/run. Thanks @vincentkoc.
 - QA/Codex harness: add targeted live Docker/Testbox diagnostics, auth preflight checks, cache mount fixes, and app-server protocol checkout discovery so maintainer harness failures are easier to reproduce. Thanks @vincentkoc.
+- CI/Crabbox: default owned AWS fallback to `standard` multi-region capacity with broker hints enabled, reserving `beast` for explicit CPU-bound maintainer lanes.
 - Control UI/cron: make the New Job sidebar collapsible so the jobs list can reclaim space while keeping the form one click away. Thanks @BunsDev.
 - Control UI/header: show the active agent name in dashboard breadcrumbs without adding the current session key, keeping non-chat views oriented without crowding the topbar.
 - Plugins/migration: emit catalog-backed install hints when `plugins.entries` or `plugins.allow` references an official external plugin that is not installed, so upgraded configs point operators to `openclaw plugins install <spec>` instead of telling them to remove valid plugin config. (#77483) Thanks @hclsys.
@@ -123,10 +124,16 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- CLI/completion: guard the shell-profile source line written by `openclaw completion --install` with a file existence check (`[ -f ... ] && source ...` for bash/zsh, `test -f ...; and source ...` for fish) so uninstalling OpenClaw no longer makes new login shells error on a missing completion cache. (#78659) Thanks @sjf.
 - Cron/doctor: repair persisted cron jobs whose `payload.model` was stored as `"default"`, `"null"`, blank, or JSON `null` by removing the bad override during `openclaw doctor --fix` while keeping cron runtime model validation strict. Fixes #78549. Thanks @bizzle12368239.
+- Telegram: honor `accessGroup:*` sender allowlists for DMs, groups, native commands, and callback authorization before applying Telegram's numeric sender-ID checks. Fixes #78660. Thanks @manugc.
+- Agent delivery: report `deliverySucceeded=false` when outbound delivery returns no adapter result, so claimed/empty delivery paths no longer masquerade as successful sends. Fixes #78532. Thanks @joeyfrasier.
+- Cron/isolated runs: fail implicit announce delivery before model execution when `delivery.channel=last` has no previous route, so recurring jobs do not spend tokens before hitting a permanent delivery-target error. Fixes #78608. Thanks @sallyom.
 - Doctor/OpenAI Codex: revert the 2026.5.5 `doctor --fix` repair that rewrote valid `openai-codex/*` ChatGPT/Codex OAuth routes to `openai/*`, which could break OAuth-only GPT-5.5 setups or accidentally move users onto the OpenAI API-key route. If 2026.5.5 already changed your default model, run `openclaw models set openai-codex/gpt-5.5 && openclaw config validate` to switch the default agent back to the Codex OAuth PI route. Fixes #78407.
+- Telegram: keep the polling watchdog tied to `getUpdates` liveness so unrelated outbound Bot API calls cannot mask a wedged inbound poller. Fixes #78422. Thanks @ai-hpc.
 - Discord/groups: instruct group-chat agents to stay silent when a message is addressed to someone else, replying only when invited or correcting key facts. (#78615)
 - Discord/groups: tell Discord-channel agents to wrap bare URLs as `<https://example.com>` so link previews do not expand into uninvited embeds. (#78614)
+- Agents/fallback: fail fast on session write-lock timeouts instead of trying fallback models for local file contention. Fixes #66646. Thanks @sallyom.
 - Telegram/Codex: generate DM topic labels with Codex-compatible simple-completion requests so auto-created private topics can be renamed instead of staying `New Chat`.
 - Plugins/runtime fetch: drop third-party symbol metadata from plain request header dictionaries before passing them into native `fetch` or `Headers`, so SDK and guarded/proxy fetch paths do not reject otherwise valid plugin requests. Fixes #77846. Thanks @shakkernerd.
 - Web fetch: bound guarded dispatcher cleanup after request timeouts so timed-out fetches return tool errors instead of leaving Gateway tool lanes active. (#78439) Thanks @obviyus.
