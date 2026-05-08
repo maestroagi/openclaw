@@ -256,8 +256,8 @@ describe("renderQuickSettings", () => {
     const clear = Array.from(container.querySelectorAll("button")).find(
       (button) => button.textContent?.trim() === "Clear override",
     );
-    expect(clear?.textContent?.trim()).toBe("Clear override");
-    clear?.dispatchEvent(new Event("click"));
+    expect(clear).toBeInstanceOf(HTMLButtonElement);
+    clear!.dispatchEvent(new Event("click"));
 
     expect(onAssistantAvatarClearOverride).toHaveBeenCalledTimes(1);
   });
@@ -310,18 +310,15 @@ describe("renderQuickSettings", () => {
       const input = Array.from(container.querySelectorAll('input[type="file"]')).find(
         (node) => !node.closest(".qs-identity-card--assistant"),
       ) as HTMLInputElement | null;
-      expect(input).not.toBeNull();
-      if (!input) {
-        return;
-      }
+      expect(input).toBeInstanceOf(HTMLInputElement);
 
       const file = new File([new Uint8Array(1_500_001)], "avatar.png", { type: "image/png" });
-      Object.defineProperty(input, "files", {
+      Object.defineProperty(input!, "files", {
         configurable: true,
         value: [file],
       });
 
-      input.dispatchEvent(new Event("change"));
+      input!.dispatchEvent(new Event("change"));
 
       expect(fileReader).not.toHaveBeenCalled();
       expect(onUserAvatarChange).not.toHaveBeenCalled();
@@ -361,7 +358,8 @@ describe("renderQuickSettings", () => {
     const customButton = Array.from(container.querySelectorAll("button")).find(
       (button) => button.textContent?.trim() === "Import",
     );
-    customButton?.click();
+    expect(customButton).toBeInstanceOf(HTMLButtonElement);
+    customButton!.click();
 
     expect(onOpenCustomThemeImport).toHaveBeenCalledTimes(1);
     expect(setTheme).not.toHaveBeenCalled();
@@ -388,7 +386,8 @@ describe("renderQuickSettings", () => {
     const customButton = Array.from(container.querySelectorAll("button")).find(
       (button) => button.textContent?.trim() === "Light Green",
     );
-    customButton?.click();
+    expect(customButton).toBeInstanceOf(HTMLButtonElement);
+    customButton!.click();
 
     expect(setTheme).toHaveBeenCalledWith("custom", expect.any(Object));
     expect(onOpenCustomThemeImport).not.toHaveBeenCalled();
