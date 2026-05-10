@@ -821,6 +821,40 @@ describe("slackPlugin outbound", () => {
     expect(result).toEqual({ channel: "slack", messageId: "m-media-local" });
   });
 
+  it("normalizes slack button directives for direct outbound delivery", () => {
+    const normalized = slackPlugin.outbound?.normalizePayload?.({
+      cfg: {
+        channels: {
+          slack: {
+            botToken: "xoxb-test",
+            appToken: "xapp-test",
+            capabilities: { interactiveReplies: true },
+          },
+        },
+      },
+      accountId: "default",
+      payload: {
+        text: "Slack interactive minimal test\n[[slack_buttons: Test:test-value]]",
+      },
+    });
+
+    expect(normalized).toEqual({
+      text: "Slack interactive minimal test",
+      interactive: {
+        blocks: [
+          {
+            type: "text",
+            text: "Slack interactive minimal test",
+          },
+          {
+            type: "buttons",
+            buttons: [{ label: "Test", value: "test-value" }],
+          },
+        ],
+      },
+    });
+  });
+
   it("sends block payload media first, then the final block message", async () => {
     const sendSlack = vi
       .fn()
@@ -1077,6 +1111,66 @@ describe("slackPlugin outbound new targets", () => {
       mediaUrl: "https://example.com/file.png",
     });
     expect(result).toEqual({ channel: "slack", messageId: "m-new-media", channelId: "D888" });
+  });
+});
+
+describe("slackPlugin configured bindings", () => {
+  function requireSlackBindings() {
+    const bindings = slackPlugin.bindings;
+    if (!bindings) {
+      throw new Error("slack bindings adapter unavailable");
+    }
+    return bindings;
+  }
+
+  it("normalizes Slack channel and user ids for configured ACP bindings", () => {
+    const bindings = requireSlackBindings();
+
+    expect(
+      bindings.compileConfiguredBinding({
+        binding: {} as never,
+        conversationId: "channel:C123",
+      }),
+    ).toEqual({ conversationId: "c123" });
+    expect(
+      bindings.compileConfiguredBinding({
+        binding: {} as never,
+        conversationId: "#C123",
+      }),
+    ).toEqual({ conversationId: "c123" });
+    expect(
+      bindings.compileConfiguredBinding({
+        binding: {} as never,
+        conversationId: "<@U123>",
+      }),
+    ).toEqual({ conversationId: "u123" });
+    expect(
+      bindings.compileConfiguredBinding({
+        binding: {} as never,
+        conversationId: "slack:U123",
+      }),
+    ).toEqual({ conversationId: "u123" });
+  });
+
+  it("matches Slack thread replies against configured channel bindings", () => {
+    const bindings = requireSlackBindings();
+    const compiledBinding = bindings.compileConfiguredBinding({
+      binding: {} as never,
+      conversationId: "C123",
+    });
+
+    expect(compiledBinding).toEqual({ conversationId: "c123" });
+    expect(
+      bindings.matchInboundConversation({
+        binding: {} as never,
+        compiledBinding: compiledBinding!,
+        conversationId: "1770408518.451689",
+        parentConversationId: "C123",
+      }),
+    ).toEqual({
+      conversationId: "c123",
+      matchPriority: 1,
+    });
   });
 });
 
