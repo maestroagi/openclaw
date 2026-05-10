@@ -280,14 +280,11 @@ function expectResumeRequest(
   requests: Array<{ method: string; params: unknown }>,
   params: Record<string, unknown>,
 ) {
-  expect(requests).toEqual(
-    expect.arrayContaining([
-      {
-        method: "thread/resume",
-        params: expect.objectContaining(params),
-      },
-    ]),
-  );
+  const request = requests.find((entry) => entry.method === "thread/resume");
+  expect(request).toBeDefined();
+  for (const [key, value] of Object.entries(params)) {
+    expect((request?.params as Record<string, unknown> | undefined)?.[key]).toEqual(value);
+  }
 }
 
 function createResumeHarness() {
@@ -624,17 +621,17 @@ describe("runCodexAppServerAttempt", () => {
 
     expect(dynamicToolNames).toContain("message");
     expect(dynamicToolNames).toContain("web_search");
-    expect(dynamicToolNames).not.toEqual(
-      expect.arrayContaining([
-        "read",
-        "write",
-        "edit",
-        "apply_patch",
-        "exec",
-        "process",
-        "update_plan",
-      ]),
-    );
+    for (const toolName of [
+      "read",
+      "write",
+      "edit",
+      "apply_patch",
+      "exec",
+      "process",
+      "update_plan",
+    ]) {
+      expect(dynamicToolNames).not.toContain(toolName);
+    }
   });
 
   it("normalizes Codex dynamic toolsAllow entries before filtering", () => {
@@ -691,18 +688,10 @@ describe("runCodexAppServerAttempt", () => {
 
     expect(message).not.toHaveProperty("namespace");
     expect(message).not.toHaveProperty("deferLoading");
-    expect(webSearch).toEqual(
-      expect.objectContaining({
-        namespace: CODEX_OPENCLAW_DYNAMIC_TOOL_NAMESPACE,
-        deferLoading: true,
-      }),
-    );
-    expect(heartbeat).toEqual(
-      expect.objectContaining({
-        namespace: CODEX_OPENCLAW_DYNAMIC_TOOL_NAMESPACE,
-        deferLoading: true,
-      }),
-    );
+    expect(webSearch?.namespace).toBe(CODEX_OPENCLAW_DYNAMIC_TOOL_NAMESPACE);
+    expect(webSearch?.deferLoading).toBe(true);
+    expect(heartbeat?.namespace).toBe(CODEX_OPENCLAW_DYNAMIC_TOOL_NAMESPACE);
+    expect(heartbeat?.deferLoading).toBe(true);
   });
 
   it("passes the live run session key to Codex dynamic tools when sandbox policy uses another key", () => {
@@ -926,77 +915,67 @@ describe("runCodexAppServerAttempt", () => {
     const run = runCodexAppServerAttempt(params);
     await harness.waitForMethod("turn/start");
 
-    await expect(
-      harness.handleServerRequest({
-        id: "request-tool-1",
-        method: "item/tool/call",
-        params: {
-          threadId: "thread-1",
-          turnId: "turn-1",
-          callId: "call-1",
-          namespace: null,
-          tool: "message",
-          arguments: {
-            action: "send",
-            token: "plain-secret-value-12345",
-            text: "hello",
-          },
+    const toolResult = (await harness.handleServerRequest({
+      id: "request-tool-1",
+      method: "item/tool/call",
+      params: {
+        threadId: "thread-1",
+        turnId: "turn-1",
+        callId: "call-1",
+        namespace: null,
+        tool: "message",
+        arguments: {
+          action: "send",
+          token: "plain-secret-value-12345",
+          text: "hello",
         },
-      }),
-    ).resolves.toMatchObject({
-      success: false,
-      contentItems: [
-        {
-          type: "inputText",
-          text: expect.stringMatching(
-            /^(Unknown OpenClaw tool: message|Action send requires a target\.)$/u,
-          ),
-        },
-      ],
-    });
+      },
+    })) as {
+      contentItems?: Array<{ text?: string; type?: string }>;
+      success?: boolean;
+    };
+    expect(toolResult.success).toBe(false);
+    expect(toolResult.contentItems?.[0]?.type).toBe("inputText");
+    expect(toolResult.contentItems?.[0]?.text).toMatch(
+      /^(Unknown OpenClaw tool: message|Action send requires a target\.)$/u,
+    );
 
     await harness.completeTurn({ threadId: "thread-1", turnId: "turn-1" });
     await run;
 
-    const agentEvents = onRunAgentEvent.mock.calls.map(([event]) => event);
-    expect(agentEvents).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          stream: "tool",
-          data: expect.objectContaining({
-            phase: "start",
-            name: "message",
-            toolCallId: "call-1",
-            args: expect.objectContaining({
-              action: "send",
-              token: "plain-…2345",
-              text: "hello",
-            }),
-          }),
-        }),
-        expect.objectContaining({
-          stream: "tool",
-          data: expect.objectContaining({
-            phase: "result",
-            name: "message",
-            toolCallId: "call-1",
-            isError: true,
-            result: expect.objectContaining({ success: false }),
-          }),
-        }),
-      ]),
+    const agentEvents = onRunAgentEvent.mock.calls.map(([event]) => event) as Array<{
+      data?: {
+        args?: Record<string, unknown>;
+        isError?: boolean;
+        name?: string;
+        phase?: string;
+        result?: { success?: boolean };
+        toolCallId?: string;
+      };
+      stream?: string;
+    }>;
+    const startEvent = agentEvents.find(
+      (event) => event.stream === "tool" && event.data?.phase === "start",
     );
+    expect(startEvent?.data?.name).toBe("message");
+    expect(startEvent?.data?.toolCallId).toBe("call-1");
+    expect(startEvent?.data?.args?.action).toBe("send");
+    expect(startEvent?.data?.args?.token).toBe("plain-…2345");
+    expect(startEvent?.data?.args?.text).toBe("hello");
+    const resultEvent = agentEvents.find(
+      (event) => event.stream === "tool" && event.data?.phase === "result",
+    );
+    expect(resultEvent?.data?.name).toBe("message");
+    expect(resultEvent?.data?.toolCallId).toBe("call-1");
+    expect(resultEvent?.data?.isError).toBe(true);
+    expect(resultEvent?.data?.result?.success).toBe(false);
     expect(JSON.stringify(agentEvents)).not.toContain("plain-secret-value-12345");
-    expect(globalAgentEvents).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          runId: "run-1",
-          sessionKey: "agent:main:session-1",
-          stream: "tool",
-          data: expect.objectContaining({ phase: "start", name: "message" }),
-        }),
-      ]),
+    const globalStartEvent = globalAgentEvents.find(
+      (event) => event.stream === "tool" && event.data.phase === "start",
     );
+    expect(globalStartEvent?.runId).toBe("run-1");
+    expect(globalStartEvent?.sessionKey).toBe("agent:main:session-1");
+    expect(globalStartEvent?.data.name).toBe("message");
   });
 
   it("releases the session when Codex never completes after a dynamic tool response", async () => {
@@ -1040,36 +1019,33 @@ describe("runCodexAppServerAttempt", () => {
     });
     await vi.waitFor(() => expect(handleRequest).toBeTypeOf("function"), { interval: 1 });
 
-    await expect(
-      handleRequest?.({
-        id: "request-tool-1",
-        method: "item/tool/call",
-        params: {
-          threadId: "thread-1",
-          turnId: "turn-1",
-          callId: "call-1",
-          namespace: null,
-          tool: "message",
-          arguments: { action: "send", text: "already sent" },
-        },
-      }),
-    ).resolves.toMatchObject({
-      success: false,
-      contentItems: [
-        {
-          type: "inputText",
-          text: expect.stringMatching(
-            /^(Unknown OpenClaw tool: message|Action send requires a target\.)$/u,
-          ),
-        },
-      ],
-    });
+    const toolResult = (await handleRequest?.({
+      id: "request-tool-1",
+      method: "item/tool/call",
+      params: {
+        threadId: "thread-1",
+        turnId: "turn-1",
+        callId: "call-1",
+        namespace: null,
+        tool: "message",
+        arguments: { action: "send", text: "already sent" },
+      },
+    })) as {
+      contentItems?: Array<{ text?: string; type?: string }>;
+      success?: boolean;
+    };
+    expect(toolResult.success).toBe(false);
+    expect(toolResult.contentItems?.[0]?.type).toBe("inputText");
+    expect(toolResult.contentItems?.[0]?.text).toMatch(
+      /^(Unknown OpenClaw tool: message|Action send requires a target\.)$/u,
+    );
 
-    await expect(run).resolves.toMatchObject({
-      aborted: true,
-      timedOut: true,
-      promptError: "codex app-server turn idle timed out waiting for turn/completed",
-    });
+    const result = await run;
+    expect(result.aborted).toBe(true);
+    expect(result.timedOut).toBe(true);
+    expect(result.promptError).toBe(
+      "codex app-server turn idle timed out waiting for turn/completed",
+    );
     await vi.waitFor(
       () =>
         expect(request).toHaveBeenCalledWith("turn/interrupt", {
@@ -1128,34 +1104,35 @@ describe("runCodexAppServerAttempt", () => {
     });
     await vi.waitFor(() => expect(handleRequest).toBeTypeOf("function"), { interval: 1 });
 
-    await expect(
-      handleRequest?.({
-        id: "request-tool-1",
-        method: "item/tool/call",
-        params: {
-          threadId: "thread-1",
-          turnId: "turn-1",
-          callId: "call-1",
-          namespace: null,
-          tool: "message",
-          arguments: { action: "send", text: "already sent" },
-        },
-      }),
-    ).resolves.toMatchObject({ success: false });
+    const toolResult = (await handleRequest?.({
+      id: "request-tool-1",
+      method: "item/tool/call",
+      params: {
+        threadId: "thread-1",
+        turnId: "turn-1",
+        callId: "call-1",
+        namespace: null,
+        tool: "message",
+        arguments: { action: "send", text: "already sent" },
+      },
+    })) as { success?: boolean };
+    expect(toolResult.success).toBe(false);
     await notify(rateLimitsUpdated(Math.ceil(Date.now() / 1000) + 120));
 
-    await expect(run).resolves.toMatchObject({
-      aborted: true,
-      timedOut: true,
-      promptError: "codex app-server turn idle timed out waiting for turn/completed",
-    });
-    expect(warn).toHaveBeenCalledWith(
-      "codex app-server turn idle timed out waiting for completion",
-      expect.objectContaining({
-        timeoutMs: 5,
-        lastActivityReason: "request:item/tool/call:response",
-      }),
+    const result = await run;
+    expect(result.aborted).toBe(true);
+    expect(result.timedOut).toBe(true);
+    expect(result.promptError).toBe(
+      "codex app-server turn idle timed out waiting for turn/completed",
     );
+    const warnCall = warn.mock.calls.find(
+      ([message]) => message === "codex app-server turn idle timed out waiting for completion",
+    );
+    const warnData = warnCall?.[1] as
+      | { lastActivityReason?: string; timeoutMs?: number }
+      | undefined;
+    expect(warnData?.timeoutMs).toBe(5);
+    expect(warnData?.lastActivityReason).toBe("request:item/tool/call:response");
   });
 
   it("keeps waiting when Codex emits a raw assistant item after a dynamic tool response", async () => {
@@ -1204,20 +1181,19 @@ describe("runCodexAppServerAttempt", () => {
     });
     await vi.waitFor(() => expect(handleRequest).toBeTypeOf("function"), { interval: 1 });
 
-    await expect(
-      handleRequest?.({
-        id: "request-tool-1",
-        method: "item/tool/call",
-        params: {
-          threadId: "thread-1",
-          turnId: "turn-1",
-          callId: "call-1",
-          namespace: null,
-          tool: "message",
-          arguments: { action: "send", text: "already sent" },
-        },
-      }),
-    ).resolves.toMatchObject({ success: false });
+    const toolResult = (await handleRequest?.({
+      id: "request-tool-1",
+      method: "item/tool/call",
+      params: {
+        threadId: "thread-1",
+        turnId: "turn-1",
+        callId: "call-1",
+        namespace: null,
+        tool: "message",
+        arguments: { action: "send", text: "already sent" },
+      },
+    })) as { success?: boolean };
+    expect(toolResult.success).toBe(false);
     await notify({
       method: "rawResponseItem/completed",
       params: {
@@ -1232,7 +1208,7 @@ describe("runCodexAppServerAttempt", () => {
       },
     });
     await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(request).not.toHaveBeenCalledWith("turn/interrupt", expect.anything());
+    expect(request.mock.calls.some(([method]) => method === "turn/interrupt")).toBe(false);
 
     await notify({
       method: "turn/completed",
@@ -1243,12 +1219,11 @@ describe("runCodexAppServerAttempt", () => {
       },
     });
 
-    await expect(run).resolves.toMatchObject({
-      aborted: false,
-      timedOut: false,
-      promptError: null,
-    });
-    expect(request).not.toHaveBeenCalledWith("turn/interrupt", expect.anything());
+    const result = await run;
+    expect(result.aborted).toBe(false);
+    expect(result.timedOut).toBe(false);
+    expect(result.promptError).toBeNull();
+    expect(request.mock.calls.some(([method]) => method === "turn/interrupt")).toBe(false);
   });
 
   it("logs raw assistant item context when the terminal watchdog fires", async () => {
@@ -1298,20 +1273,19 @@ describe("runCodexAppServerAttempt", () => {
     });
     await vi.waitFor(() => expect(handleRequest).toBeTypeOf("function"), { interval: 1 });
 
-    await expect(
-      handleRequest?.({
-        id: "request-tool-1",
-        method: "item/tool/call",
-        params: {
-          threadId: "thread-1",
-          turnId: "turn-1",
-          callId: "call-1",
-          namespace: null,
-          tool: "message",
-          arguments: { action: "send", text: "already sent" },
-        },
-      }),
-    ).resolves.toMatchObject({ success: false });
+    const toolResult = (await handleRequest?.({
+      id: "request-tool-1",
+      method: "item/tool/call",
+      params: {
+        threadId: "thread-1",
+        turnId: "turn-1",
+        callId: "call-1",
+        namespace: null,
+        tool: "message",
+        arguments: { action: "send", text: "already sent" },
+      },
+    })) as { success?: boolean };
+    expect(toolResult.success).toBe(false);
     await notify({
       method: "rawResponseItem/completed",
       params: {
@@ -1326,29 +1300,42 @@ describe("runCodexAppServerAttempt", () => {
       },
     });
 
-    await expect(run).resolves.toMatchObject({
-      aborted: true,
-      timedOut: true,
-      promptError: "codex app-server turn idle timed out waiting for turn/completed",
-    });
-    expect(warn).toHaveBeenCalledWith(
-      "codex app-server turn idle timed out waiting for terminal event",
-      expect.objectContaining({
-        threadId: "thread-1",
-        turnId: "turn-1",
-        timeoutMs: 5,
-        lastActivityReason: "notification:rawResponseItem/completed",
-        lastNotificationMethod: "rawResponseItem/completed",
-        lastNotificationItemId: "raw-status-1",
-        lastNotificationItemType: "message",
-        lastNotificationItemRole: "assistant",
-        lastAssistantTextPreview: "I'm writing the report now.",
-      }),
+    const result = await run;
+    expect(result.aborted).toBe(true);
+    expect(result.timedOut).toBe(true);
+    expect(result.promptError).toBe(
+      "codex app-server turn idle timed out waiting for turn/completed",
     );
-    expect(warn).not.toHaveBeenCalledWith(
-      "codex app-server turn idle timed out waiting for completion",
-      expect.anything(),
+    const terminalWarnCall = warn.mock.calls.find(
+      ([message]) => message === "codex app-server turn idle timed out waiting for terminal event",
     );
+    const terminalWarnData = terminalWarnCall?.[1] as
+      | {
+          lastActivityReason?: string;
+          lastAssistantTextPreview?: string;
+          lastNotificationItemId?: string;
+          lastNotificationItemRole?: string;
+          lastNotificationItemType?: string;
+          lastNotificationMethod?: string;
+          threadId?: string;
+          timeoutMs?: number;
+          turnId?: string;
+        }
+      | undefined;
+    expect(terminalWarnData?.threadId).toBe("thread-1");
+    expect(terminalWarnData?.turnId).toBe("turn-1");
+    expect(terminalWarnData?.timeoutMs).toBe(5);
+    expect(terminalWarnData?.lastActivityReason).toBe("notification:rawResponseItem/completed");
+    expect(terminalWarnData?.lastNotificationMethod).toBe("rawResponseItem/completed");
+    expect(terminalWarnData?.lastNotificationItemId).toBe("raw-status-1");
+    expect(terminalWarnData?.lastNotificationItemType).toBe("message");
+    expect(terminalWarnData?.lastNotificationItemRole).toBe("assistant");
+    expect(terminalWarnData?.lastAssistantTextPreview).toBe("I'm writing the report now.");
+    expect(
+      warn.mock.calls.some(
+        ([message]) => message === "codex app-server turn idle timed out waiting for completion",
+      ),
+    ).toBe(false);
   });
 
   it("releases the session when Codex accepts a turn but never sends progress", async () => {
@@ -1362,11 +1349,12 @@ describe("runCodexAppServerAttempt", () => {
     const run = runCodexAppServerAttempt(params, { turnTerminalIdleTimeoutMs: 5 });
     await harness.waitForMethod("turn/start");
 
-    await expect(run).resolves.toMatchObject({
-      aborted: true,
-      timedOut: true,
-      promptError: "codex app-server turn idle timed out waiting for turn/completed",
-    });
+    const result = await run;
+    expect(result.aborted).toBe(true);
+    expect(result.timedOut).toBe(true);
+    expect(result.promptError).toBe(
+      "codex app-server turn idle timed out waiting for turn/completed",
+    );
     await vi.waitFor(
       () =>
         expect(harness.request).toHaveBeenCalledWith("turn/interrupt", {
@@ -1400,32 +1388,25 @@ describe("runCodexAppServerAttempt", () => {
     await harness.completeTurn({ threadId: "thread-1", turnId: "turn-1" });
     await run;
 
-    expect(beforePromptBuild).toHaveBeenCalledWith(
-      {
-        prompt: "hello",
-        messages: [expect.objectContaining({ role: "assistant" })],
-      },
-      expect.objectContaining({
-        runId: "run-1",
-        sessionId: "session-1",
-      }),
-    );
-    expect(harness.requests).toEqual(
-      expect.arrayContaining([
-        {
-          method: "thread/start",
-          params: expect.objectContaining({
-            developerInstructions: expect.stringContaining("pre system\n\ncustom codex system"),
-          }),
-        },
-        {
-          method: "turn/start",
-          params: expect.objectContaining({
-            input: [{ type: "text", text: "queued context\n\nhello", text_elements: [] }],
-          }),
-        },
-      ]),
-    );
+    expect(beforePromptBuild).toHaveBeenCalledOnce();
+    const [hookInput, hookContext] = beforePromptBuild.mock.calls[0] as unknown as [
+      { messages?: Array<{ role?: string }>; prompt?: string },
+      { runId?: string; sessionId?: string },
+    ];
+    expect(hookInput.prompt).toBe("hello");
+    expect(hookInput.messages?.[0]?.role).toBe("assistant");
+    expect(hookContext.runId).toBe("run-1");
+    expect(hookContext.sessionId).toBe("session-1");
+    const threadStart = harness.requests.find((request) => request.method === "thread/start");
+    const threadStartParams = threadStart?.params as { developerInstructions?: string } | undefined;
+    expect(threadStartParams?.developerInstructions).toContain("pre system\n\ncustom codex system");
+    const turnStart = harness.requests.find((request) => request.method === "turn/start");
+    const turnStartParams = turnStart?.params as
+      | { input?: Array<{ text?: string; text_elements?: unknown[]; type?: string }> }
+      | undefined;
+    expect(turnStartParams?.input).toEqual([
+      { type: "text", text: "queued context\n\nhello", text_elements: [] },
+    ]);
   });
 
   it("projects mirrored history when starting Codex without a native thread binding", async () => {
@@ -1513,27 +1494,30 @@ describe("runCodexAppServerAttempt", () => {
     expect(llmInput).toHaveBeenCalled();
     await new Promise<void>((resolve) => setImmediate(resolve));
 
-    expect(llmInput.mock.calls).toEqual(
-      expect.arrayContaining([
-        [
-          expect.objectContaining({
-            runId: "run-1",
-            sessionId: "session-1",
-            provider: "codex",
-            model: "gpt-5.4-codex",
-            prompt: "hello",
-            imagesCount: 0,
-            historyMessages: [expect.objectContaining({ role: "assistant" })],
-            systemPrompt: expect.stringContaining(CODEX_GPT5_BEHAVIOR_CONTRACT),
-          }),
-          expect.objectContaining({
-            runId: "run-1",
-            sessionId: "session-1",
-            sessionKey: "agent:main:session-1",
-          }),
-        ],
-      ]),
-    );
+    const [llmInputPayload, llmInputContext] = llmInput.mock.calls[0] as unknown as [
+      {
+        historyMessages?: Array<{ role?: string }>;
+        imagesCount?: number;
+        model?: string;
+        prompt?: string;
+        provider?: string;
+        runId?: string;
+        sessionId?: string;
+        systemPrompt?: string;
+      },
+      { runId?: string; sessionId?: string; sessionKey?: string },
+    ];
+    expect(llmInputPayload.runId).toBe("run-1");
+    expect(llmInputPayload.sessionId).toBe("session-1");
+    expect(llmInputPayload.provider).toBe("codex");
+    expect(llmInputPayload.model).toBe("gpt-5.4-codex");
+    expect(llmInputPayload.prompt).toBe("hello");
+    expect(llmInputPayload.imagesCount).toBe(0);
+    expect(llmInputPayload.historyMessages?.[0]?.role).toBe("assistant");
+    expect(llmInputPayload.systemPrompt).toContain(CODEX_GPT5_BEHAVIOR_CONTRACT);
+    expect(llmInputContext.runId).toBe("run-1");
+    expect(llmInputContext.sessionId).toBe("session-1");
+    expect(llmInputContext.sessionKey).toBe("agent:main:session-1");
 
     await harness.notify({
       method: "item/agentMessage/delta",
@@ -1550,30 +1534,26 @@ describe("runCodexAppServerAttempt", () => {
     expect(result.assistantTexts).toEqual(["hello back"]);
     expect(llmOutput).toHaveBeenCalledTimes(1);
     expect(agentEnd).toHaveBeenCalledTimes(1);
-    const agentEvents = onRunAgentEvent.mock.calls.map(([event]) => event);
-    expect(agentEvents).toEqual(
-      expect.arrayContaining([
-        {
-          stream: "lifecycle",
-          data: expect.objectContaining({
-            phase: "start",
-            startedAt: expect.any(Number),
-          }),
-        },
-        {
-          stream: "assistant",
-          data: { text: "hello back" },
-        },
-        {
-          stream: "lifecycle",
-          data: expect.objectContaining({
-            phase: "end",
-            startedAt: expect.any(Number),
-            endedAt: expect.any(Number),
-          }),
-        },
-      ]),
+    const agentEvents = onRunAgentEvent.mock.calls.map(([event]) => event) as Array<{
+      data: {
+        endedAt?: number;
+        phase?: string;
+        startedAt?: number;
+        text?: string;
+      };
+      stream: string;
+    }>;
+    const lifecycleStart = agentEvents.find(
+      (event) => event.stream === "lifecycle" && event.data.phase === "start",
     );
+    expect(typeof lifecycleStart?.data.startedAt).toBe("number");
+    const assistantEvent = agentEvents.find((event) => event.stream === "assistant");
+    expect(assistantEvent?.data).toEqual({ text: "hello back" });
+    const lifecycleEnd = agentEvents.find(
+      (event) => event.stream === "lifecycle" && event.data.phase === "end",
+    );
+    expect(typeof lifecycleEnd?.data.startedAt).toBe("number");
+    expect(typeof lifecycleEnd?.data.endedAt).toBe("number");
     const startIndex = agentEvents.findIndex(
       (event) => event.stream === "lifecycle" && event.data.phase === "start",
     );
@@ -1584,54 +1564,48 @@ describe("runCodexAppServerAttempt", () => {
     expect(startIndex).toBeGreaterThanOrEqual(0);
     expect(assistantIndex).toBeGreaterThan(startIndex);
     expect(endIndex).toBeGreaterThan(assistantIndex);
-    expect(globalAgentEvents).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          runId: "run-1",
-          sessionKey: "agent:main:session-1",
-          stream: "assistant",
-          data: { text: "hello back" },
-        }),
-        expect.objectContaining({
-          runId: "run-1",
-          sessionKey: "agent:main:session-1",
-          stream: "lifecycle",
-          data: expect.objectContaining({ phase: "end" }),
-        }),
-      ]),
+    const globalAssistantEvent = globalAgentEvents.find((event) => event.stream === "assistant");
+    expect(globalAssistantEvent?.runId).toBe("run-1");
+    expect(globalAssistantEvent?.sessionKey).toBe("agent:main:session-1");
+    expect(globalAssistantEvent?.data).toEqual({ text: "hello back" });
+    const globalEndEvent = globalAgentEvents.find(
+      (event) => event.stream === "lifecycle" && event.data.phase === "end",
     );
+    expect(globalEndEvent?.runId).toBe("run-1");
+    expect(globalEndEvent?.sessionKey).toBe("agent:main:session-1");
 
-    expect(llmOutput).toHaveBeenCalledWith(
-      expect.objectContaining({
-        runId: "run-1",
-        sessionId: "session-1",
-        provider: "codex",
-        model: "gpt-5.4-codex",
-        resolvedRef: "codex/gpt-5.4-codex",
-        harnessId: "codex",
-        assistantTexts: ["hello back"],
-        lastAssistant: expect.objectContaining({
-          role: "assistant",
-        }),
-      }),
-      expect.objectContaining({
-        runId: "run-1",
-        sessionId: "session-1",
-      }),
-    );
-    expect(agentEnd).toHaveBeenCalledWith(
-      expect.objectContaining({
-        success: true,
-        messages: expect.arrayContaining([
-          expect.objectContaining({ role: "user" }),
-          expect.objectContaining({ role: "assistant" }),
-        ]),
-      }),
-      expect.objectContaining({
-        runId: "run-1",
-        sessionId: "session-1",
-      }),
-    );
+    const [llmOutputPayload, llmOutputContext] = llmOutput.mock.calls[0] as unknown as [
+      {
+        assistantTexts?: string[];
+        harnessId?: string;
+        lastAssistant?: { role?: string };
+        model?: string;
+        provider?: string;
+        resolvedRef?: string;
+        runId?: string;
+        sessionId?: string;
+      },
+      { runId?: string; sessionId?: string },
+    ];
+    expect(llmOutputPayload.runId).toBe("run-1");
+    expect(llmOutputPayload.sessionId).toBe("session-1");
+    expect(llmOutputPayload.provider).toBe("codex");
+    expect(llmOutputPayload.model).toBe("gpt-5.4-codex");
+    expect(llmOutputPayload.resolvedRef).toBe("codex/gpt-5.4-codex");
+    expect(llmOutputPayload.harnessId).toBe("codex");
+    expect(llmOutputPayload.assistantTexts).toEqual(["hello back"]);
+    expect(llmOutputPayload.lastAssistant?.role).toBe("assistant");
+    expect(llmOutputContext.runId).toBe("run-1");
+    expect(llmOutputContext.sessionId).toBe("session-1");
+    const [agentEndPayload, agentEndContext] = agentEnd.mock.calls[0] as unknown as [
+      { messages?: Array<{ role?: string }>; success?: boolean },
+      { runId?: string; sessionId?: string },
+    ];
+    expect(agentEndPayload.success).toBe(true);
+    expect(agentEndPayload.messages?.some((message) => message.role === "user")).toBe(true);
+    expect(agentEndPayload.messages?.some((message) => message.role === "assistant")).toBe(true);
+    expect(agentEndContext.runId).toBe("run-1");
+    expect(agentEndContext.sessionId).toBe("session-1");
   });
 
   it("forwards Codex app-server verbose tool summaries and completed output", async () => {
@@ -1711,24 +1685,16 @@ describe("runCodexAppServerAttempt", () => {
     await run;
 
     const startRequest = harness.requests.find((request) => request.method === "thread/start");
-    expect(startRequest?.params).toEqual(
-      expect.objectContaining({
-        config: expect.objectContaining({
-          "features.codex_hooks": true,
-          "hooks.PreToolUse": [
-            expect.objectContaining({
-              hooks: [
-                expect.objectContaining({
-                  type: "command",
-                  timeout: 9,
-                  command: expect.stringContaining("--event pre_tool_use --timeout 4321"),
-                }),
-              ],
-            }),
-          ],
-        }),
-      }),
-    );
+    const startConfig = (startRequest?.params as { config?: Record<string, unknown> } | undefined)
+      ?.config;
+    expect(startConfig?.["features.codex_hooks"]).toBe(true);
+    const preToolUseHooks = startConfig?.["hooks.PreToolUse"] as
+      | Array<{ hooks?: Array<{ command?: string; timeout?: number; type?: string }> }>
+      | undefined;
+    const preToolUseCommand = preToolUseHooks?.[0]?.hooks?.[0];
+    expect(preToolUseCommand?.type).toBe("command");
+    expect(preToolUseCommand?.timeout).toBe(9);
+    expect(preToolUseCommand?.command).toContain("--event pre_tool_use --timeout 4321");
     const relayId = extractRelayIdFromThreadRequest(startRequest?.params);
     expect(nativeHookRelayTesting.getNativeHookRelayRegistrationForTests(relayId)).toBeUndefined();
   });
@@ -1803,27 +1769,17 @@ describe("runCodexAppServerAttempt", () => {
     await harness.waitForMethod("turn/start");
 
     const startRequest = harness.requests.find((request) => request.method === "thread/start");
-    expect(startRequest?.params).toEqual(
-      expect.objectContaining({
-        config: expect.objectContaining({
-          "features.codex_hooks": true,
-          "hooks.PreToolUse": expect.any(Array),
-          "hooks.PostToolUse": expect.any(Array),
-          "hooks.Stop": expect.any(Array),
-        }),
-      }),
-    );
-    expect(startRequest?.params).toEqual(
-      expect.objectContaining({
-        config: expect.not.objectContaining({
-          "hooks.PermissionRequest": expect.anything(),
-        }),
-      }),
-    );
+    const startConfig = (startRequest?.params as { config?: Record<string, unknown> } | undefined)
+      ?.config;
+    expect(startConfig?.["features.codex_hooks"]).toBe(true);
+    expect(Array.isArray(startConfig?.["hooks.PreToolUse"])).toBe(true);
+    expect(Array.isArray(startConfig?.["hooks.PostToolUse"])).toBe(true);
+    expect(Array.isArray(startConfig?.["hooks.Stop"])).toBe(true);
+    expect(startConfig).not.toHaveProperty("hooks.PermissionRequest");
     const relayId = extractRelayIdFromThreadRequest(startRequest?.params);
-    expect(nativeHookRelayTesting.getNativeHookRelayRegistrationForTests(relayId)).toMatchObject({
-      allowedEvents: ["pre_tool_use", "post_tool_use", "before_agent_finalize"],
-    });
+    expect(
+      nativeHookRelayTesting.getNativeHookRelayRegistrationForTests(relayId)?.allowedEvents,
+    ).toEqual(["pre_tool_use", "post_tool_use", "before_agent_finalize"]);
 
     await harness.completeTurn({ threadId: "thread-1", turnId: "turn-1" });
     await run;
@@ -1849,18 +1805,14 @@ describe("runCodexAppServerAttempt", () => {
     await harness.waitForMethod("turn/start");
 
     const startRequest = harness.requests.find((request) => request.method === "thread/start");
-    expect(startRequest?.params).toEqual(
-      expect.objectContaining({
-        config: expect.objectContaining({
-          "features.codex_hooks": true,
-          "hooks.PermissionRequest": expect.any(Array),
-        }),
-      }),
-    );
+    const startConfig = (startRequest?.params as { config?: Record<string, unknown> } | undefined)
+      ?.config;
+    expect(startConfig?.["features.codex_hooks"]).toBe(true);
+    expect(Array.isArray(startConfig?.["hooks.PermissionRequest"])).toBe(true);
     const relayId = extractRelayIdFromThreadRequest(startRequest?.params);
-    expect(nativeHookRelayTesting.getNativeHookRelayRegistrationForTests(relayId)).toMatchObject({
-      allowedEvents: ["permission_request"],
-    });
+    expect(
+      nativeHookRelayTesting.getNativeHookRelayRegistrationForTests(relayId)?.allowedEvents,
+    ).toEqual(["permission_request"]);
 
     await harness.completeTurn({ threadId: "thread-1", turnId: "turn-1" });
     await run;
@@ -1956,12 +1908,10 @@ describe("runCodexAppServerAttempt", () => {
     );
     const secondRelayId = extractRelayIdFromThreadRequest(resumeRequest?.params);
     expect(secondRelayId).toBe(firstRelayId);
-    expect(
-      nativeHookRelayTesting.getNativeHookRelayRegistrationForTests(firstRelayId),
-    ).toMatchObject({
-      runId: "run-2",
-      allowedEvents: ["pre_tool_use"],
-    });
+    const resumedRegistration =
+      nativeHookRelayTesting.getNativeHookRelayRegistrationForTests(firstRelayId);
+    expect(resumedRegistration?.runId).toBe("run-2");
+    expect(resumedRegistration?.allowedEvents).toEqual(["pre_tool_use"]);
 
     await secondHarness.completeTurn({ threadId: "thread-existing", turnId: "turn-1" });
     await secondRun;
@@ -1995,17 +1945,13 @@ describe("runCodexAppServerAttempt", () => {
     await run;
 
     const startRequest = harness.requests.find((request) => request.method === "thread/start");
-    expect(startRequest?.params).toEqual(
-      expect.objectContaining({
-        config: expect.objectContaining({
-          "features.codex_hooks": false,
-          "hooks.PreToolUse": [],
-          "hooks.PostToolUse": [],
-          "hooks.PermissionRequest": [],
-          "hooks.Stop": [],
-        }),
-      }),
-    );
+    const startConfig = (startRequest?.params as { config?: Record<string, unknown> } | undefined)
+      ?.config;
+    expect(startConfig?.["features.codex_hooks"]).toBe(false);
+    expect(startConfig?.["hooks.PreToolUse"]).toEqual([]);
+    expect(startConfig?.["hooks.PostToolUse"]).toEqual([]);
+    expect(startConfig?.["hooks.PermissionRequest"]).toEqual([]);
+    expect(startConfig?.["hooks.Stop"]).toEqual([]);
   });
 
   it("cleans up native hook relay state when turn/start fails", async () => {
@@ -2148,35 +2094,29 @@ describe("runCodexAppServerAttempt", () => {
 
     expect(result.promptError).toBe("codex exploded");
     expect(agentEnd).toHaveBeenCalledTimes(1);
-    const agentEvents = onRunAgentEvent.mock.calls.map(([event]) => event);
-    expect(agentEvents).toEqual(
-      expect.arrayContaining([
-        {
-          stream: "lifecycle",
-          data: expect.objectContaining({ phase: "start", startedAt: expect.any(Number) }),
-        },
-        {
-          stream: "lifecycle",
-          data: expect.objectContaining({
-            phase: "error",
-            startedAt: expect.any(Number),
-            endedAt: expect.any(Number),
-            error: "codex exploded",
-          }),
-        },
-      ]),
+    const agentEvents = onRunAgentEvent.mock.calls.map(([event]) => event) as Array<{
+      data: { endedAt?: number; error?: string; phase?: string; startedAt?: number };
+      stream: string;
+    }>;
+    const startEvent = agentEvents.find(
+      (event) => event.stream === "lifecycle" && event.data.phase === "start",
     );
+    expect(typeof startEvent?.data.startedAt).toBe("number");
+    const errorEvent = agentEvents.find(
+      (event) => event.stream === "lifecycle" && event.data.phase === "error",
+    );
+    expect(typeof errorEvent?.data.startedAt).toBe("number");
+    expect(typeof errorEvent?.data.endedAt).toBe("number");
+    expect(errorEvent?.data.error).toBe("codex exploded");
     expect(agentEvents.some((event) => event.stream === "assistant")).toBe(false);
-    expect(agentEnd).toHaveBeenCalledWith(
-      expect.objectContaining({
-        success: false,
-        error: "codex exploded",
-      }),
-      expect.objectContaining({
-        runId: "run-1",
-        sessionId: "session-1",
-      }),
-    );
+    const [agentEndPayload, agentEndContext] = agentEnd.mock.calls[0] as unknown as [
+      { error?: string; success?: boolean },
+      { runId?: string; sessionId?: string },
+    ];
+    expect(agentEndPayload.success).toBe(false);
+    expect(agentEndPayload.error).toBe("codex exploded");
+    expect(agentEndContext.runId).toBe("run-1");
+    expect(agentEndContext.sessionId).toBe("session-1");
   });
 
   it("fires llm_output and agent_end when turn/start fails", async () => {
