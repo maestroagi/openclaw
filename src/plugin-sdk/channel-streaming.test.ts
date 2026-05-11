@@ -250,7 +250,7 @@ describe("channel-streaming", () => {
     expect(
       formatChannelProgressDraftText({
         entry: { streaming: { progress: { label: "Shelling" } } },
-        lines: ["x".repeat(80)],
+        lines: ["x".repeat(160)],
         formatLine: (line) => `\`${line}\``,
       }),
     ).toBe(`Shelling\n• \`${"x".repeat(71)}…\``);
