@@ -1147,6 +1147,10 @@ export async function runCodexAppServerAttempt(
     // inside projector.handleNotification still releases the session lane.
     // See openclaw/openclaw#67996.
     const isTurnCompletion = notification.method === "turn/completed" && isCurrentTurnNotification;
+    const isTurnAbortMarker =
+      isCurrentTurnNotification &&
+      isCodexTurnAbortMarkerNotification(notification, { currentPromptText: promptBuild.prompt });
+    const isTurnTerminal = isTurnCompletion || isTurnAbortMarker;
     try {
       await projector.handleNotification(notification);
     } catch (error) {
@@ -1155,7 +1159,10 @@ export async function runCodexAppServerAttempt(
         error,
       });
     } finally {
-      if (isTurnCompletion) {
+      if (isTurnTerminal) {
+        if (isTurnAbortMarker) {
+          projector.markAborted();
+        }
         if (!timedOut && !runAbortController.signal.aborted) {
           await steeringQueue?.flushPending();
         }
@@ -2342,6 +2349,68 @@ function readNotificationTurnId(record: JsonObject): string | undefined {
 function readNestedTurnId(record: JsonObject): string | undefined {
   const turn = record.turn;
   return isJsonObject(turn) ? readString(turn, "id") : undefined;
+}
+
+const CODEX_TURN_ABORT_MARKER_START = "<turn_aborted>";
+const CODEX_TURN_ABORT_MARKER_END = "</turn_aborted>";
+const CODEX_INTERRUPTED_USER_GUIDANCE =
+  "The user interrupted the previous turn on purpose. Any running unified exec processes may still be running in the background. If any tools/commands were aborted, they may have partially executed.";
+const CODEX_INTERRUPTED_DEVELOPER_GUIDANCE =
+  "The previous turn was interrupted on purpose. Any running unified exec processes may still be running in the background. If any tools/commands were aborted, they may have partially executed.";
+
+function isCodexTurnAbortMarkerNotification(
+  notification: CodexServerNotification,
+  options: { currentPromptText?: string } = {},
+): boolean {
+  if (notification.method !== "rawResponseItem/completed" || !isJsonObject(notification.params)) {
+    return false;
+  }
+  const item = notification.params.item;
+  const role = isJsonObject(item) ? readString(item, "role") : undefined;
+  if (!isJsonObject(item) || (role !== "user" && role !== "developer")) {
+    return false;
+  }
+  const text = extractRawResponseItemText(item).trim();
+  if (role === "user" && text === options.currentPromptText?.trim()) {
+    return false;
+  }
+  const markerBody = readCodexTurnAbortMarkerBody(text);
+  return (
+    markerBody === CODEX_INTERRUPTED_USER_GUIDANCE ||
+    markerBody === CODEX_INTERRUPTED_DEVELOPER_GUIDANCE
+  );
+}
+
+function readCodexTurnAbortMarkerBody(text: string): string | undefined {
+  if (
+    !text.startsWith(CODEX_TURN_ABORT_MARKER_START) ||
+    !text.endsWith(CODEX_TURN_ABORT_MARKER_END)
+  ) {
+    return undefined;
+  }
+  return text
+    .slice(CODEX_TURN_ABORT_MARKER_START.length, -CODEX_TURN_ABORT_MARKER_END.length)
+    .trim();
+}
+
+function extractRawResponseItemText(item: JsonObject): string {
+  const content = item.content;
+  if (!Array.isArray(content)) {
+    return "";
+  }
+  return content
+    .flatMap((entry) => {
+      if (!isJsonObject(entry)) {
+        return [];
+      }
+      const type = readString(entry, "type");
+      if (type !== "input_text" && type !== "text") {
+        return [];
+      }
+      const text = readString(entry, "text");
+      return text ? [text] : [];
+    })
+    .join("");
 }
 
 function readString(record: JsonObject, key: string): string | undefined {
