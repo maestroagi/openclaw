@@ -38,11 +38,12 @@ describe("buildInlineProviderModels", () => {
     const result = buildInlineProviderModels(providers);
 
     expect(result).toEqual([
-      expect.objectContaining({
-        id: "custom-model",
+      {
+        ...makeModel("custom-model"),
         provider: "custom",
         baseUrl: "http://localhost:8000",
-      }),
+        api: undefined,
+      },
     ]);
   });
 
@@ -58,11 +59,12 @@ describe("buildInlineProviderModels", () => {
     const result = buildInlineProviderModels(providers);
 
     expect(result).toEqual([
-      expect.objectContaining({
-        id: "custom-model",
+      {
+        ...makeModel("custom-model"),
         provider: "custom",
+        baseUrl: "http://localhost:8000",
         api: "anthropic-messages",
-      }),
+      },
     ]);
   });
 
@@ -78,11 +80,12 @@ describe("buildInlineProviderModels", () => {
     const result = buildInlineProviderModels(providers);
 
     expect(result).toEqual([
-      expect.objectContaining({
-        id: "custom-model",
+      {
+        ...makeModel("custom-model"),
         provider: "custom",
+        baseUrl: "http://localhost:8000",
         api: "anthropic-messages",
-      }),
+      },
     ]);
   });
 
@@ -134,11 +137,13 @@ describe("buildInlineProviderModels", () => {
     const result = buildInlineProviderModels(providers);
 
     expect(result).toEqual([
-      expect.objectContaining({
-        id: "claude-sonnet-4-6",
+      {
+        ...makeModel("claude-sonnet-4-6"),
         provider: "proxy",
+        baseUrl: "https://proxy.example.com",
+        api: "anthropic-messages",
         headers: { "User-Agent": "custom-agent/1.0" },
-      }),
+      },
     ]);
   });
 
@@ -157,14 +162,48 @@ describe("buildInlineProviderModels", () => {
     };
 
     const result = buildInlineProviderModels(providers);
+    const [
+      {
+        id,
+        name,
+        reasoning,
+        input,
+        cost,
+        contextWindow,
+        maxTokens,
+        provider,
+        baseUrl,
+        api,
+        headers,
+      },
+    ] = result;
 
-    expect(result).toEqual([
-      expect.objectContaining({
-        id: "proxy-model",
-        provider: "proxy",
-        headers: { "X-Tenant": "acme" },
-      }),
-    ]);
+    expect(result).toHaveLength(1);
+    expect({
+      id,
+      name,
+      reasoning,
+      input,
+      cost,
+      contextWindow,
+      maxTokens,
+      provider,
+      baseUrl,
+      api,
+      headers: headers ? { ...headers } : undefined,
+    }).toStrictEqual({
+      id: "proxy-model",
+      name: "proxy-model",
+      reasoning: false,
+      input: ["text"],
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      contextWindow: 1,
+      maxTokens: 1,
+      provider: "proxy",
+      baseUrl: "https://proxy.example.com/v1",
+      api: "openai-completions",
+      headers: { "X-Tenant": "acme" },
+    });
   });
 
   it("keeps inline provider transport overrides once the llm transport adapter is available", () => {
