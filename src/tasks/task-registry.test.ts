@@ -253,7 +253,9 @@ async function flushAsyncWork(times = 4) {
 }
 
 function expectRecordFields(record: unknown, expected: Record<string, unknown>) {
-  expect(record).toBeDefined();
+  if (!record || typeof record !== "object") {
+    throw new Error("Expected record");
+  }
   const actual = record as Record<string, unknown>;
   for (const [key, value] of Object.entries(expected)) {
     expect(actual[key]).toEqual(value);
@@ -978,9 +980,11 @@ describe("task-registry", () => {
 
       await waitForAssertion(() => {
         const task = findTaskByRunId(runId);
-        expect(task).toBeDefined();
-        expect(task?.status).toBe("succeeded");
-        expect(task?.deliveryStatus).toBe("session_queued");
+        if (!task) {
+          throw new Error(`Expected task for run ${runId}`);
+        }
+        expect(task.status).toBe("succeeded");
+        expect(task.deliveryStatus).toBe("session_queued");
       });
       expect(hoisted.sendMessageMock).not.toHaveBeenCalled();
       expect(peekSystemEvents(ownerKey)).toEqual([
@@ -1762,6 +1766,43 @@ describe("task-registry", () => {
         warnings: 1,
       });
       expect(summary.byCode.lost).toBe(1);
+    });
+  });
+
+  it("does not mark codex-native subagent tasks lost when they have no OpenClaw child session", async () => {
+    await withTaskRegistryTempDir(async (root) => {
+      process.env.OPENCLAW_STATE_DIR = root;
+      resetTaskRegistryForTests();
+      const now = Date.now();
+
+      const task = createTaskRecord({
+        runtime: "subagent",
+        taskKind: "codex-native",
+        ownerKey: "agent:main:main",
+        scopeKind: "session",
+        sourceId: "codex-thread:child-thread",
+        runId: "codex-thread:child-thread",
+        task: "Codex native child",
+        status: "running",
+        deliveryStatus: "not_applicable",
+        notifyPolicy: "silent",
+      });
+      setTaskTimingById({
+        taskId: task.taskId,
+        lastEventAt: now - 10 * 60_000,
+      });
+
+      expect(await runTaskRegistryMaintenance()).toEqual({
+        reconciled: 0,
+        recovered: 0,
+        cleanupStamped: 0,
+        pruned: 0,
+      });
+      expect(getTaskById(task.taskId)).toMatchObject({
+        status: "running",
+        taskKind: "codex-native",
+        runId: "codex-thread:child-thread",
+      });
     });
   });
 
@@ -3010,6 +3051,41 @@ describe("task-registry", () => {
         taskId: task.taskId,
         status: "cancelled",
       });
+    });
+  });
+
+  it("does not route codex-native task cancellation through OpenClaw subagent sessions", async () => {
+    await withTaskRegistryTempDir(async (root) => {
+      process.env.OPENCLAW_STATE_DIR = root;
+      resetTaskRegistryForTests();
+      const task = createTaskRecord({
+        runtime: "subagent",
+        taskKind: "codex-native",
+        ownerKey: "agent:main:main",
+        scopeKind: "session",
+        sourceId: "codex-thread:child-thread",
+        runId: "codex-thread:child-thread",
+        task: "Codex native child",
+        status: "running",
+        deliveryStatus: "not_applicable",
+        notifyPolicy: "silent",
+      });
+
+      const result = await cancelTaskById({
+        cfg: {} as never,
+        taskId: task.taskId,
+      });
+
+      expect(result).toMatchObject({
+        found: true,
+        cancelled: false,
+        reason: "Task has no cancellable child session.",
+        task: expect.objectContaining({
+          taskId: task.taskId,
+          status: "running",
+        }),
+      });
+      expect(hoisted.killSubagentRunAdminMock).not.toHaveBeenCalled();
     });
   });
 });

@@ -101,10 +101,12 @@ describe("gateway status output", () => {
       discoveryCount: 0,
     });
 
-    const warning = warnings.find((entry) => entry.code === "no_gateway_reachable");
-    expect(warning?.message).toContain("openclaw gateway status --deep --require-rpc");
-    expect(warning?.targetIds).toStrictEqual(["localLoopback"]);
-    expect(warning?.message).toContain("lsof -nP -iTCP:<port>");
+    expect(warnings.find((entry) => entry.code === "no_gateway_reachable")).toStrictEqual({
+      code: "no_gateway_reachable",
+      message:
+        "No gateway answered any probe and Bonjour discovery returned no local gateways. Run `openclaw gateway status --deep --require-rpc` to inspect service state, config paths, listener owners, and logs; include `ss -ltnp` or `lsof -nP -iTCP:<port> -sTCP:LISTEN` for the configured port when filing a report.",
+      targetIds: ["localLoopback"],
+    });
   });
 
   it("derives summary capability from reachable probes only in json output", () => {
@@ -222,15 +224,51 @@ describe("gateway status output", () => {
           ok?: unknown;
           degraded?: unknown;
           primaryTargetId?: unknown;
-          targets?: Array<{ connect?: { ok?: unknown; rpcOk?: unknown; error?: unknown } }>;
+          targets?: unknown;
+          warnings?: unknown;
         }
       | undefined;
-    expect(payload?.ok).toBe(true);
-    expect(payload?.degraded).toBe(true);
-    expect(payload?.primaryTargetId).toBe("detail-timeout");
-    expect(payload?.targets).toHaveLength(1);
-    expect(payload?.targets?.[0]?.connect?.ok).toBe(true);
-    expect(payload?.targets?.[0]?.connect?.rpcOk).toBe(false);
-    expect(payload?.targets?.[0]?.connect?.error).toBe("timeout");
+    expect(payload).toStrictEqual(
+      expect.objectContaining({
+        degraded: true,
+        ok: true,
+        primaryTargetId: "detail-timeout",
+        targets: [
+          expect.objectContaining({
+            active: true,
+            auth: {
+              capability: "read_only",
+              role: "operator",
+              scopes: ["operator.read"],
+            },
+            config: null,
+            connect: {
+              close: null,
+              error: "timeout",
+              latencyMs: 40,
+              ok: true,
+              rpcOk: false,
+              scopeLimited: false,
+            },
+            health: null,
+            id: "detail-timeout",
+            kind: "explicit",
+            presence: null,
+            self: null,
+            summary: null,
+            tunnel: null,
+            url: "ws://127.0.0.1:18789",
+          }),
+        ],
+        warnings: [
+          {
+            code: "probe_detail_failed",
+            message:
+              "Gateway accepted the WebSocket connection, but follow-up read diagnostics failed: timeout",
+            targetIds: ["detail-timeout"],
+          },
+        ],
+      }),
+    );
   });
 });

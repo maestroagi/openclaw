@@ -340,8 +340,10 @@ describe("Tool Search", () => {
     const entry = __testing.sessionCatalogs
       .get("session:session-hooks")
       ?.entries.find((candidate) => candidate.name === "fake_hooked");
-    expect(entry).toBeTruthy();
-    expect(isToolWrappedWithBeforeToolCallHook(entry!.tool as AnyAgentTool)).toBe(true);
+    if (!entry) {
+      throw new Error("Expected fake_hooked catalog entry");
+    }
+    expect(isToolWrappedWithBeforeToolCallHook(entry.tool as AnyAgentTool)).toBe(true);
 
     const [runtimeCodeTool] = createToolSearchTools({
       sessionId: "session-hooks",
@@ -866,8 +868,10 @@ describe("Tool Search", () => {
         code: `return await openclaw.tools.call("fake_abort_on_timeout", { value: "wait" });`,
       }),
     ).rejects.toThrow("tool_search_code timed out");
-    expect(observedSignal).toBeDefined();
-    expect(observedSignal?.aborted).toBe(true);
+    if (!observedSignal) {
+      throw new Error("Expected observed abort signal");
+    }
+    expect(observedSignal.aborted).toBe(true);
     expect(abortCount).toBe(1);
   });
 });
