@@ -49,12 +49,12 @@ describe("runPluginPayloadSmokeCheck", () => {
       records: { brave: { source: "npm", installPath: dir } },
       env: {},
     });
-    expect(result.failures).toEqual([
+    expect(result.failures).toStrictEqual([
       {
         pluginId: "brave",
         installPath: dir,
         reason: "missing-package-dir",
-        detail: expect.stringContaining(dir),
+        detail: `Install dir is missing: ${dir}`,
       },
     ]);
   });
@@ -66,12 +66,12 @@ describe("runPluginPayloadSmokeCheck", () => {
       records: { brave: { source: "npm", installPath: dir } },
       env: {},
     });
-    expect(result.failures).toEqual([
+    expect(result.failures).toStrictEqual([
       {
         pluginId: "brave",
         installPath: dir,
         reason: "missing-package-json",
-        detail: expect.stringContaining("package.json"),
+        detail: `package.json is missing under ${dir}`,
       },
     ]);
   });
@@ -83,12 +83,14 @@ describe("runPluginPayloadSmokeCheck", () => {
       records: { brave: { source: "npm", installPath: dir } },
       env: {},
     });
-    expect(result.failures).toHaveLength(1);
-    expect(result.failures[0]).toMatchObject({
-      pluginId: "brave",
-      reason: "missing-main-entry",
-    });
-    expect(result.failures[0]?.detail).toContain("dist/index.js");
+    expect(result.failures).toStrictEqual([
+      {
+        pluginId: "brave",
+        installPath: dir,
+        reason: "missing-main-entry",
+        detail: `Plugin main entry "dist/index.js" not found at ${path.join(dir, "dist/index.js")}`,
+      },
+    ]);
   });
 
   it("accepts a manifest with no main field (OpenClaw plugins commonly use `exports` or `openclaw.extensions`)", async () => {
@@ -128,6 +130,21 @@ describe("runPluginPayloadSmokeCheck", () => {
     expect(result.failures).toEqual([]);
   });
 
+  it("accepts a packaged TypeScript extension entry when compiled runtime output exists", async () => {
+    const dir = path.join(tmpRoot, "codex");
+    await writePackage(dir, {
+      name: "@openclaw/codex",
+      openclaw: { extensions: ["./index.ts"] },
+    });
+    await fs.mkdir(path.join(dir, "dist"), { recursive: true });
+    await fs.writeFile(path.join(dir, "dist", "index.js"), "export default {};\n", "utf8");
+    const result = await runPluginPayloadSmokeCheck({
+      records: { codex: { source: "npm", installPath: dir } },
+      env: {},
+    });
+    expect(result.failures).toEqual([]);
+  });
+
   it("reports a failure when an `openclaw.extensions` entry file is missing", async () => {
     const dir = path.join(tmpRoot, "brave");
     await writePackage(dir, {
@@ -138,12 +155,15 @@ describe("runPluginPayloadSmokeCheck", () => {
       records: { brave: { source: "npm", installPath: dir } },
       env: {},
     });
-    expect(result.failures).toHaveLength(1);
-    expect(result.failures[0]).toMatchObject({
-      pluginId: "brave",
-      reason: "missing-extension-entry",
-    });
-    expect(result.failures[0]?.detail).toContain("./dist/index.js");
+    expect(result.failures).toStrictEqual([
+      {
+        pluginId: "brave",
+        installPath: dir,
+        reason: "missing-extension-entry",
+        detail:
+          "Plugin extension entry validation failed: extension entry not found: ./dist/index.js",
+      },
+    ]);
   });
 
   it("reports a failure when `main` resolves to a directory rather than a file", async () => {
@@ -159,8 +179,14 @@ describe("runPluginPayloadSmokeCheck", () => {
       records: { x: { source: "npm", installPath: dir } },
       env: {},
     });
-    expect(result.failures).toHaveLength(1);
-    expect(result.failures[0]).toMatchObject({ pluginId: "x", reason: "missing-main-entry" });
+    expect(result.failures).toStrictEqual([
+      {
+        pluginId: "x",
+        installPath: dir,
+        reason: "missing-main-entry",
+        detail: `Plugin main entry "lib" not found at ${path.join(dir, "lib")}`,
+      },
+    ]);
   });
 
   it("reports a failure when `main` is a symlink whose target is missing", async () => {
@@ -180,11 +206,14 @@ describe("runPluginPayloadSmokeCheck", () => {
       records: { x: { source: "npm", installPath: dir } },
       env: {},
     });
-    expect(result.failures).toHaveLength(1);
-    expect(result.failures[0]).toMatchObject({
-      pluginId: "x",
-      reason: "missing-main-entry",
-    });
+    expect(result.failures).toStrictEqual([
+      {
+        pluginId: "x",
+        installPath: dir,
+        reason: "missing-main-entry",
+        detail: `Plugin main entry "dist/entry.js" not found at ${path.join(dir, "dist", "entry.js")}`,
+      },
+    ]);
   });
 
   it("reports a failure when package.json cannot be parsed", async () => {
@@ -195,11 +224,15 @@ describe("runPluginPayloadSmokeCheck", () => {
       records: { broken: { source: "npm", installPath: dir } },
       env: {},
     });
-    expect(result.failures).toHaveLength(1);
-    expect(result.failures[0]).toMatchObject({
-      pluginId: "broken",
-      reason: "invalid-package-json",
-    });
+    expect(result.failures).toStrictEqual([
+      {
+        pluginId: "broken",
+        installPath: dir,
+        reason: "invalid-package-json",
+        detail:
+          "Could not parse package.json: Unexpected token 'o', \"not-json\" is not valid JSON",
+      },
+    ]);
   });
 
   it("reports a failure when an install record is missing installPath", async () => {

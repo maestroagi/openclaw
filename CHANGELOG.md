@@ -6,6 +6,9 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Scrub streamable MCP redirect headers [AI]. (#80906) Thanks @pgondhi987.
+- fix(memory-wiki): require admin scope for ingest [AI]. (#80897) Thanks @pgondhi987.
+- memory-wiki: require write scope for Obsidian search [AI]. (#80904) Thanks @pgondhi987.
 - Build: skip copied metadata for bundled plugins that are excluded from build entries, preventing update/status rebuilds from advertising missing QQ Bot runtime files. (#80925)
 - Control UI/sessions: nest subagent sessions under their parent session in the session picker dropdown using a visual `└─ ` prefix, making the parent-child relationship clear. Fixes #77628. (#78623) Thanks @chinar-amrutkar.
 
@@ -79,6 +82,7 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Matrix: stop running `npm install`/`pnpm install` at runtime from a parent-derived plugin path; missing Matrix runtime dependencies now fail with repair guidance instead of mutating the wrong `node_modules` tree. Fixes #80758. (#80876) Thanks @kinjitakabe.
 - CLI/media: render terminal QR codes with full-block characters by default so the bundled `qrcode` terminal renderer does not emit a pathologically dense ANSI final row in compact half-block mode that breaks scanning in some terminals. Fixes #77820. Thanks @KrasimirKralev.
 - Agents/compaction: read post-compaction AGENTS.md refresh context from the queued run workspace instead of the runner process cwd, so CLI-backed follow-up turns re-inject the correct workspace startup rules after compaction. Fixes #70541. (#75532) Thanks @vyctorbrzezowski.
 - Agents/read tool: treat positive offsets beyond EOF as empty ranges instead of surfacing the upstream read error, so stale pagination cursors no longer crash tool calls while unrelated read failures still fail loud. Fixes #62466. (#75536) Thanks @vyctorbrzezowski.
@@ -96,6 +100,7 @@ Docs: https://docs.openclaw.ai
 - Plugins/session-end: fire a typed `session_end` plugin hook with reason `shutdown` (or `restart` when a restart is expected) for every session that was still active when the gateway process stops. Previously SIGTERM/SIGINT/restart paths closed the gateway without enumerating active sessions, leaving downstream `session_end` plugins (e.g. claude-mem) with ghost rows accumulating across restarts. The new shutdown finalizer drains an in-memory tracker that is populated by `session_start` and forgotten by replace / reset / delete / compaction emitters, so previously-finalized sessions are never double-fired. The drain is bounded to a 2 s total budget so a slow plugin cannot block process exit. Adds `"shutdown"` and `"restart"` to `PluginHookSessionEndReason`. Fixes #57790. Thanks @pandadev66.
 - Codex app-server: clamp Codex code-mode sandboxing to workspace-write when an OpenClaw sandbox is active, preventing Docker gateway socket access from becoming a danger-full-access Codex turn.
 - TUI: exit immediately on Ctrl+C/SIGINT after gateway disconnect and bound shutdown drain so terminal teardown cannot strand sessions. Fixes #75379. (#75381) Thanks @udaymanish6.
+- Matrix: default outbound markdown tables to bullet lists instead of fenced code blocks. Fixes #78990. (#80890) Thanks @kinjitakabe.
 - Bonjour/Gateway: treat active ciao probing and fresh name-conflict renames as in-progress so the mDNS watchdog waits for probe settlement before retrying, preventing rapid re-advertise loops on Windows, WSL, and other multicast-hostile hosts. (#74778) Refs #74242. Thanks @fuller-stack-dev.
 - Providers/MiniMax: send a minimal Anthropic-compatible user fallback when message conversion filters a turn to an empty payload, so MiniMax M2.7 no longer returns `chat content is empty` after tool-heavy sessions. Fixes #74589. Thanks @neeravmakwana and @DerekEXS.
 - Tools/media: preserve implicit allow-all semantics from `tools.alsoAllow`-only policies when preconstructing built-in media generation and PDF tools, so configured media tools become live without forcing `tools.allow: ["*", ...]`. Fixes #77841. Thanks @trialanderrorstudios.
