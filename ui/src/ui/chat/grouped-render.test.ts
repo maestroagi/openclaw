@@ -516,7 +516,11 @@ describe("grouped chat rendering", () => {
     const userConfirm = container.querySelector<HTMLElement>(
       ".chat-group.user .chat-delete-confirm",
     );
-    expect(userConfirm?.classList.contains("chat-delete-confirm--left")).toBe(true);
+    expect(userConfirm).toBeInstanceOf(HTMLElement);
+    expect([...userConfirm!.classList]).toEqual([
+      "chat-delete-confirm",
+      "chat-delete-confirm--left",
+    ]);
 
     const assistantDeleteButton = container.querySelector<HTMLButtonElement>(
       ".chat-group.assistant .chat-group-delete",
@@ -527,7 +531,11 @@ describe("grouped chat rendering", () => {
     const assistantConfirm = container.querySelector<HTMLElement>(
       ".chat-group.assistant .chat-delete-confirm",
     );
-    expect(assistantConfirm?.classList.contains("chat-delete-confirm--right")).toBe(true);
+    expect(assistantConfirm).toBeInstanceOf(HTMLElement);
+    expect([...assistantConfirm!.classList]).toEqual([
+      "chat-delete-confirm",
+      "chat-delete-confirm--right",
+    ]);
   });
 
   it("removes the delete confirm outside-click listener when Cancel dismisses it", () => {
@@ -623,10 +631,11 @@ describe("grouped chat rendering", () => {
     );
     const meta = cached.querySelector<HTMLDetailsElement>("details.msg-meta");
     expect(meta?.open).toBe(false);
-    expect(meta?.querySelector("summary")?.textContent).toContain("Context");
+    expect(meta?.querySelector(".msg-meta__summary span:last-child")?.textContent).toBe("Context");
     expect(cached.querySelector(".msg-meta__ctx")?.textContent).toBe("44% ctx");
-    expect(cached.textContent).toContain("R438.4k");
-    expect(cached.textContent).toContain("W307");
+    expect(
+      Array.from(cached.querySelectorAll(".msg-meta__cache")).map((node) => node.textContent),
+    ).toEqual(["R438.4k", "W307"]);
 
     const outputHeavy = renderUsage(
       {
@@ -663,7 +672,7 @@ describe("grouped chat rendering", () => {
     );
 
     expect(container.querySelector(".msg-meta__ctx")?.textContent).toBe("42% ctx");
-    expect(container.textContent).toContain("↑214.5k");
+    expect(container.querySelector(".msg-meta__tokens")?.textContent).toBe("↑214.5k");
   });
 
   it("renders full dates with message and streaming timestamps", () => {
@@ -738,17 +747,20 @@ describe("grouped chat rendering", () => {
       isToolMessageExpanded: () => false,
     });
 
-    expect(container.textContent).not.toContain("Input");
-    expect(container.textContent).not.toContain("Output");
+    expect(container.querySelector(".chat-tool-msg-body")).toBeNull();
 
     renderAssistantMessage(container, message, {
       isToolMessageExpanded: () => true,
     });
 
-    expect(container.textContent).toContain("Tool input");
-    expect(container.textContent).toContain("Tool output");
-    expect(container.textContent).toContain("https://example.com");
-    expect(container.textContent).toContain("Opened page");
+    const blocks = Array.from(container.querySelectorAll(".chat-tool-card__block"));
+    expect(
+      blocks.map((block) => block.querySelector(".chat-tool-card__block-label")?.textContent),
+    ).toEqual(["Tool input", "Tool output"]);
+    expect(blocks.map((block) => block.querySelector("code")?.textContent)).toEqual([
+      '{\n  "url": "https://example.com"\n}',
+      "Opened page",
+    ]);
   });
 
   it("renders expanded standalone tool-call rows", () => {
@@ -773,15 +785,19 @@ describe("grouped chat rendering", () => {
 
     expectElement(container, ".chat-bubble--tool-shell", HTMLElement);
     const summary = container.querySelector<HTMLElement>(".chat-tool-msg-summary");
-    expect(summary?.textContent).toContain("sessions_spawn");
-    expect(container.textContent).not.toContain('"thread": true');
+    expect(summary?.querySelector(".chat-tool-msg-summary__label")?.textContent).toBe(
+      "sessions_spawn",
+    );
+    expect(container.querySelector(".chat-tool-msg-body")).toBeNull();
 
     renderAssistantMessage(container, message, {
       isToolMessageExpanded: () => true,
     });
 
-    expect(container.textContent).toContain("Tool input");
-    expect(container.textContent).toContain('"thread": true');
+    expect(container.querySelector(".chat-tool-card__block-label")?.textContent).toBe("Tool input");
+    expect(container.querySelector(".chat-tool-card__block code")?.textContent).toBe(
+      '{\n  "mode": "session",\n  "thread": true\n}',
+    );
   });
 
   it("renders expanded tool output rows and their json content", () => {
@@ -832,11 +848,18 @@ describe("grouped chat rendering", () => {
       },
     );
 
-    expect(container.textContent).toContain("Tool input");
-    expect(container.textContent).toContain('"thread": true');
-    expect(container.textContent).toContain("Tool output");
-    expect(container.textContent).toContain('"status": "error"');
-    expect(container.textContent).toContain('"childSessionKey": "agent:test:subagent:abc123"');
+    const blocks = Array.from(container.querySelectorAll(".chat-tool-card__block"));
+    expect(
+      blocks.map((block) => block.querySelector(".chat-tool-card__block-label")?.textContent),
+    ).toEqual(["Tool input", "Tool output"]);
+    expect(blocks[0]?.querySelector("code")?.textContent).toBe(
+      '{\n  "mode": "session",\n  "thread": true\n}',
+    );
+    expect(JSON.parse(blocks[1]?.querySelector("code")?.textContent ?? "{}")).toEqual({
+      status: "error",
+      error: "Session mode is unavailable for this target.",
+      childSessionKey: "agent:test:subagent:abc123",
+    });
   });
 
   it("collapses an inline tool call while keeping matching tool output visible", () => {
@@ -875,16 +898,26 @@ describe("grouped chat rendering", () => {
       isToolMessageExpanded: () => true,
     });
 
-    expect(container.textContent).toContain("Tool input");
-    expect(container.textContent).toContain('"thread": true');
-    expect(container.textContent).toContain('"status": "error"');
+    expect(container.querySelector(".chat-tool-card__block-label")?.textContent).toBe("Tool input");
+    expect(container.querySelector(".chat-tool-card__block code")?.textContent).toBe(
+      '{\n  "mode": "session",\n  "thread": true\n}',
+    );
+    expect(
+      JSON.parse(container.querySelector(".chat-json-content code")?.textContent ?? "{}"),
+    ).toEqual({
+      status: "error",
+    });
 
     renderMessageGroups(container, groups, {
       isToolMessageExpanded: (messageId) => !messageId.startsWith("toolmsg:assistant:"),
     });
 
-    expect(container.textContent).not.toContain("Tool input");
-    expect(container.textContent).toContain('"status": "error"');
+    expect(container.querySelector(".chat-tool-card__block")).toBeNull();
+    expect(
+      JSON.parse(container.querySelector(".chat-json-content code")?.textContent ?? "{}"),
+    ).toEqual({
+      status: "error",
+    });
   });
 
   it("renders assistant MEDIA attachments, voice-note badge, and reply pill", () => {
@@ -901,18 +934,19 @@ describe("grouped chat rendering", () => {
       { showToolCalls: false },
     );
 
-    expect(container.querySelector(".chat-reply-pill")?.textContent).toContain(
+    expect(container.querySelector(".chat-reply-pill__label")?.textContent?.trim()).toBe(
       "Replying to current message",
     );
-    expectElement(container, ".chat-message-image", HTMLImageElement);
-    expectElement(container, "audio", HTMLAudioElement);
-    expect(container.querySelector(".chat-assistant-attachment-badge")?.textContent).toContain(
+    expect(container.querySelector(".chat-text")?.textContent?.trim()).toBe("Here is the image.");
+    expect(expectElement(container, ".chat-message-image", HTMLImageElement).src).toBe(
+      "https://example.com/photo.png",
+    );
+    expect(expectElement(container, "audio", HTMLAudioElement).src).toBe(
+      "https://example.com/voice.ogg",
+    );
+    expect(container.querySelector(".chat-assistant-attachment-badge")?.textContent?.trim()).toBe(
       "Voice note",
     );
-    expect(container.textContent).toContain("Here is the image.");
-    expect(container.textContent).not.toContain("[[reply_to_current]]");
-    expect(container.textContent).not.toContain("[[audio_as_voice]]");
-    expect(container.textContent).not.toContain("MEDIA:https://example.com/photo.png");
   });
 
   it("renders allowed transcript and content image variants", async () => {
