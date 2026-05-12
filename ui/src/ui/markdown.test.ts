@@ -4,6 +4,12 @@ import { i18n } from "../i18n/index.ts";
 import { md, toSanitizedMarkdownHtml } from "./markdown.ts";
 import { renderMarkdownSidebar } from "./views/markdown-sidebar.ts";
 
+function htmlFragment(html: string): HTMLElement {
+  const container = document.createElement("div");
+  container.innerHTML = html;
+  return container;
+}
+
 describe("toSanitizedMarkdownHtml", () => {
   // ── Original tests from before markdown-it migration ──
   it("strips scripts and unsafe links", () => {
@@ -52,20 +58,22 @@ describe("toSanitizedMarkdownHtml", () => {
     });
 
     it("links Unicode/IDN domains like www.münich.de", () => {
-      // markdown-it linkify converts IDN to punycode; marked.js percent-encodes.
-      // Both are valid; we just verify the link is created.
       const html1 = toSanitizedMarkdownHtml("Visit www.münich.de");
-      expect(html1).toContain("<a href=");
-      expect(html1).toContain(">www.münich.de</a>");
+      expect(html1).toBe(
+        '<p>Visit <a href="http://www.xn--mnich-kva.de" rel="noreferrer noopener" target="_blank">www.münich.de</a></p>\n',
+      );
 
       const html2 = toSanitizedMarkdownHtml("Visit www.café.example");
-      expect(html2).toContain("<a href=");
-      expect(html2).toContain(">www.café.example</a>");
+      expect(html2).toBe(
+        '<p>Visit <a href="http://www.xn--caf-dma.example" rel="noreferrer noopener" target="_blank">www.café.example</a></p>\n',
+      );
     });
 
     it("links www.foo_bar.example.com with underscores", () => {
       const html = toSanitizedMarkdownHtml("Visit www.foo_bar.example.com");
-      expect(html).toContain('<a href="http://www.foo_bar.example.com"');
+      expect(html).toBe(
+        '<p>Visit <a href="http://www.foo_bar.example.com" rel="noreferrer noopener" target="_blank">www.foo_bar.example.com</a></p>\n',
+      );
     });
 
     it("strips trailing punctuation from links", () => {
@@ -324,22 +332,24 @@ describe("toSanitizedMarkdownHtml", () => {
   describe("code blocks", () => {
     it("renders fenced code blocks", () => {
       const html = toSanitizedMarkdownHtml("```ts\nconsole.log(1)\n```");
-      expect(html).toContain("<pre>");
-      expect(html).toContain("<code");
-      expect(html).toContain("console.log(1)");
+      expect(html).toBe(
+        '<div class="code-block-wrapper"><div class="code-block-header"><span class="code-block-lang">ts</span><button type="button" class="code-block-copy" data-code="console.log(1)" aria-label="Copy code"><span class="code-block-copy__idle">Copy</span><span class="code-block-copy__done">Copied!</span></button></div><pre><code class="language-ts">console.log(1)\n</code></pre></div>',
+      );
     });
 
     it("renders indented code blocks", () => {
       // markdown-it requires a blank line before indented code
       const html = toSanitizedMarkdownHtml("text\n\n    indented code");
-      expect(html).toContain("<pre>");
-      expect(html).toContain("<code>");
+      expect(html).toBe(
+        '<p>text</p>\n<div class="code-block-wrapper"><div class="code-block-header"><button type="button" class="code-block-copy" data-code="indented code" aria-label="Copy code"><span class="code-block-copy__idle">Copy</span><span class="code-block-copy__done">Copied!</span></button></div><pre><code>indented code\n</code></pre></div>',
+      );
     });
 
     it("includes copy button", () => {
       const html = toSanitizedMarkdownHtml("```\ncode\n```");
-      expect(html).toContain('class="code-block-copy"');
-      expect(html).toContain("data-code=");
+      expect(html).toBe(
+        '<div class="code-block-wrapper"><div class="code-block-header"><button type="button" class="code-block-copy" data-code="code" aria-label="Copy code"><span class="code-block-copy__idle">Copy</span><span class="code-block-copy__done">Copied!</span></button></div><pre><code>code\n</code></pre></div>',
+      );
     });
 
     it("keeps localized copy labels fresh after locale changes", async () => {
@@ -351,9 +361,12 @@ describe("toSanitizedMarkdownHtml", () => {
         await i18n.setLocale("zh-CN");
         const chinese = toSanitizedMarkdownHtml(markdown);
 
-        expect(english).toContain(">Copy<");
-        expect(chinese).toContain(">复制<");
-        expect(chinese).not.toContain(">Copy<");
+        expect(english).toBe(
+          '<div class="code-block-wrapper"><div class="code-block-header"><span class="code-block-lang">ts</span><button type="button" class="code-block-copy" data-code="const localizedCopy = true;" aria-label="Copy code"><span class="code-block-copy__idle">Copy</span><span class="code-block-copy__done">Copied!</span></button></div><pre><code class="language-ts">const localizedCopy = true;\n</code></pre></div>',
+        );
+        expect(chinese).toBe(
+          '<div class="code-block-wrapper"><div class="code-block-header"><span class="code-block-lang">ts</span><button type="button" class="code-block-copy" data-code="const localizedCopy = true;" aria-label="复制代码"><span class="code-block-copy__idle">复制</span><span class="code-block-copy__done">已复制！</span></button></div><pre><code class="language-ts">const localizedCopy = true;\n</code></pre></div>',
+        );
       } finally {
         await i18n.setLocale("en");
       }
@@ -361,16 +374,16 @@ describe("toSanitizedMarkdownHtml", () => {
 
     it("collapses JSON code blocks", () => {
       const html = toSanitizedMarkdownHtml('```json\n{"key": "value"}\n```');
-      expect(html).toContain("<details");
-      expect(html).toContain("json-collapse");
-      expect(html).toContain("JSON");
+      expect(html).toBe(
+        '<details class="json-collapse"><summary>JSON · 2 lines</summary><div class="code-block-wrapper"><div class="code-block-header"><span class="code-block-lang">json</span><button type="button" class="code-block-copy" data-code="{&quot;key&quot;: &quot;value&quot;}" aria-label="Copy code"><span class="code-block-copy__idle">Copy</span><span class="code-block-copy__done">Copied!</span></button></div><pre><code class="language-json">{"key": "value"}\n</code></pre></div></details>',
+      );
     });
   });
 
   describe("GFM features", () => {
     it("renders strikethrough", () => {
       const html = toSanitizedMarkdownHtml("This is ~~deleted~~ text");
-      expect(html).toContain("<s>deleted</s>");
+      expect(html).toBe("<p>This is <s>deleted</s> text</p>\n");
     });
 
     it("renders tables surrounded by text", () => {
@@ -384,84 +397,64 @@ describe("toSanitizedMarkdownHtml", () => {
         "Text after.",
       ].join("\n");
       const html = toSanitizedMarkdownHtml(md);
-      expect(html).toContain("<table");
-      expect(html).toContain("<th>");
-      expect(html).toContain("Text before.");
-      expect(html).toContain("Text after.");
-      expect(html).not.toContain("|---|");
+      expect(html).toBe(
+        "<p>Text before.</p>\n<table>\n<thead>\n<tr>\n<th>A</th>\n<th>B</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>1</td>\n<td>2</td>\n</tr>\n</tbody>\n</table>\n<p>Text after.</p>\n",
+      );
     });
 
     it("renders basic markdown", () => {
       const html = toSanitizedMarkdownHtml("**bold** and *italic*");
-      expect(html).toContain("<strong>bold</strong>");
-      expect(html).toContain("<em>italic</em>");
+      expect(html).toBe("<p><strong>bold</strong> and <em>italic</em></p>\n");
     });
 
     it("renders headings", () => {
       const html = toSanitizedMarkdownHtml("# Heading 1\n## Heading 2");
-      expect(html).toContain("<h1>");
-      expect(html).toContain("<h2>");
+      expect(html).toBe("<h1>Heading 1</h1>\n<h2>Heading 2</h2>\n");
     });
 
     it("renders blockquotes", () => {
       const html = toSanitizedMarkdownHtml("> quote");
-      expect(html).toContain("<blockquote>");
+      expect(html).toBe("<blockquote>\n<p>quote</p>\n</blockquote>\n");
     });
 
     it("renders lists", () => {
       const html = toSanitizedMarkdownHtml("- item 1\n- item 2");
-      expect(html).toContain("<ul>");
-      expect(html).toContain("<li>");
+      expect(html).toBe("<ul>\n<li>item 1</li>\n<li>item 2</li>\n</ul>\n");
     });
   });
 
   describe("security", () => {
     it("blocks javascript: in links via DOMPurify", () => {
       const html = toSanitizedMarkdownHtml("[click me](javascript:alert(1))");
-      // DOMPurify strips dangerous href schemes but keeps the anchor text
-      expect(html).not.toContain('href="javascript:');
-      expect(html).toContain("click me");
+      expect(html).toBe("<p><a>click me</a></p>\n");
     });
 
     it("shows alt text for javascript: images", () => {
       const html = toSanitizedMarkdownHtml("![Build log](javascript:alert(1))");
-      expect(html).not.toContain("<img");
-      expect(html).not.toContain('src="javascript:');
-      // Image renderer shows alt text instead of raw markdown source
-      expect(html).toContain("Build log");
-      expect(html).not.toContain("![Build log]");
+      expect(html).toBe("<p>Build log</p>\n");
     });
 
     it("shows alt text for vbscript: and file: images", () => {
       const html1 = toSanitizedMarkdownHtml("![Alt1](vbscript:msgbox(1))");
-      expect(html1).toContain("Alt1");
-      expect(html1).not.toContain("<img");
+      expect(html1).toBe("<p>Alt1</p>\n");
 
       const html2 = toSanitizedMarkdownHtml("![Alt2](file:///etc/passwd)");
-      expect(html2).toContain("Alt2");
-      expect(html2).not.toContain("<img");
+      expect(html2).toBe("<p>Alt2</p>\n");
     });
 
     it("renders non-image data: URIs as inert links (marked.js compat)", () => {
       const html = toSanitizedMarkdownHtml("[x](data:text/html,<script>alert(1)</script>)");
-      // marked.js generates <a> for all URLs; DOMPurify strips dangerous href.
-      // Result: anchor text visible but link is inert (no href or stripped href).
-      expect(html).toContain(">x<");
-      expect(html).not.toContain('href="data:text/html');
+      expect(html).toBe("<p><a>x</a></p>\n");
     });
 
     it("does not auto-link bare file:// URIs", () => {
       const html = toSanitizedMarkdownHtml("Check file:///etc/passwd");
-      // Bare file:// without www. or http:// should NOT be auto-linked
-      expect(html).not.toContain("<a");
-      expect(html).toContain("file:///etc/passwd");
+      expect(html).toBe("<p>Check file:///etc/passwd</p>\n");
     });
 
     it("strips href from explicit file:// links via DOMPurify", () => {
       const html = toSanitizedMarkdownHtml("[click](file:///etc/passwd)");
-      // DOMPurify strips file: scheme, leaving anchor text
-      expect(html).not.toContain('href="file:');
-      expect(html).toContain("click");
+      expect(html).toBe("<p><a>click</a></p>\n");
     });
   });
 
@@ -469,13 +462,19 @@ describe("toSanitizedMarkdownHtml", () => {
     it("renders deeply nested emphasis markers without dropping text (#36213)", () => {
       const nested = "*".repeat(500) + "text" + "*".repeat(500);
       const html = toSanitizedMarkdownHtml(nested);
-      expect(html).toContain("text");
+      const container = htmlFragment(html);
+      expect(container.children).toHaveLength(1);
+      expect(container.firstElementChild?.tagName).toBe("P");
+      expect(container.textContent).toBe("text\n");
     });
 
     it("renders deeply nested brackets without dropping text (#36213)", () => {
       const nested = "[".repeat(200) + "link" + "]".repeat(200) + "(" + "x".repeat(200) + ")";
       const html = toSanitizedMarkdownHtml(nested);
-      expect(html).toContain("link");
+      const container = htmlFragment(html);
+      expect(container.children).toHaveLength(1);
+      expect(container.firstElementChild?.tagName).toBe("P");
+      expect(container.textContent).toBe(`${nested}\n`);
     });
 
     it("does not hang on backtick + bracket ReDoS pattern", { timeout: 2_000 }, () => {
@@ -512,18 +511,24 @@ describe("toSanitizedMarkdownHtml", () => {
       // MARKDOWN_PARSE_LIMIT is 40_000 chars
       const input = Array.from(
         { length: 220 },
-        (_, i) => `Paragraph ${i + 1}: ${"Long plain-text reply. ".repeat(8)}`,
+        (_, i) =>
+          `Paragraph ${i + 1}: ${Array.from({ length: 8 }, () => "Long plain-text reply.").join(
+            " ",
+          )}`,
       ).join("\n\n");
       const html = toSanitizedMarkdownHtml(input);
-      expect(html).toContain('class="markdown-plain-text-fallback"');
+      const fallback = htmlFragment(html).firstElementChild;
+      expect(fallback?.tagName).toBe("DIV");
+      expect(fallback?.className).toBe("markdown-plain-text-fallback");
+      expect(fallback?.textContent).toBe(input);
     });
 
     it("preserves indentation in plain text fallback", () => {
       const input = `${"Header line\n".repeat(3400)}\n    indented log line\n        deeper indent`;
       const html = toSanitizedMarkdownHtml(input);
-      expect(html).toContain('class="markdown-plain-text-fallback"');
-      expect(html).toContain("    indented log line");
-      expect(html).toContain("        deeper indent");
+      const fallback = htmlFragment(html).firstElementChild;
+      expect(fallback?.className).toBe("markdown-plain-text-fallback");
+      expect(fallback?.textContent).toBe(input);
     });
 
     it("caches oversized fallback results", () => {
@@ -532,7 +537,7 @@ describe("toSanitizedMarkdownHtml", () => {
       const first = toSanitizedMarkdownHtml(input);
       const second = toSanitizedMarkdownHtml(input);
       expect(input.length).toBeGreaterThan(40_000);
-      expect(first).toContain('class="markdown-plain-text-fallback"');
+      expect(htmlFragment(first).firstElementChild?.className).toBe("markdown-plain-text-fallback");
       expect(second).toBe(first);
     });
 
@@ -543,7 +548,7 @@ describe("toSanitizedMarkdownHtml", () => {
       const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
       try {
         const html = toSanitizedMarkdownHtml("test");
-        expect(html).toContain('<pre class="code-block">');
+        expect(html).toBe('<pre class="code-block">test</pre>');
         expect(warnSpy).toHaveBeenCalledOnce();
       } finally {
         renderSpy.mockRestore();
