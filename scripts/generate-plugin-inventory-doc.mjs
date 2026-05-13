@@ -28,7 +28,8 @@ const PLUGIN_DOC_ALIASES = new Map([
   ["tavily", "/tools/tavily"],
   ["tokenjuice", "/tools/tokenjuice"],
 ]);
-const PLUGIN_REFERENCE_EXTRA_SECTIONS = new Map([]);
+/** @type {Map<string, string>} */
+const PLUGIN_REFERENCE_EXTRA_SECTIONS = new Map();
 
 function readJson(relativePath) {
   return JSON.parse(fs.readFileSync(path.join(ROOT, relativePath), "utf8"));
@@ -376,7 +377,8 @@ ${record.docs.map((link) => `- ${docLink(link)}`).join("\n")}`;
 
 function renderReferencePage(record) {
   const relatedDocs = renderRelatedDocs(record);
-  const extraSections = PLUGIN_REFERENCE_EXTRA_SECTIONS.get(record.id);
+  const extraSectionsValue = PLUGIN_REFERENCE_EXTRA_SECTIONS.get(record.id);
+  const extraSections = typeof extraSectionsValue === "string" ? extraSectionsValue : "";
   return `---
 summary: "${record.description.replaceAll('"', '\\"')}"
 read_when:
