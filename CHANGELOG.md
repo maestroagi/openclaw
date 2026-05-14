@@ -18,6 +18,8 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Build: keep externalized Slack, OpenShell sandbox, and Anthropic Vertex runtime dependency declarations out of the root dist artifact build.
+- Auto-reply/Claude CLI: bridge CLI-runtime assistant text-delta agent events into the chat reasoning preview through `onReasoningStream`, mirroring the existing assistant-text (#76914) and tool-event (#80046) bridges and adding gating so non-CLI runtimes are unaffected. Thanks @anagnorisis2peripeteia and @pashpashpash.
 - CLI/migrate: handle delayed Codex plugin marketplace responses so warnings, next-steps, and conflict states render with ⚠️ glyphs and post-install migration retries the marketplace fetch instead of silently skipping plugin items. (#81625) Thanks @sjf.
 - Channels/Weixin: bump the bundled `@tencent-weixin/openclaw-weixin` external entry to `2.4.3` (from `2.4.1`) so onboarding and `openclaw channels add` install the current Tencent Weixin (personal WeChat) plugin release. (#81730) Thanks @scotthuang.
 - CLI: lazy-load model, plugin, and device runtime helpers and keep channel option help on generated startup metadata or generic fallback text so parent/help output renders without importing those runtime paths.
@@ -47,6 +49,22 @@ Docs: https://docs.openclaw.ai
 - Voice-call realtime: ignore malformed provider media-frame base64 before forwarding audio into bridge and transcription paths.
 - QQBot: reject malformed stored cron payload base64 before JSON decoding structured reminder data.
 - Telnyx voice-call: use the raw `client_state` fallback when webhook state is malformed base64 instead of using silently corrupted decoded text.
+- Google Meet: report malformed node-host params JSON with plugin-owned errors instead of leaking raw JSON parser failures.
+- CLI/export-trajectory: report malformed encoded request JSON with a stable CLI error instead of leaking raw parser output.
+- Twilio voice-call: report malformed successful API JSON responses with provider-owned errors instead of leaking raw parser failures.
+- Voice-call provider APIs: report malformed successful guarded JSON responses with provider-prefixed errors instead of leaking raw parser failures.
+- Realtime transcription: report malformed provider websocket JSON frames with owned parser errors instead of leaking raw `SyntaxError` objects.
+- Microsoft Foundry: report malformed Azure CLI token JSON with owned auth errors instead of leaking raw parser failures.
+- Gateway/model pricing: report malformed external pricing catalog JSON with source-owned errors instead of leaking raw parser failures.
+- QA Lab: report malformed model-catalog subprocess JSON with an owned error and ignore invalid catalog rows.
+- Google Meet: report malformed browser-control status JSON with plugin-owned errors instead of leaking raw parser failures.
+- Google provider: report malformed SSE stream JSON with provider-owned errors instead of leaking raw parser failures.
+- Node host: report malformed built-in invoke `paramsJSON` with stable invalid-request errors instead of leaking raw parser failures.
+- Amazon Bedrock embeddings: report malformed provider response JSON with provider-owned errors instead of leaking raw parser failures.
+- QQBot: report malformed access-token JSON with provider-owned errors instead of leaking raw parser failures.
+- OpenAI embeddings: report malformed batch output JSONL with provider-owned errors instead of leaking raw parser failures.
+- Synology Chat: report malformed JSON webhook payloads with stable channel-owned parser errors.
+- Mattermost: report malformed interaction callback JSON with stable channel-owned parser errors.
 - Models config/auth: stop inferring provider env-var markers from broad `^[A-Z_][A-Z0-9_]*$` strings, and resolve config-backed provider `apiKey` values only through structured env SecretRefs (`secrets.providers[id]` / `secrets.defaults`), so unrelated env vars cannot accidentally become provider credentials. Thanks @sallyom.
 - Media fetch: skip allocating and buffering the response body for bodyless media responses (HEAD probes and 204-style empty bodies), avoiding wasted heap on streams that carry no payload. Thanks @shakkernerd.
 - CLI/onboarding: forward provider-specific auth flags (e.g. `--openai-api-key`) through the onboarding wizard so they reach provider auth methods via `ctx.opts`, letting `--openai-api-key "$OPENAI_API_KEY"` skip the redundant "use existing env var?" prompt in non-interactive harnesses. (#81669) Thanks @sjf.
@@ -62,7 +80,11 @@ Docs: https://docs.openclaw.ai
 - CLI tables: preserve muted/color styling on wrapped continuation lines after multiline cells, keeping `openclaw plugins list` descriptions readable.
 - Process execution: collapse case-insensitive duplicate child environment keys on Windows so caller-provided overrides such as `PATH` cannot be shadowed by host `Path`.
 - Browser CLI: request the existing `operator.admin` gateway scope explicitly for browser control commands, avoiding unnecessary scope-upgrade approval loops. Fixes #81555. (#81716) Thanks @joshavant.
+- CLI/plugins: route lazy plugin command-registration chatter to stderr only during JSON-output command registration, keeping plugin-backed `--json` stdout parseable without changing parse-only or pass-through `--json` behavior. Fixes #81535. (#81536) Thanks @ScientificProgrammer and @vincentkoc.
+- Plugins: treat git plugin install refs as refs instead of checkout flags, so option-like selectors fail checkout instead of silently installing the default branch. Fixes #79898. (#79901) Thanks @afurm and @vincentkoc.
 - Web: honor explicitly configured global `web_search` providers during provider ownership resolution while keeping sandboxed `web_fetch` limited to bundled providers.
+- Plugins/doctor: repair configured legacy npm declaration stubs by reinstalling their npm packages into the managed plugin root instead of loading workspace `node_modules`, and warn when discovery sees those stubs. Fixes #79632. Thanks @Dylanzhang1128 and @vincentkoc.
+- Channels: keep configured third-party channel plugins visible in `openclaw channels list` when their manifest declares `channels` but has not added `channelConfigs` metadata yet. Fixes #81334. (#81340) Thanks @AllynSheep and @vincentkoc.
 - Agents: skip bootstrap file and hook preload work on completed `continuation-skip` turns when no workspace bootstrap is pending, reducing isolated-agent prep latency without changing first-turn bootstrap behavior. Fixes #81548. Thanks @delizaran-unpa.
 - Config: validate JSON dry-runs against plugin-owned channel schemas, so external channel fields are not rejected by stale bundled schemas. Fixes #77887. (#81504) Thanks @giodl73-repo.
 - iOS: restore first-use Contacts, Calendar, and Reminders permission prompts and add Privacy & Access status/actions in Settings. Thanks @BunsDev.
