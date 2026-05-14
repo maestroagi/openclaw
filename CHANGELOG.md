@@ -6,6 +6,7 @@ Docs: https://docs.openclaw.ai
 
 ### Changes
 
+- Dependencies: route root ambient Node proxy agents through `@openclaw/proxyline` and drop root `proxy-agent`, `https-proxy-agent`, and `minimatch` dependencies.
 - Control UI/i18n: add a `pnpm ui:i18n:report` baseline report for hardcoded-copy focus areas and locale fallback metadata. (#81320) Thanks @samzong.
 - Maintainer tooling: add a repo-local `codex-review` skill for Codex closeout reviews, including local dirty-work and PR-branch review helpers that rerun until no accepted/actionable findings remain and avoid unsupported inline prompts with `--base`.
 - Maintainer tooling: fail CI when pull requests add package patch files or pnpm patched dependencies, preserving the upstream-and-bump dependency workflow.
@@ -19,10 +20,13 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Codex plugin/Gateway: strip unpaired UTF-16 surrogates from Codex app-server JSON-RPC payloads and let stale reply-work recovery abort stalled reply runs, preventing malformed media turns from wedging gateway lanes.
+- Bind gateway approval access to requester metadata [AI]. (#81380) Thanks @pgondhi987.
 - Telegram: let isolated polling drain independent topics, DMs, and status/control commands concurrently while preserving same-lane order. (#81849) Thanks @VACInc.
 - Doctor/Codex: stop warning that the message tool is unavailable for source-reply paths where OpenClaw grants `message` at runtime, keeping update and doctor output aligned with the OpenAI happy path. Thanks @pashpashpash.
 - Build: keep externalized Slack, OpenShell sandbox, and Anthropic Vertex runtime dependency declarations out of the root dist artifact build.
 - Auto-reply/Claude CLI: bridge CLI-runtime assistant text-delta agent events into the chat reasoning preview through `onReasoningStream`, mirroring the existing assistant-text (#76914) and tool-event (#80046) bridges and adding gating so non-CLI runtimes are unaffected. Thanks @anagnorisis2peripeteia and @pashpashpash.
+- Mantis: keep QA evidence in Actions artifacts only and stop publishing evidence files to Git-backed artifact branches.
 - CLI/migrate: handle delayed Codex plugin marketplace responses so warnings, next-steps, and conflict states render with ⚠️ glyphs and post-install migration retries the marketplace fetch instead of silently skipping plugin items. (#81625) Thanks @sjf.
 - Channels/Weixin: bump the bundled `@tencent-weixin/openclaw-weixin` external entry to `2.4.3` (from `2.4.1`) so onboarding and `openclaw channels add` install the current Tencent Weixin (personal WeChat) plugin release. (#81730) Thanks @scotthuang.
 - CLI: lazy-load model, plugin, and device runtime helpers and keep channel option help on generated startup metadata or generic fallback text so parent/help output renders without importing those runtime paths.
@@ -135,6 +139,7 @@ Docs: https://docs.openclaw.ai
 - Codex auth: accept OAuth profiles backed by `oauthRef` during runtime auth selection, so official Codex OAuth logins are used by app-server agent runs. (#81633) Thanks @obviyus.
 - Sessions/status: classify ACP spawn-child sessions as `kind: "spawn-child"` instead of `"direct"` in `openclaw sessions` and status output; extract the duplicated session-kind classifier into a shared helper (`src/sessions/classify-session-kind.ts`) so both surfaces stay in sync. Fixes catalog #19. (#79544)
 - Sessions/Gateway: report `agentRuntime.id: "acpx"` (or stored backend id) with `source: "session-key"` for ACP control-plane session rows in `openclaw sessions --json`, `openclaw status`, and Gateway session RPC responses instead of the incorrect `"auto"` / `"pi"` implicit fallback. Fixes catalog #18. (#79550)
+- Telegram: release stopped polling leases after the gateway stop grace so in-process restarts can reuse the same bot token without weakening active duplicate-poller protection. Fixes #81507. (#81890) Thanks @joshavant.
 - Telegram: delete tool-progress-only draft bubbles before rotating to the real answer, preventing orphaned progress messages in streamed replies.
 - Codex app-server: keep per-agent `CODEX_HOME` isolation without rewriting `HOME` by default, so Codex-run subprocesses can still find normal user-home config, tokens, and CLI state unless the launch explicitly overrides `HOME`. Thanks @pashpashpash.
 - ACP: preserve redacted numeric JSON-RPC `RequestError` details in runtime failure text, so backend diagnostics are visible instead of only `Internal error`. Fixes #81126. (#81188) Thanks @vyctorbrzezowski.
