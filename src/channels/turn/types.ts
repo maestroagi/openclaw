@@ -1,8 +1,9 @@
+import type { CommandTurnKind } from "../../auto-reply/command-turn-context.js";
 import type { GetReplyOptions } from "../../auto-reply/get-reply-options.types.js";
 import type { ReplyPayload } from "../../auto-reply/reply-payload.js";
 import type { DispatchFromConfigResult } from "../../auto-reply/reply/dispatch-from-config.types.js";
 import type { GetReplyFromConfig } from "../../auto-reply/reply/get-reply.types.js";
-import type { HistoryEntry } from "../../auto-reply/reply/history.js";
+import type { HistoryEntry } from "../../auto-reply/reply/history.types.js";
 import type { DispatchReplyWithBufferedBlockDispatcher } from "../../auto-reply/reply/provider-dispatcher.types.js";
 import type { ReplyDispatcherWithTypingOptions } from "../../auto-reply/reply/reply-dispatcher.js";
 import type { ReplyDispatchKind } from "../../auto-reply/reply/reply-dispatcher.types.js";
@@ -181,7 +182,14 @@ export type MessageFacts = {
   envelopeFrom: string;
   senderLabel?: string;
   preview?: string;
-  inboundHistory?: Array<{ sender: string; body: string; timestamp?: number }>;
+  inboundHistory?: HistoryEntry[];
+};
+
+export type CommandFacts = {
+  kind: CommandTurnKind;
+  body?: string;
+  name?: string;
+  authorized?: boolean;
 };
 
 export type SupplementalContextFacts = {
@@ -224,6 +232,7 @@ export type InboundMediaFacts = {
 
 export type PreflightFacts = {
   admission?: ChannelTurnAdmission;
+  command?: CommandFacts;
   message?: Partial<MessageFacts>;
   media?: InboundMediaFacts[];
   supplemental?: SupplementalContextFacts;
