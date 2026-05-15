@@ -6,26 +6,32 @@ Docs: https://docs.openclaw.ai
 
 ### Changes
 
+- Maintainer tooling: route Crabbox skill defaults through the repo brokered AWS config, leaving Blacksmith Testbox as an explicit opt-in instead of the broad-proof default.
 - CLI/onboarding: localize the setup wizard and bundled channel setup flows for English, Simplified Chinese, and Traditional Chinese. (#80645) Thanks @GaosCode.
 - Agents/skills: cache hydrated `resolvedSkills` across warm gateway turns while keying reuse by the redacted effective config, reducing redundant skill snapshot rebuilds without crossing config-gated skill boundaries. (#81451) Thanks @solodmd.
 
 ### Fixes
 
+- Hooks: raise bounded gateway lifecycle hook wait budgets to 5 seconds for shutdown and 10 seconds for pre-restart, giving short restart notification handlers time to finish before shutdown continues. (#82273) Thanks @bryanbaer.
 - Telegram/active-memory: run blocking memory recall through the Telegram provider for direct-message turns even when the hook context carries the raw chat id, preventing embedded recall from launching against an invalid numeric channel. Fixes #82177. Thanks @cslash-zz.
 - Control UI/WebChat: keep optimistic image messages from embedding large inline `data:` previews and preserve image-only user turns in chat history, avoiding browser stack overflows when sending image attachments. Fixes #82182. Thanks @ExploreSheep.
 - Agents/media: preserve message-tool-only delivery for generated music and video completion handoffs, so group/channel completions do not finish without posting the generated attachment.
+- Telegram: drain queued outbound deliveries after polling reconnect confirms fresh `getUpdates` activity, so stale-socket and network recovery do not leave failed replies stranded. Fixes #50040. Refs #82175. Thanks @dmitriiforpost-commits and @shellyrocklobster.
 - Agents: strip Gemini/Gemma `<final>` tags with attributes or self-closing syntax from delivered replies, including strict final-tag streaming enforcement. Fixes #65867.
 - macOS/update: disarm legacy `ai.openclaw.update.*` LaunchAgents when `openclaw update` starts from one, preventing KeepAlive relaunch loops that repeatedly restart the Gateway and replay update continuations. Fixes #82167.
+- Agents/replay: strip internal runtime-context metadata and `NO_REPLY` sentinels from provider replay and pending final-delivery recovery so restart and heartbeat resumes do not feed control text back to the model. Fixes #76629. Thanks @fuyizheng3120, @bryan-chx, and @cael-dandelion-cult.
 - LINE: acknowledge signed webhook events before agent processing so slow model replies do not cause LINE `request_timeout` delivery failures. Fixes #65375. Thanks @myericho.
 - LINE: stop cron recovery from inferring lowercased LINE recipients from canonical session keys, so long-running task replies do not silently retry undeliverable push targets. Fixes #81628. (#81704) Thanks @edenfunf.
 - TTS: preserve channel-derived voice-note delivery for `/tts audio` replies even when the provider output is not natively voice-compatible. (#82174) Thanks @xuruiray.
 - Codex app-server: preserve inbound sender metadata and source-channel provenance on mirrored user prompts, including failure snapshots, so channel history keeps the original sender identity. (#82184) Thanks @zknicker.
+- Codex account/status: treat metadata-only rate-limit buckets as returned but empty so `/codex status` and `/codex account` report `none returned` instead of counting phantom limits.
 - Codex/Lossless: keep Codex explicit compaction on native app-server threads while allowing Lossless through the context-engine slot; `openclaw doctor --fix` now migrates legacy `compaction.provider: "lossless-claw"` config to `plugins.slots.contextEngine`.
 - Cron/doctor: report scheduled jobs with explicit `payload.model` overrides, including provider namespace counts and default-model mismatches, so stale cron model pins are visible during auth or billing investigations. Fixes #82151. Thanks @mgonto.
 - Codex app-server: keep the short turn-completion idle watchdog armed after the last non-assistant current-turn item completes, so a quiet Codex app-server releases the OpenClaw session lane before the outer attempt timeout. Fixes #82171. (#82172) Thanks @funmerlin.
 - Providers/OpenRouter: stop adding empty DeepSeek V4 `reasoning_content` placeholders to assistant tool-call replay messages and strip empty replay artifacts before follow-up Chat Completions requests, so `openrouter/deepseek/deepseek-v4-pro` no longer fails after tool use. Fixes #82150. (#82158) Thanks @luyao618 and @Suquir0.
 - Gateway/approvals: treat `turnSourceTo` as optional in `canBridgeNoDeviceChatApprovalFromBackend`, matching the existing optional handling of `turnSourceAccountId` and `turnSourceThreadId`. Channels without a recipient concept (webchat, control-ui) leave `turnSourceTo` null on both the approval snapshot and the replay params, so the prior required-string check rejected every backend replay with `APPROVAL_CLIENT_MISMATCH`. Cross-channel replay is still gated by the required `turnSourceChannel` and `sessionKey` checks. Fixes #82132. (#82136) Thanks @ottodeng.
 - Cron: load runtime plugins before isolated cron model and delivery resolution so external channels can be selected for scheduled runs. (#82111) Thanks @medns.
+- Cron: mirror successful direct scheduled deliveries into the resolved destination session transcript while preserving isolated-delivery awareness policy. (#80786) Thanks @cavit99.
 - Cron: preserve rotated transcript identity after session-bound scheduled runs compact, so `sessionTarget: "current"` keeps the next user message on the same conversation. Fixes #82164. Thanks @weissfl.
 - Twitch: keep gateway accounts running until shutdown instead of treating successful monitor startup as a clean channel exit, preventing immediate auto-restart loops. Fixes #60071. (#81853) Thanks @edenfunf.
 - Agents/auto-reply: honor `agents.defaults.silentReply` and per-surface group silent-reply policy when generic agent-run failure fallbacks decide whether to send visible fallback text. Fixes #82060. (#82086) Thanks @taozengabc.
@@ -191,6 +197,7 @@ Docs: https://docs.openclaw.ai
 - Media providers: report malformed operation-poll and audio-transcription JSON with provider-owned errors instead of leaking raw parser failures.
 - MiniMax, Gemini, Kimi, and Ollama web search: report malformed API JSON with provider-owned errors instead of leaking raw parser failures.
 - Image and video generation: reject malformed base64 payloads from OpenAI-compatible image responses, DeepInfra video data URLs, and MiniMax image responses instead of accepting Node's lenient decoder output.
+- Media MIME sniffing: reject malformed base64 payloads before sniffing chat/tool image MIME types instead of accepting Node's lenient decoder output.
 - Web search: mark the managed `web_search` `query` argument as required in the advertised tool schema, so schema-following local models stop emitting `queries` payloads that fail at execution. Fixes #82097. Thanks @SpidFightFR.
 - Twilio voice-call: report malformed successful API JSON responses with provider-owned errors instead of leaking raw parser failures.
 - Voice-call provider APIs: report malformed successful guarded JSON responses with provider-prefixed errors instead of leaking raw parser failures.
