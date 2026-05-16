@@ -21,12 +21,16 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Gateway/diagnostics: add opt-in critical memory pressure stability snapshots with gateway logs, V8 heap, cgroup, active-resource, and redacted large session-file evidence. Fixes #82518.
 - CLI/config: show concise human config-write output with an indented backup path instead of printing checksum-heavy overwrite audit details by default.
+- CLI/docs: call the canonical lowercase docs MCP search tool and surface MCP errors instead of returning empty search results. Fixes #82702. (#82704) Thanks @hclsys.
+- QA-Lab: ignore heartbeat-only operational transcripts when capturing runtime parity cells so background checks cannot replace the scenario reply. (#80323) Thanks @100yenadmin.
 - CLI/config: add `--dry-run` support to `openclaw config unset`, with `--json` output and allow-exec validation parity with `config set`/`config patch` dry-run handling. (#81895) Thanks @giodl73-repo.
 - Memory-core: retry disabled dreaming cron cleanup until cron is available after startup, so persisted managed dreaming jobs are removed after restart. Fixes #82383. (#82389) Thanks @neeravmakwana.
 - Providers/xAI: keep retired Grok 3, Grok 4 Fast, Grok 4.1 Fast, and Grok Code slugs out of model pickers while preserving compatibility resolution for existing configs.
 - Providers/xAI: replace the retired `grok-imagine-image-pro` image model with `grok-imagine-image-quality` in the bundled image-generation provider and docs. (#81399) Thanks @KateWilkins.
 - Providers/OAuth: let browser-hosted identity provider pages read successful localhost callback responses, preventing xAI Grok OAuth from showing a false connection failure after OpenClaw completes login.
+- Gateway/security: reject malformed HTTP and WebSocket request targets with the existing auth failure response instead of letting invalid URL parsing crash the Gateway. Fixes GHSA-6hc3-f4rg-377m.
 - Gateway/diagnostics: redact credential-bearing gateway target URLs and client diagnostics while preserving raw connection URLs for programmatic use, so connect-failure logs no longer surface embedded tokens.
 - Gateway/auth: honor `OPENCLAW_GATEWAY_TOKEN` as the remote interactive fallback when no remote token is configured, keeping remote TUI setup aligned with documented auth precedence.
 - Providers/xAI: continue polling video generations while xAI reports in-flight jobs as `pending`, so Grok video requests no longer fail before the final `done` response. (#82610) Thanks @Manzojunior.
@@ -54,6 +58,7 @@ Docs: https://docs.openclaw.ai
 - Codex app-server: keep long-running turns alive while current-turn approvals, user input, dynamic tools, and notifications make progress, and carry that progress into the outer run timeout. (#82601) Thanks @100yenadmin.
 - Gateway/channels: hand off traced channel account startup outside the startup diagnostic phase so long-lived channel tasks do not keep liveness warnings pinned to channel startup. Refs #82398.
 - Gateway/restart: queue restart and shutdown signals received while the gateway startup loop is still returning its server handle, so startup-time restarts are not dropped during update churn. (#82660) Thanks @samzong.
+- Gateway/restart: carry operator restart intent reasons into macOS LaunchAgent restart traces, so cascade diagnostics identify `gateway.restart` instead of a bare SIGTERM.
 - GitHub Copilot: route device-login requests through the plugin SSRF guard with a GitHub-only policy.
 - Group/channel replies: keep message-tool-preferred final replies private when the agent misses the message tool, and log suppressed payload metadata in the gateway debug log for quieter diagnosis.
 - Gateway/WebChat: route image attachments through a configured vision-capable `imageModel` plan before inlining images, and carry that image-model fallback chain through runtime retries. (#82524) Thanks @frankekn.
@@ -93,6 +98,7 @@ Docs: https://docs.openclaw.ai
 - Telegram/Gateway: route targeted Telegram `/stop@bot` messages onto the control lane without cached bot metadata and match gateway stop requests across raw/canonical session aliases. (#82298) Thanks @VACInc.
 - MS Teams/media: sniff inline `data:image/*` attachment bytes before staging them, skipping payloads that are not actually images.
 - WebChat/media: require trusted local-media provenance before preserving local audio reply paths for display, so untrusted audio-looking paths go through normal staging and read-policy checks.
+- WebChat: trust local Auto-TTS audio on block-streamed replies, including ACP-dispatched tails, so synthesized browser audio renders instead of being silently dropped. Fixes #82628. (#82701) Thanks @leno23.
 - Agents/tool media: preserve trusted local-media provenance when merging generated tool attachments into final reply payloads, so trusted audio/media survives outbound display normalization.
 - Anthropic/Claude CLI: write model-scoped `claude-cli` runtime policy when reusing local Claude CLI auth, so upgraded Telegram and Dashboard gateway turns keep using the CLI backend instead of falling through to Anthropic API billing. Fixes #82344. Thanks @amknight.
 - Update: let package-swap `doctor --fix` persist core config repairs while plugin schemas are still converging, preventing update failures on externalized channel configs.
@@ -141,7 +147,7 @@ Docs: https://docs.openclaw.ai
 - Providers/catalogs: reject malformed successful LM Studio, GitHub Copilot, DeepInfra, Vercel AI Gateway, and Kilocode model-list responses with provider-owned errors instead of raw parser/type failures or silent fallback catalogs.
 - Providers/polling: reject array, null, or scalar successful operation status responses with provider-owned malformed JSON errors instead of waiting until timeout.
 - ACPX/Codex: reap plugin-local Codex ACP adapter orphans on startup after wrapper crashes while keeping direct adapter commands out of launch-lease injection. Fixes #82364. (#82459) Thanks @joshavant.
-- Agents/model fallback: periodically probe the configured primary for auto-pinned fallback sessions and clear the pin when it recovers, preventing sessions from staying on a fallback model indefinitely. Fixes #82544. Thanks @crpol.
+- Agents/model fallback: periodically probe the configured primary for auto-pinned fallback sessions, announce fallback/recovery transitions, and clear the pin when it recovers, preventing sessions from staying on a fallback model indefinitely. Fixes #82544. Thanks @crpol.
 - Telegram: send presentation-only payloads by rendering fallback text and inline buttons instead of treating them as empty. Fixes #82404. (#82449) Thanks @joshavant.
 - Providers/Kimi: preserve Kimi Coding `reasoning_content` replay and backfill assistant tool-call placeholders when thinking is enabled, so `kimi-for-coding` follow-up tool turns no longer fail after prior tool use. Fixes #82161. Thanks @amknight.
 - Providers/search tools: reject malformed successful xAI, Gemini, and Kimi web/code search responses with provider-owned errors instead of silent `No response` payloads or ungrounded fallback state.
@@ -1778,6 +1784,7 @@ Docs: https://docs.openclaw.ai
 
 - Telegram: preserve URL inline keyboard buttons in shared presentation rendering. Fixes #76255. Thanks @clawSean.
 - Update: repair doctor-migratable legacy config before persisting `openclaw update --channel ...`, so old Slack/Telegram streaming keys do not block switching to beta after a package update. Thanks @vincentkoc.
+- Plugins/bundles: preserve explicit `activation` metadata from Codex, Cursor, and Claude bundle manifests in registry records, so bundle startup opt-outs are not treated as legacy implicit startup sidecars. (#75133) Thanks @100menotu001.
 - Web fetch: late-bind `web_fetch` config and provider fallback metadata from the active runtime snapshot, matching `web_search` so long-lived tools do not use stale fetch provider settings. Thanks @vincentkoc.
 - Plugins/discovery: demote the source-only TypeScript runtime check on already-installed `origin: "global"` plugin packages from a config-blocking error to a warning and let the runtime fall through to the TypeScript source via jiti, so a single broken installed package no longer blocks `plugins install` for unrelated plugins; install-time rejection of newly-installed source-only packages is unchanged. Thanks @romneyda.
 - Providers/OpenAI Codex: stop the OAuth progress spinner before showing the manual redirect paste prompt, so callback timeouts do not spam `Browser callback did not finish` across terminals.
