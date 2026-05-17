@@ -294,7 +294,6 @@ describe("matrix live qa scenarios", () => {
       "matrix-thread-root-preservation",
       "matrix-thread-nested-reply-shape",
       "matrix-thread-isolation",
-      "matrix-subagent-thread-spawn",
       "matrix-top-level-reply-shape",
       "matrix-room-thread-reply-override",
       "matrix-room-partial-streaming-preview",
@@ -2694,7 +2693,7 @@ describe("matrix live qa scenarios", () => {
       }))
       .mockImplementationOnce(async () => {
         const childToken =
-          /task="Finish with exactly ([^".]+)\./.exec(
+          /"task":"Finish with exactly ([^".]+)\./.exec(
             mockMessageBody(sendTextMessage, "sendTextMessage"),
           )?.[1] ?? "MATRIX_QA_SUBAGENT_CHILD_FIXED";
         return {
@@ -2766,7 +2765,11 @@ describe("matrix live qa scenarios", () => {
     expect(artifacts.threadRootEventId).toBe("$subagent-thread-root");
 
     expectSentTextMessage(sendTextMessage, {
-      bodyIncludes: ["call the sessions_spawn tool now", "thread=true", "runTimeoutSeconds=120"],
+      bodyIncludes: [
+        "call sessions_spawn with exactly this JSON input",
+        '"thread":true',
+        '"runTimeoutSeconds":120',
+      ],
       mentionUserIds: ["@sut:matrix-qa.test"],
       roomId: "!main:matrix-qa.test",
     });

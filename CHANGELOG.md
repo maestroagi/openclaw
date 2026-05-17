@@ -27,6 +27,8 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Feishu: return bound subagent delivery origins from session thread setup so Feishu subagent completions route back to the same DM or topic. (#83190) Thanks @100menotu001.
+- CLI/update: tailor post-update Gateway recovery hints by platform, showing systemd, LaunchAgent, Scheduled Task, or generic service-manager guidance instead of macOS-only recovery text. (#83096) Thanks @rubencu.
 - Plugins: apply a default 15-second timeout to legacy `before_agent_start` hooks so hung plugin handlers no longer block agent startup. Fixes #48534. (#83136) Thanks @therahul-yo.
 - Feishu: refresh inbound session delivery context for DM, group, and broadcast turns so later replies do not inherit stale WebChat routing. Fixes #78274.
 - QA-Lab/qa-channel: attach redacted agent tool-start traces to outbound `QaBusMessage` records so scenarios can assert actual tool use instead of relying only on reply text. Fixes #67637. Thanks @100yenadmin.
@@ -43,6 +45,7 @@ Docs: https://docs.openclaw.ai
 - Feishu: detect SecretRef top-level credentials as a configured default account instead of treating object-backed app secrets as missing.
 - CLI/completion: resolve concrete PowerShell profile paths and reload commands during setup and doctor completion installation. Fixes #44296. (#83059) Thanks @yu-xin-c.
 - Providers/Google: preserve and recover Gemini 3 tool-call thought signatures during native replay so function-calling turns no longer fail with missing `thought_signature` 400s. Fixes #72879. (#80358) Thanks @abnershang.
+- Memory/QMD: keep lexical search on raw hyphenated queries while normalizing semantic QMD sub-searches, avoiding fallback to the builtin index for dashed identifiers and dates. Fixes #81328.
 - Memory-core: distinguish sqlite-vec load failures from missing semantic vector embeddings in degraded `memory index` warnings, so vector recall diagnostics point at unresolved dimensions instead of blaming sqlite-vec when the store is ready. Fixes #75624. (#83056) Thanks @xuruiray and @Noah3521.
 - Agents/subagents: preserve sandbox-peer controller ownership while routing completion announcements back to the originating run session, keeping subagent control and completion delivery scoped correctly. Fixes #80201. (#80242) Thanks @Jerry-Xin.
 - Gateway: continue restarting remaining channels when one hot-reload channel restart fails, while still reporting aggregate reload failure and rolling back plugin pre-replace stops. Fixes #83054. Thanks @zqchris.
