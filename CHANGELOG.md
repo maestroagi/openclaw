@@ -24,9 +24,12 @@ Docs: https://docs.openclaw.ai
 ### Fixes
 
 - Agents/subagents: surface blocked child-run completions as errors instead of successful subagent finishes. (#80886) Thanks @TurboTheTurtle.
+- Agents/Pi: treat accepted embedded `sessions_spawn` child-session handoffs as terminal progress so parent turns no longer report false non-deliverable failures. (#85054) Thanks @samzong.
 - WhatsApp: update Baileys to `7.0.0-rc13` and drop the obsolete logger type patch.
 - Install/update: reject OpenClaw GitHub source package targets early and point moving-main users at the dev/git install path instead of the broken npm source-install flow.
+- Gateway: mirror successful same-source message-tool sends into session transcripts so delivered replies stay in later history/context. (#84837) Thanks @iFiras-Max1.
 - Infra/json: retry transient `File changed during read` races while loading JSON state so config and state reads recover instead of failing the turn. (#84285)
+- Plugins/providers: fail closed for workspace provider plugins during setup-mode discovery unless explicitly trusted, preventing untrusted workspace plugin code from running during provider setup. (#81069) Thanks @mmaps.
 - Providers/Ollama: resolve configured Ollama Cloud `OLLAMA_API_KEY` markers to the real discovery key so cloud provider entries keep authenticated model catalog access. (#85037)
 - Discord: keep persistent component registry fallback warnings actionable by forwarding structured error and cause metadata through the runtime logger. Fixes #84185. (#84190) Thanks @100menotu001.
 - Gateway/sessions: preserve compatible session auth profile overrides when switching models within the same provider, including provider-auth aliases. Fixes #81837. (#81886) Thanks @TurboTheTurtle.
@@ -48,14 +51,21 @@ Docs: https://docs.openclaw.ai
 - Providers/Ollama: preserve native Ollama tool-call IDs across assistant replay so Gemini over Ollama Cloud can keep its hidden function-call thought-signature handle.
 - Discord: keep session recovery and `/stop` abort ownership on the source dispatch lane while bound ACP turns continue routing to their target session, so stalled pre-run work and late replies are cleared instead of leaking after stop. Fixes #84477. (#85100) Thanks @joshavant.
 - Codex app-server: mark missing turn completion after observed execution as replay-unsafe and release the session so follow-up turns can run. Fixes #84076. (#85107) Thanks @joshavant.
+- Codex app-server: add a dedicated post-tool raw assistant completion idle timeout config so trusted heavy turns can wait longer after tool handoff without weakening final assistant release.
+- Matrix: keep explicitly configured two-person rooms on the room route before stale `m.direct` or strict two-member DM fallback can bypass mention gating. Fixes #85017. (#85137) Thanks @joshavant.
+- Agents/subagents: require explicit subagent allowlist targets to be configured agents so stale deleted-agent ids are omitted from `agents_list` and rejected by `sessions_spawn`. Fixes #84811. (#85154) Thanks @joshavant.
 - PDF tool: time out idle remote PDF body reads after 120 seconds so stalled remote documents return an error instead of wedging the session. Fixes #68649. (#84768) Thanks @luoyanglang.
 - Diagnostics/OpenTelemetry plugin: suppress handled OTLP exporter promise rejections so collector shutdowns no longer crash the Gateway. (#81085) Thanks @luoyanglang.
+- Agents/exec: omit raw command text and env values from denied exec failure logs while keeping safe correlation metadata. Fixes #85049. (#85140) Thanks @joshavant.
 - Media/audio: skip empty structured sherpa-onnx transcripts instead of treating the raw JSON payload as spoken text. (#84667) Thanks @TurboTheTurtle.
+- Agents/exec: preserve inherited XDG base-directory environment values for subprocesses while still rejecting agent-supplied XDG overrides. Fixes #84854. (#85139) Thanks @joshavant.
 - Node/Linux: keep `OPENCLAW_GATEWAY_TOKEN` out of generated systemd unit files by writing node service token values to a node-specific env file. (#84408)
 - Memory-core/dreaming: reuse stable narrative subagent session keys per workspace and phase while keeping per-run idempotency and bounded cleanup, so stale `dreaming-narrative-*` sessions do not accumulate. Fixes #68252, #69187, and #70402. (#70464) Thanks @chiyouYCH.
 - Trajectory/support: tolerate partial skill snapshot entries when building support metadata so rejected skill path scans no longer abort trajectory capture. (#71185) Thanks @lukeboyett.
+- TUI: coalesce repeated idle Esc abort notices into a single `no active run xN` system row instead of appending duplicate rows.
 - Telegram: honor `channels.telegram.pollingStallThresholdMs` in the default isolated polling path, restarting silent workers instead of leaving inbound updates wedged. Fixes #83950. (#84861) Thanks @joshavant.
 - Slack: suppress reasoning payloads before reply delivery and dispatch accounting, so Slack monitor, slash-command, fallback, and direct reply paths do not leak model reasoning. Fixes #84319. (#84322) Thanks @ffluk3 and @joshavant.
+- Slack: deliver native plugin approval prompts and updates when Slack native approvals are enabled, while keeping plugin approval authorization separate from exec approvers.
 - Agents/Pi: disable the embedded pi-coding-agent runtime auto-retry so OpenClaw's own retry and failover loop does not replay failed tool calls through a nested SDK retry. Fixes #73781. (#74434) Thanks @yelog.
 - CLI/perf: keep `setup --help`, `onboard --help`, and `configure --help` out of the full wizard runtime while preserving the existing help output. (#84488) Thanks @frankekn.
 - CLI/perf: keep `agents --help` out of agents action/runtime imports so help, completion, and command discovery paths avoid loading the full agents runtime. (#84483) Thanks @frankekn.
