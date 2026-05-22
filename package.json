@@ -81,6 +81,10 @@
     "docs/",
     "!docs/.generated/**",
     "!docs/channels/qa-channel.md",
+    "!docs/assets/**",
+    "!docs/images/**",
+    "!docs/**/*.jpg",
+    "!docs/**/*.png",
     "scripts/crabbox-wrapper.mjs",
     "patches/",
     "skills/",
@@ -1669,6 +1673,7 @@
     "test:docker:openai-web-search-minimal": "bash scripts/e2e/openai-web-search-minimal-docker.sh",
     "test:docker:openwebui": "bash scripts/e2e/openwebui-docker.sh",
     "test:docker:pi-bundle-mcp-tools": "bash scripts/e2e/pi-bundle-mcp-tools-docker.sh",
+    "test:docker:plugin-binding-command-escape": "bash scripts/e2e/plugin-binding-command-escape-docker.sh",
     "test:docker:plugin-lifecycle-matrix": "bash scripts/e2e/plugin-lifecycle-matrix-docker.sh",
     "test:docker:plugin-update": "bash scripts/e2e/plugin-update-unchanged-docker.sh",
     "test:docker:plugins": "bash scripts/e2e/plugins-docker.sh",
@@ -1870,5 +1875,5 @@
   "engines": {
     "node": ">=22.19.0"
   },
-  "packageManager": "pnpm@11.1.0+sha512.0c44e842e5686b2c061a81adda8b2258bd8818e9704b2cf2c63d56b931a7b2e910092e085027003b96ca3911ab56a07f6df5abaed2be9925034cdd686a535b14"
+  "packageManager": "pnpm@11.2.2+sha512.36e6621fad506178936455e70247b8808ef4ec25797a9f437a93281a020484e2607f6a469a22e982987c3dbb8866e3071514ab10a4a1749e06edcd1ec118436f"
 }
