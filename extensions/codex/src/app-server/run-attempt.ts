@@ -2156,13 +2156,15 @@ export async function runCodexAppServerAttempt(
     durationMs: number;
   }) => {
     if (
-      completed ||
-      runAbortController.signal.aborted ||
-      !params.response.success ||
-      currentTurnHadNonTerminalDynamicToolResult ||
-      activeAppServerTurnRequests > 0 ||
-      activeTurnItemIds.size > 0 ||
-      pendingOpenClawDynamicToolCompletionIds.size > 0
+      !shouldReleaseTurnAfterTerminalDynamicTool({
+        completed,
+        aborted: runAbortController.signal.aborted,
+        responseSuccess: params.response.success,
+        currentTurnHadNonTerminalDynamicToolResult,
+        activeAppServerTurnRequests,
+        activeTurnItemIdsCount: activeTurnItemIds.size,
+        pendingOpenClawDynamicToolCompletionIdsCount: pendingOpenClawDynamicToolCompletionIds.size,
+      })
     ) {
       return;
     }
@@ -2193,20 +2195,6 @@ export async function runCodexAppServerAttempt(
     resolveCompletion?.();
   };
 
-  const finalizeDynamicToolBatchIfIdle = () => {
-    if (
-      activeAppServerTurnRequests > 0 ||
-      pendingOpenClawDynamicToolCompletionIds.size > 0 ||
-      activeTurnItemIds.size > 0
-    ) {
-      return;
-    }
-    if (currentTurnHadNonTerminalDynamicToolResult) {
-      pendingTerminalDynamicToolRelease = undefined;
-      currentTurnHadNonTerminalDynamicToolResult = false;
-    }
-  };
-
   const scheduleTerminalDynamicToolReleaseCheck = () => {
     if (
       terminalDynamicToolReleaseCheckScheduled ||
@@ -2218,10 +2206,19 @@ export async function runCodexAppServerAttempt(
     terminalDynamicToolReleaseCheckScheduled = true;
     const immediate = setImmediate(() => {
       terminalDynamicToolReleaseCheckScheduled = false;
-      if (pendingTerminalDynamicToolRelease) {
+      const action = resolveTerminalDynamicToolBatchAction({
+        activeAppServerTurnRequests,
+        activeTurnItemIdsCount: activeTurnItemIds.size,
+        pendingOpenClawDynamicToolCompletionIdsCount: pendingOpenClawDynamicToolCompletionIds.size,
+        currentTurnHadNonTerminalDynamicToolResult,
+        hasPendingTerminalDynamicToolRelease: pendingTerminalDynamicToolRelease !== undefined,
+      });
+      if (action === "release-pending-terminal" && pendingTerminalDynamicToolRelease) {
         releaseTurnAfterTerminalDynamicTool(pendingTerminalDynamicToolRelease);
+      } else if (action === "clear-nonterminal-batch") {
+        pendingTerminalDynamicToolRelease = undefined;
+        currentTurnHadNonTerminalDynamicToolResult = false;
       }
-      finalizeDynamicToolBatchIfIdle();
     });
     immediate.unref?.();
   };
@@ -3457,6 +3454,63 @@ type TerminalToolExecutionDiagnostic = Extract<
   DiagnosticEventPayload,
   { type: "tool.execution.blocked" | "tool.execution.completed" | "tool.execution.error" }
 >;
+
+type TerminalDynamicToolReleaseState = {
+  completed: boolean;
+  aborted: boolean;
+  responseSuccess: boolean;
+  currentTurnHadNonTerminalDynamicToolResult: boolean;
+  activeAppServerTurnRequests: number;
+  activeTurnItemIdsCount: number;
+  pendingOpenClawDynamicToolCompletionIdsCount: number;
+};
+
+function shouldReleaseTurnAfterTerminalDynamicTool(
+  state: TerminalDynamicToolReleaseState,
+): boolean {
+  return (
+    !state.completed &&
+    !state.aborted &&
+    state.responseSuccess &&
+    !state.currentTurnHadNonTerminalDynamicToolResult &&
+    state.activeAppServerTurnRequests === 0 &&
+    state.activeTurnItemIdsCount === 0 &&
+    state.pendingOpenClawDynamicToolCompletionIdsCount === 0
+  );
+}
+
+type TerminalDynamicToolBatchAction =
+  | "idle"
+  | "wait"
+  | "clear-nonterminal-batch"
+  | "release-pending-terminal";
+
+type TerminalDynamicToolBatchState = {
+  activeAppServerTurnRequests: number;
+  activeTurnItemIdsCount: number;
+  pendingOpenClawDynamicToolCompletionIdsCount: number;
+  currentTurnHadNonTerminalDynamicToolResult: boolean;
+  hasPendingTerminalDynamicToolRelease: boolean;
+};
+
+function resolveTerminalDynamicToolBatchAction(
+  state: TerminalDynamicToolBatchState,
+): TerminalDynamicToolBatchAction {
+  if (
+    state.activeAppServerTurnRequests > 0 ||
+    state.activeTurnItemIdsCount > 0 ||
+    state.pendingOpenClawDynamicToolCompletionIdsCount > 0
+  ) {
+    return "wait";
+  }
+  if (state.currentTurnHadNonTerminalDynamicToolResult) {
+    return "clear-nonterminal-batch";
+  }
+  if (state.hasPendingTerminalDynamicToolRelease) {
+    return "release-pending-terminal";
+  }
+  return "idle";
+}
 
 function isDynamicToolTerminalDiagnosticEvent(
   event: DiagnosticEventPayload,
@@ -5588,6 +5642,8 @@ export const testing = {
   shouldProjectMirroredHistoryForCodexStart,
   shouldEnableCodexAppServerNativeToolSurface,
   shouldForceMessageTool,
+  shouldReleaseTurnAfterTerminalDynamicTool,
+  resolveTerminalDynamicToolBatchAction,
   buildCodexPluginThreadConfigEligibilityLogData,
   withCodexStartupTimeout,
   setOpenClawCodingToolsFactoryForTests(factory: OpenClawCodingToolsFactory): void {
