@@ -1003,7 +1003,7 @@ describe("startGatewayPostAttachRuntime", () => {
       async () => {
         let releaseChannels: (() => void) | undefined;
         const events: string[] = [];
-        const pluginServices = { stop: vi.fn(async () => {}) } as never;
+        const pluginServices: PluginServicesHandle = { stop: vi.fn(async () => {}) };
         const onPluginServices = vi.fn();
         const onSidecarsReady = vi.fn();
         const startChannels = vi.fn(
@@ -1110,13 +1110,13 @@ describe("startGatewayPostAttachRuntime", () => {
       async () => {
         let shouldStartPluginServices = true;
         let releasePluginServices: (() => void) | undefined;
-        const pluginServices = { stop: vi.fn(async () => {}) };
+        const pluginServices: PluginServicesHandle = { stop: vi.fn(async () => {}) };
         const onPluginServices = vi.fn();
         hoisted.startPluginServices.mockImplementationOnce(
           async () =>
-            await new Promise((resolve) => {
+            (await new Promise<typeof pluginServices>((resolve) => {
               releasePluginServices = () => resolve(pluginServices);
-            }),
+            })) as never,
         );
 
         const sidecarsPromise = startGatewaySidecars({
