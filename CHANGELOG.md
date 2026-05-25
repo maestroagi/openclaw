@@ -14,19 +14,36 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Gateway: avoid sending duplicate tool-event frames to Control UI connections that are subscribed by both run and session.
+- Discord/OpenAI voice: accept leading fuzzy wake-name transcripts such as "Monty" or "Moti" for a Molty agent while keeping ambient speech gated.
+- Media understanding: convert HEIC and HEIF images to JPEG before image description providers run so iPhone photos work in direct and configured image-description flows. (#86037)
+- Discord/OpenAI voice: rotate Realtime sessions at provider max duration without logging the expected session-expiry event as an error.
+- Agents/media: derive bundled plugin local-media trust from plugin tool metadata instead of importing the full plugin registry on subscription paths. (#84409) Thanks @samzong.
+- Memory/local embeddings: run local GGUF embeddings in an isolated worker sidecar and degrade to configured fallback or keyword search on worker failure so native embedding crashes do not take down the Gateway. (#85348) Thanks @osolmaz.
+- Gateway: clear the runtime config snapshot before `SIGUSR1` in-process restarts so config changes survive the next gateway loop. (#86388) Thanks @XuZehan-iCenter.
+- Models: show OAuth delegation markers as configured `models.json` auth while keeping runtime route usability checks strict. (#86378) Thanks @rohitjavvadi.
+- Cron: seed active scheduled and manual cron task rows with a progress summary so status surfaces do not look blank while jobs run. (#86313) Thanks @ferminquant.
+- Updater: exclude prerelease git tags from stable channel resolution so source updates do not check out newer alpha/rc/preview/canary tags. (#86260) Thanks @stevenepalmer.
+- Security/Audit: flag webhook `hooks.token` reuse of active Gateway password auth in `openclaw security audit` while keeping password-mode startup compatibility. (#84338) Thanks @coygeek.
 - Agents/heartbeat: stop heartbeat turns after the first valid `heartbeat_respond` so repeated response loops do not burn tokens. (#86357) Thanks @udaymanish6.
+- Tasks: keep retained lost tasks out of default status health counts, explain their cleanup window during maintenance, and prune lost task records after 24 hours instead of the general 7-day terminal retention.
 - Memory-core: keep REM dreaming focused on live light-staged memories and mark staged entries as considered so old recall history no longer dominates fresh candidates. (#86302) Thanks @SebTardif.
 - Telegram: propagate forum topic names through the account-scoped topic cache for native command context and topic create/edit actions. (#86299) Thanks @SebTardif.
 - Slack: keep downloaded read-only files out of reply media so Slack file reads do not echo files back to the conversation. (#86318) Thanks @neeravmakwana.
 - Cron: accept leading-plus relative durations such as `+5m` for one-shot `--at` schedules. (#86341) Thanks @mushuiyu886.
 - Agents/media: preserve async-started media tool metadata so background generation starts no longer surface generic incomplete-turn warnings while replay stays unsafe. (#85933) Thanks @fuller-stack-dev.
 - Docker E2E: dedupe scheduler lane resources so npm/service package lanes are not over-counted and serialized unnecessarily.
+- Crabbox: bootstrap Git metadata for sparse remote changed gates so raw synced workspaces can run `pnpm check:changed` from the intended diff.
 - xAI/LM Studio: avoid buffering ordinary bracketed or `final` prose until stream completion while watching for plain-text tool-call fallbacks.
+- Doctor: warn and continue when the cron job store exists but cannot be read so later health checks still run. Fixes #86102. (#86384) Thanks @1052326311.
 - Discord: suppress a bot's previous reply body and referenced media from prompt context when a user replies to that bot message, while keeping reply metadata for routing. (#86238) Thanks @fuller-stack-dev.
 - Docker E2E: avoid rebuilding the Control UI twice while preparing the shared OpenClaw package tarball for package-backed scenario runs.
 - Tests: avoid rebuilding the Control UI twice during the installer Docker smoke now that `pnpm build` includes `ui:build`.
+- Build: route `scripts/ui.js` through the shared pnpm runner and keep Control UI chunking helpers in sparse-included source so native Windows Corepack builds can produce `dist/control-ui`.
+- Tests: give the memory fallback QA scenario enough turn budget to exercise native Windows gateway runs instead of failing on the client timeout while the mock agent is still dispatching.
 - Tests: collect QA gateway CPU/RSS metrics on native Windows and give the channel baseline enough turn budget to report slow gateway runs instead of timing out before proof.
 - Install/update: bypass npm `min-release-age` policies with `--min-release-age=0` instead of `--before` so hosted installers keep working on npm versions that reject the combined config. (#84749) Thanks @TeodoroRodrigo.
+- Diagnostics: reclaim wedged session lanes when stale active-run bookkeeping blocks queued work despite no forward progress. Fixes #85639. Thanks @openperf.
 - WebChat: keep message-tool replies visible in the chat while still summarizing internal tool results for the model. Fixes #86347. Thanks @shakkernerd.
 - Gateway/perf: fail startup benchmark samples when the Gateway process exits before benchmark teardown, including signal deaths after readiness probes.
 - Gateway/perf: fail restart benchmark samples when the Gateway exits before benchmark teardown, including clean exits and signal deaths after successful restart probes.
@@ -49,6 +66,7 @@ Docs: https://docs.openclaw.ai
 - Telegram: route normal `[telegram][diag]` polling diagnostics through `runtime.log` while keeping non-diag warnings and persistence failures on `runtime.error`, so healthy polling startup no longer looks like an error. Fixes #82957. (#82958) Thanks @galiniliev.
 
 - Gateway: require Talk secret authority before setup-code handoff can include Talk secrets. (#85690) Thanks @ngutman.
+- Agents: keep fallback error reporting scoped to the active model candidate so stale prior-provider quota/auth text is not reported for later fallback attempts. (#86134) thanks @zhangguiping-xydt.
 
 ## 2026.5.25
 
