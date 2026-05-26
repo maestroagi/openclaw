@@ -368,10 +368,11 @@ async function executeSend(params: {
   toolOptions?: Partial<Parameters<typeof createMessageTool>[0]>;
   toolCallId?: string;
 }) {
+  const { config, getRuntimeConfig, ...toolOptions } = params.toolOptions ?? {};
   const tool = createMessageTool({
-    config: {} as never,
+    getRuntimeConfig: getRuntimeConfig ?? (config ? () => config : mocks.getRuntimeConfig),
     runMessageAction: mocks.runMessageAction as never,
-    ...params.toolOptions,
+    ...toolOptions,
   });
   await tool.execute(params.toolCallId ?? "1", {
     action: "send",
@@ -740,6 +741,14 @@ describe("message tool secret scoping", () => {
 
   it("resolves scoped channel SecretRefs even when constructed with a config snapshot", async () => {
     mockSendResult({ channel: "discord", to: "channel:123" });
+    const plugin = createChannelPlugin({
+      id: "discord",
+      label: "Discord",
+      docsPath: "/channels/discord",
+      blurb: "test",
+      actions: ["send"],
+    });
+    setActivePluginRegistry(createTestRegistry([{ pluginId: "discord", source: "test", plugin }]));
     const rawConfig = {
       channels: {
         discord: {
@@ -793,6 +802,15 @@ describe("message tool secret scoping", () => {
 
 describe("message tool delivery mode schema", () => {
   it("hides bestEffort when required durable delivery is not available", () => {
+    const plugin = createChannelPlugin({
+      id: "discord",
+      label: "Discord",
+      docsPath: "/channels/discord",
+      blurb: "test",
+      actions: ["send"],
+    });
+    setActivePluginRegistry(createTestRegistry([{ pluginId: "discord", source: "test", plugin }]));
+
     const defaultTool = createMessageTool();
     const scopedTool = createMessageTool({
       config: {} as never,
@@ -838,7 +856,7 @@ describe("message tool agent routing", () => {
 
     const tool = createMessageTool({
       agentSessionKey: "agent:alpha:main",
-      config: {} as never,
+      getRuntimeConfig: mocks.getRuntimeConfig,
       runMessageAction: mocks.runMessageAction as never,
     });
 
@@ -858,7 +876,7 @@ describe("message tool agent routing", () => {
 
     const tool = createMessageTool({
       agentSessionKey: "agent:main:slack:channel:c123:thread:111.222",
-      config: {} as never,
+      getRuntimeConfig: mocks.getRuntimeConfig,
       currentChannelProvider: "slack",
       currentChannelId: "channel:C123",
       agentThreadId: "111.222",
@@ -881,7 +899,7 @@ describe("message tool agent routing", () => {
 
     const tool = createMessageTool({
       agentSessionKey: "agent:main:slack:channel:c123:thread:111.222",
-      config: {} as never,
+      getRuntimeConfig: mocks.getRuntimeConfig,
       currentChannelProvider: "slack",
       currentChannelId: "channel:C123",
       agentThreadId: "111.222",
@@ -902,6 +920,14 @@ describe("message tool agent routing", () => {
 
   it("forwards agentThreadId through createOpenClawTools to the message tool", async () => {
     mockSendResult({ channel: "slack", to: "channel:C123" });
+    const plugin = createChannelPlugin({
+      id: "slack",
+      label: "Slack",
+      docsPath: "/channels/slack",
+      blurb: "test",
+      actions: ["send"],
+    });
+    setActivePluginRegistry(createTestRegistry([{ pluginId: "slack", source: "test", plugin }]));
 
     const tool = createOpenClawTools({
       agentSessionKey: "agent:main:slack:channel:c123:thread:111.222",
