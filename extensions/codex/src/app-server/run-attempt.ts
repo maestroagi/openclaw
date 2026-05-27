@@ -207,7 +207,7 @@ import {
 import { createCodexUserInputBridge } from "./user-input-bridge.js";
 import { filterToolsForVisionInputs } from "./vision-tools.js";
 
-const CODEX_DYNAMIC_TOOL_TIMEOUT_MS = 30_000;
+const CODEX_DYNAMIC_TOOL_TIMEOUT_MS = 90_000;
 const CODEX_DYNAMIC_TOOL_MAX_TIMEOUT_MS = 600_000;
 const CODEX_DYNAMIC_IMAGE_GENERATION_TOOL_TIMEOUT_MS = 120_000;
 const CODEX_DYNAMIC_IMAGE_TOOL_TIMEOUT_MS = 60_000;
@@ -2014,6 +2014,7 @@ export async function runCodexAppServerAttempt(
   const fireTurnCompletionIdleTimeout = () => {
     if (
       completed ||
+      terminalTurnNotificationQueued ||
       runAbortController.signal.aborted ||
       !turnCompletionIdleWatchArmed ||
       activeAppServerTurnRequests > 0
@@ -2053,6 +2054,7 @@ export async function runCodexAppServerAttempt(
   const fireTurnTerminalIdleTimeout = () => {
     if (
       completed ||
+      terminalTurnNotificationQueued ||
       runAbortController.signal.aborted ||
       !turnTerminalIdleWatchArmed ||
       activeAppServerTurnRequests > 0
@@ -2556,7 +2558,7 @@ export async function runCodexAppServerAttempt(
       threadId: thread.threadId,
       ...(turnId ? { turnId } : {}),
     });
-    embeddedAgentLog.debug("codex app-server raw notification received", correlation);
+    embeddedAgentLog.trace("codex app-server raw notification received", correlation);
     if (notification.method === "turn/completed" && correlation.matchesActiveTurn === false) {
       if (correlation.matchesActiveThread) {
         embeddedAgentLog.warn(
@@ -2580,6 +2582,16 @@ export async function runCodexAppServerAttempt(
     }
     if (isTerminalTurnNotificationForTurn(notification, turnId)) {
       terminalTurnNotificationQueued = true;
+    }
+    // Touch idle-watch timestamps at receive time, not just after queued
+    // projection.  A queued terminal event should suppress short false-idle
+    // guards, while the full attempt watchdog still releases a wedged queue.
+    if (correlation.matchesActiveTurn !== false) {
+      const now = Date.now();
+      turnCompletionLastActivityAt = now;
+      turnCompletionLastActivityReason = `notification:${notification.method}`;
+      turnAttemptLastProgressAt = now;
+      turnAttemptLastProgressReason = `notification:${notification.method}`;
     }
     notificationQueue = notificationQueue.then(
       () => handleNotification(notification),
