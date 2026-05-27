@@ -1,8 +1,9 @@
+import { EventEmitter } from "node:events";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   appendBoundedOutput,
   assertDiagnosticStabilityClean,
@@ -15,11 +16,16 @@ import {
   runCommand,
   sampleProcess,
   sampleWindowsProcessByPort,
+  stopGateway,
   summarizeProcessSamples,
   usesBuiltOpenClawEntry,
 } from "../../scripts/e2e/kitchen-sink-rpc-walk.mjs";
 
 const posixIt = process.platform === "win32" ? it.skip : it;
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("kitchen-sink RPC isolated state", () => {
   it("cleans up the generated temporary home tree", async () => {
@@ -36,6 +42,36 @@ describe("kitchen-sink RPC isolated state", () => {
     await expect(cleanupKitchenSinkEnv(root)).resolves.toBe(true);
 
     expect(existsSync(root)).toBe(false);
+  });
+});
+
+describe("kitchen-sink RPC gateway teardown", () => {
+  it("releases gateway handles when the process ignores teardown signals", async () => {
+    const child = new EventEmitter() as EventEmitter & {
+      exitCode: number | null;
+      kill: ReturnType<typeof vi.fn>;
+      signalCode: NodeJS.Signals | null;
+      stderr: { destroy: ReturnType<typeof vi.fn> };
+      stdin: { destroy: ReturnType<typeof vi.fn> };
+      stdout: { destroy: ReturnType<typeof vi.fn> };
+      unref: ReturnType<typeof vi.fn>;
+    };
+    child.exitCode = null;
+    child.signalCode = null;
+    child.kill = vi.fn(() => true);
+    child.stderr = { destroy: vi.fn() };
+    child.stdin = { destroy: vi.fn() };
+    child.stdout = { destroy: vi.fn() };
+    child.unref = vi.fn();
+
+    await stopGateway(child, { killGraceMs: 1, teardownGraceMs: 1 });
+
+    expect(child.kill).toHaveBeenNthCalledWith(1, "SIGTERM");
+    expect(child.kill).toHaveBeenNthCalledWith(2, "SIGKILL");
+    expect(child.stdin.destroy).toHaveBeenCalledOnce();
+    expect(child.stdout.destroy).toHaveBeenCalledOnce();
+    expect(child.stderr.destroy).toHaveBeenCalledOnce();
+    expect(child.unref).toHaveBeenCalledOnce();
   });
 });
 
@@ -425,6 +461,29 @@ describe("kitchen-sink RPC process sampling", () => {
       }),
     ).resolves.toEqual({ ok: true, status: 200, body: { status: "live" } });
     expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it("times out stalled HTTP probe response bodies", async () => {
+    vi.useFakeTimers();
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: () => new Promise(() => undefined),
+    });
+
+    const result = fetchJson("http://127.0.0.1:19680/readyz", {
+      attempts: 1,
+      fetchImpl,
+      timeoutMs: 100,
+    });
+    const rejection = expect(result).rejects.toMatchObject({
+      code: "ETIMEDOUT",
+      message: "fetch http://127.0.0.1:19680/readyz timed out after 100ms",
+    });
+
+    await vi.advanceTimersByTimeAsync(100);
+    await rejection;
+    expect(fetchImpl.mock.calls[0]?.[1]?.signal.aborted).toBe(true);
   });
 
   it("fails when the sampled RSS exceeds the configured ceiling", () => {

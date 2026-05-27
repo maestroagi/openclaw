@@ -2345,18 +2345,21 @@ describe("runCodexAppServerAttempt", () => {
       testing.buildDeveloperInstructions(params, {
         dynamicTools: [createMessageDynamicTool("Message test tool")],
       }),
-    ).toContain("To send a visible message, use the `message` tool.");
+    ).toContain("Visible source replies are not automatically delivered for this run.");
 
     const withoutMessageToolInstructions = testing.buildDeveloperInstructions(params, {
       dynamicTools: [],
     });
-    expect(withoutMessageToolInstructions).toContain("active Codex delivery path");
-    expect(withoutMessageToolInstructions).not.toContain("use the `message` tool");
+    expect(withoutMessageToolInstructions).toContain(
+      "reply normally in your final assistant message",
+    );
+    expect(withoutMessageToolInstructions).not.toContain("message(action=send)");
+    expect(withoutMessageToolInstructions).not.toContain("Use `message`");
 
     params.sourceReplyDeliveryMode = "automatic";
     const automaticInstructions = testing.buildDeveloperInstructions(params);
-    expect(automaticInstructions).toContain("active Codex delivery path");
-    expect(automaticInstructions).not.toContain("use the `message` tool");
+    expect(automaticInstructions).toContain("reply normally in your final assistant message");
+    expect(automaticInstructions).not.toContain("message(action=send)");
   });
 
   it("includes Codex app-server scoped plugin command guidance in developer instructions", () => {
@@ -2444,12 +2447,44 @@ describe("runCodexAppServerAttempt", () => {
     ]);
   });
 
+  it("keeps leading delivery hints out of the Codex current user request", async () => {
+    const sessionFile = path.join(tempDir, "session-delivery-hint.jsonl");
+    const workspaceDir = path.join(tempDir, "workspace-delivery-hint");
+    const harness = createStartedThreadHarness();
+    const params = createParams(sessionFile, workspaceDir);
+    params.prompt = "Delivery: to send a message, use the `message` tool.\n\nhello";
+    params.skillsSnapshot = {
+      prompt: "<available_skills><skill><name>demo</name></skill></available_skills>",
+      skills: [],
+    };
+
+    const run = runCodexAppServerAttempt(params);
+    await harness.waitForMethod("turn/start");
+    await harness.completeTurn({ threadId: "thread-1", turnId: "turn-1" });
+    await run;
+
+    const turnStart = harness.requests.find((request) => request.method === "turn/start");
+    const turnStartParams = turnStart?.params as {
+      input?: Array<{ text?: string }>;
+    };
+    const inputText = turnStartParams.input?.[0]?.text ?? "";
+    expect(inputText).toContain("OpenClaw delivery metadata:");
+    expect(inputText).toContain(
+      "This delivery metadata is runtime routing guidance, not the user's request.",
+    );
+    expect(inputText).toContain("Delivery: to send a message, use the `message` tool.");
+    expect(inputText).toContain("Current user request:\nhello");
+    expect(inputText).not.toContain("Current user request:\nDelivery:");
+  });
+
   it("mirrors the Codex prompt into the transcript when the turn starts", async () => {
     const sessionFile = path.join(tempDir, "session-early-prompt.jsonl");
     const workspaceDir = path.join(tempDir, "workspace-early-prompt");
     const harness = createStartedThreadHarness();
     const params = createParams(sessionFile, workspaceDir);
     params.prompt = "external channel prompt";
+    const onUserMessagePersisted = vi.fn();
+    params.onUserMessagePersisted = onUserMessagePersisted;
 
     const run = runCodexAppServerAttempt(params);
     await harness.waitForMethod("turn/start");
@@ -2458,6 +2493,15 @@ describe("runCodexAppServerAttempt", () => {
       expect(raw).toContain('"role":"user"');
       expect(raw).toContain('"content":"external channel prompt"');
       expect(raw).toContain('"idempotencyKey":"codex-app-server:thread-1:turn-1:prompt"');
+    });
+    await vi.waitFor(() => {
+      expect(onUserMessagePersisted).toHaveBeenCalledWith(
+        expect.objectContaining({
+          role: "user",
+          content: "external channel prompt",
+          idempotencyKey: "codex-app-server:thread-1:turn-1:prompt",
+        }),
+      );
     });
 
     const rawBeforeCompletion = await fs.readFile(sessionFile, "utf8");
@@ -2468,6 +2512,7 @@ describe("runCodexAppServerAttempt", () => {
 
     const rawAfterCompletion = await fs.readFile(sessionFile, "utf8");
     expect(rawAfterCompletion.match(/"role":"user"/gu)).toHaveLength(1);
+    expect(onUserMessagePersisted).toHaveBeenCalledTimes(1);
   });
 
   it("does not mirror the Codex prompt early when user message persistence is suppressed", async () => {
@@ -6421,7 +6466,7 @@ describe("runCodexAppServerAttempt", () => {
     sessionManager.appendMessage(
       assistantMessage("David Ondrej was mentioned in that prior thread", bindingUpdatedAt + 2_000),
     );
-    const harness = createStartedThreadHarness();
+    const harness = createResumeHarness();
     const params = createParams(sessionFile, workspaceDir);
     params.prompt = "is the previous message trustworthy?";
 
@@ -8446,8 +8491,12 @@ describe("runCodexAppServerAttempt", () => {
     );
     await waitForMethod("turn/start");
 
-    expect(queueActiveRunMessageForTest("session-1", "first", { steeringMode: "all" })).toBe(true);
-    expect(queueActiveRunMessageForTest("session-1", "second", { steeringMode: "all" })).toBe(true);
+    expect(
+      queueActiveRunMessageForTest("session-1", "first", { debounceMs: 5, steeringMode: "all" }),
+    ).toBe(true);
+    expect(
+      queueActiveRunMessageForTest("session-1", "second", { debounceMs: 5, steeringMode: "all" }),
+    ).toBe(true);
 
     await vi.waitFor(
       () =>
