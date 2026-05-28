@@ -337,18 +337,20 @@ export const streamOpenAICodexResponses: StreamFunction<
 
             const retryAfterMs = response.headers.get("retry-after-ms");
             if (retryAfterMs !== null) {
-              const millis = Number(retryAfterMs);
-              if (Number.isFinite(millis)) {
+              const trimmedRetryAfterMs = retryAfterMs.trim();
+              const millis = Number(trimmedRetryAfterMs);
+              if (/^\d+(?:\.\d+)?$/.test(trimmedRetryAfterMs) && Number.isFinite(millis)) {
                 delayMs = Math.max(0, millis);
               }
             } else {
               const retryAfter = response.headers.get("retry-after");
               if (retryAfter) {
-                const seconds = Number(retryAfter);
-                if (Number.isFinite(seconds)) {
+                const trimmedRetryAfter = retryAfter.trim();
+                const seconds = Number(trimmedRetryAfter);
+                if (/^\d+(?:\.\d+)?$/.test(trimmedRetryAfter) && Number.isFinite(seconds)) {
                   delayMs = Math.max(0, seconds * 1000);
                 } else {
-                  const date = Date.parse(retryAfter);
+                  const date = Date.parse(trimmedRetryAfter);
                   if (!Number.isNaN(date)) {
                     delayMs = Math.max(0, date - Date.now());
                   }
@@ -1553,10 +1555,16 @@ export function extractOpenAICodexAccountId(token: string): string {
 }
 
 function createCodexRequestId(): string {
-  if (typeof globalThis.crypto?.randomUUID === "function") {
-    return globalThis.crypto.randomUUID();
+  const crypto = globalThis.crypto;
+  if (typeof crypto?.randomUUID === "function") {
+    return crypto.randomUUID();
   }
-  return `codex_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  if (typeof crypto?.getRandomValues === "function") {
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    const suffix = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+    return `codex_${suffix}`;
+  }
+  throw new Error("Secure random request id generation is unavailable");
 }
 
 function buildBaseCodexHeaders(
