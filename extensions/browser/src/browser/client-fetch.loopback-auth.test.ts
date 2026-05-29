@@ -208,6 +208,22 @@ describe("fetchBrowserJson loopback auth", () => {
     expect(headers.get("authorization")).toBe("Bearer loopback-token");
   });
 
+  it("does not treat explicit port zero as the default loopback bridge port", async () => {
+    mocks.resolveBrowserControlAuth.mockReturnValueOnce({
+      token: undefined,
+      password: undefined,
+    });
+    mocks.getBridgeAuthForPort.mockReturnValueOnce({ token: "bridge-token" });
+    const fetchMock = stubJsonFetchOk();
+
+    await fetchBrowserJson<{ ok: boolean }>("http://127.0.0.1:0/");
+
+    const init = requireFetchInit(fetchMock);
+    const headers = new Headers(init?.headers);
+    expect(mocks.getBridgeAuthForPort).not.toHaveBeenCalled();
+    expect(headers.get("authorization")).toBeNull();
+  });
+
   it("preserves dispatcher timeout context without no-retry hint", async () => {
     mocks.dispatch.mockRejectedValueOnce(new Error("Chrome CDP handshake timeout"));
 
@@ -539,6 +555,23 @@ describe("fetchBrowserJson loopback auth", () => {
       {
         contains: ["timed out after 1234ms"],
         omits: ["Do NOT retry the browser tool"],
+      },
+    );
+  });
+
+  it("uses the default timeout for non-finite absolute HTTP timeout failures", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("timed out");
+      }),
+    );
+
+    await expectThrownBrowserFetchError(
+      () => fetchBrowserJson<{ ok: boolean }>("http://example.com/", { timeoutMs: Number.NaN }),
+      {
+        contains: ["timed out after 5000ms"],
+        omits: ["NaNms", "Do NOT retry the browser tool"],
       },
     );
   });

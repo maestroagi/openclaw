@@ -27,7 +27,7 @@ const bundledPluginEntries = [
   "setup-entry.ts!",
   "{api,contract-api,helper-api,runtime-api,light-runtime-api,update-offset-runtime-api,channel-plugin-api,provider-plugin-api,setup-api}.ts!",
   "subagent-hooks-api.ts!",
-  "src/{api,runtime-api,light-runtime-api,update-offset-runtime-api,channel-plugin-api,provider-plugin-api,doctor-contract,setup-surface}.ts!",
+  "src/{api,runtime-api,light-runtime-api,update-offset-runtime-api,channel-plugin-api,provider-plugin-api,doctor-contract,setup-surface,mcp-serve}.ts!",
   "src/subagent-hooks-api.ts!",
 ] as const;
 
@@ -175,6 +175,11 @@ const config = {
     "packages/gateway-protocol": {
       entry: ["src/index.ts!", "src/schema.ts!"],
       project: ["src/**/*.ts!"],
+    },
+    "packages/speech-core": {
+      entry: ["api.ts!", "runtime-api.ts!", "speaker.ts!", "voice-models.ts!"],
+      project: ["**/*.ts!"],
+      ignoreDependencies: ["openclaw"],
     },
     "packages/*": {
       entry: ["index.js!", "scripts/postinstall.js!"],

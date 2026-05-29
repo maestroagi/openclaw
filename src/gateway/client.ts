@@ -86,16 +86,6 @@ type GatewayClientErrorShape = {
   retryAfterMs?: number;
 };
 
-type GatewayClientInternalAccess = {
-  opts: GatewayClientOptions;
-  ws: unknown;
-  pending: Map<string, unknown>;
-  tickIntervalMs: number;
-  lastTick: number | null;
-  startTickWatch: () => void;
-  handleMessage: (raw: string) => void;
-};
-
 export const GATEWAY_CLOSE_CODE_HINTS: Readonly<Record<number, string>> =
   BASE_GATEWAY_CLOSE_CODE_HINTS;
 
@@ -125,6 +115,7 @@ export type GatewayClientOptions = {
   connectDelayMs?: number;
   preauthHandshakeTimeoutMs?: number;
   tickWatchMinIntervalMs?: number;
+  tickWatchTimeoutMs?: number;
   requestTimeoutMs?: number;
   token?: string;
   bootstrapToken?: string;
@@ -156,6 +147,13 @@ export type GatewayClientOptions = {
   onReconnectPaused?: (info: GatewayReconnectPausedInfo) => void;
   onClose?: (code: number, reason: string) => void;
   onGap?: (info: { expected: number; received: number }) => void;
+};
+
+export type GatewayClientConnectionMetadata = {
+  clientName?: GatewayClientName;
+  hasDeviceIdentity: boolean;
+  mode?: GatewayClientMode;
+  preauthHandshakeTimeoutMs?: number;
 };
 
 function createOpenClawGatewayClientHostDeps(
@@ -198,48 +196,6 @@ export class GatewayClient {
       clientVersion: opts.clientVersion ?? VERSION,
       hostDeps: createOpenClawGatewayClientHostDeps(opts.hostDeps),
     });
-    this.installInternalTestAccessors();
-  }
-
-  private installInternalTestAccessors(): void {
-    // Existing gateway tests inspect a few internals to drive watchdog and
-    // frame-handling edge cases. Forward those slots without making the package
-    // class inherit from this wrapper or leaking package-private types in d.ts.
-    const target = this as unknown as GatewayClientInternalAccess;
-    const base = this.#client as unknown as GatewayClientInternalAccess;
-    Object.defineProperties(target, {
-      opts: {
-        configurable: true,
-        get: () => base.opts,
-      },
-      ws: {
-        configurable: true,
-        get: () => base.ws,
-        set: (value: unknown) => {
-          base.ws = value;
-        },
-      },
-      pending: {
-        configurable: true,
-        get: () => base.pending,
-      },
-      tickIntervalMs: {
-        configurable: true,
-        get: () => base.tickIntervalMs,
-        set: (value: number) => {
-          base.tickIntervalMs = value;
-        },
-      },
-      lastTick: {
-        configurable: true,
-        get: () => base.lastTick,
-        set: (value: number | null) => {
-          base.lastTick = value;
-        },
-      },
-    });
-    target.startTickWatch = () => base.startTickWatch();
-    target.handleMessage = (raw: string) => base.handleMessage(raw);
   }
 
   start(): void {
@@ -260,6 +216,16 @@ export class GatewayClient {
     opts?: GatewayClientRequestOptions,
   ): Promise<T> {
     return this.#client.request<T>(method, params, opts);
+  }
+
+  getConnectionMetadata(): GatewayClientConnectionMetadata {
+    const opts = (this.#client as unknown as { opts: GatewayClientOptions }).opts;
+    return {
+      clientName: opts.clientName,
+      hasDeviceIdentity: Boolean(opts.deviceIdentity),
+      mode: opts.mode,
+      preauthHandshakeTimeoutMs: opts.preauthHandshakeTimeoutMs,
+    };
   }
 }
 

@@ -93,6 +93,37 @@ export function asPositiveSafeInteger(value: unknown): number | undefined {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : undefined;
 }
 
+export function resolveIntegerOption(
+  value: unknown,
+  fallback: number,
+  range: {
+    min?: number;
+    max?: number;
+  } = {},
+): number {
+  const candidate = typeof value === "number" && Number.isFinite(value) ? value : fallback;
+  const floored = Math.floor(candidate);
+  const minBounded = range.min === undefined ? floored : Math.max(range.min, floored);
+  return range.max === undefined ? minBounded : Math.min(range.max, minBounded);
+}
+
+export function resolveOptionalIntegerOption(
+  value: unknown,
+  range: {
+    min?: number;
+    max?: number;
+  } = {},
+): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return undefined;
+  }
+  return resolveIntegerOption(value, value, range);
+}
+
+export function resolveNonNegativeIntegerOption(value: unknown, fallback: number): number {
+  return resolveIntegerOption(value, fallback, { min: 0 });
+}
+
 export function parseStrictPositiveInteger(value: unknown): number | undefined {
   const parsed = parseStrictInteger(value);
   return parsed !== undefined && parsed > 0 ? parsed : undefined;
