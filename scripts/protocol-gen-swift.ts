@@ -46,6 +46,14 @@ const DEFAULTED_OPTIONAL_INIT_PARAMS: Record<string, Set<string>> = {
   ArtifactsListParams: new Set(["agentId"]),
   ArtifactsGetParams: new Set(["agentId"]),
   ArtifactsDownloadParams: new Set(["agentId"]),
+  ChatAbortParams: new Set(["agentId"]),
+  ChatAbortedEvent: new Set(["agentId"]),
+  ChatDeltaEvent: new Set(["agentId"]),
+  ChatErrorEvent: new Set(["agentId"]),
+  ChatFinalEvent: new Set(["agentId"]),
+  ChatHistoryParams: new Set(["agentId"]),
+  ChatInjectParams: new Set(["agentId"]),
+  ChatSendParams: new Set(["agentId"]),
   MessageActionParams: new Set(["inboundTurnKind"]),
   CronRunLogEntry: new Set(["errorReason", "failureNotificationDelivery"]),
   ExecApprovalRequestParams: new Set(["requireDeliveryRoute", "suppressDelivery"]),
@@ -191,7 +199,9 @@ function swiftInitializerParam(params: {
   if (params.required) {
     return `${params.name}: ${type}`;
   }
-  const defaultNil = DEFAULTED_OPTIONAL_INIT_PARAMS[params.structName]?.has(params.key) ?? false;
+  const defaultNil =
+    params.key === "agentId" ||
+    (DEFAULTED_OPTIONAL_INIT_PARAMS[params.structName]?.has(params.key) ?? false);
   return `${params.name}: ${type}?${defaultNil ? " = nil" : ""}`;
 }
 
