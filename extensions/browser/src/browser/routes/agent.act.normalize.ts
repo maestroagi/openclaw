@@ -17,6 +17,7 @@ import {
   readRouteInteger,
   readRouteNonNegativeInteger,
   readRoutePositiveInteger,
+  readRouteTimerTimeoutMs,
 } from "./route-numeric.js";
 import { toBoolean, toNumber, toStringArray, toStringOrEmpty } from "./utils.js";
 
@@ -88,7 +89,7 @@ function readActionNonNegativeInteger(
 }
 
 function readActionTimeoutMs(body: Record<string, unknown>): number | undefined {
-  return readActionPositiveInteger(body, "timeoutMs");
+  return readRouteTimerTimeoutMs(body.timeoutMs);
 }
 
 function readBoundedActionDurationMs(
