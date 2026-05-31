@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
+import { setImmediate as realSetImmediate } from "node:timers";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MAX_TIMER_TIMEOUT_MS } from "../shared/number-coercion.js";
 import { createDraftStreamLoop } from "./draft-stream-loop.js";
 
@@ -8,8 +9,19 @@ const flushMicrotasks = async () => {
 };
 
 const flushMacrotask = async () => {
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise<void>((resolve) => realSetImmediate(resolve));
 };
+
+async function waitForBackgroundFlushError(
+  onBackgroundFlushError: ReturnType<typeof vi.fn<(err: unknown) => void>>,
+) {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    await flushMicrotasks();
+    if (onBackgroundFlushError.mock.calls.length > 0) {
+      return;
+    }
+  }
+}
 
 async function captureUnhandledRejections(
   run: (rejections: unknown[]) => Promise<void>,
@@ -29,6 +41,18 @@ async function captureUnhandledRejections(
 }
 
 describe("createDraftStreamLoop", () => {
+  beforeEach(() => {
+    vi.useRealTimers();
+  });
+
+  afterEach(() => {
+    if (vi.isFakeTimers()) {
+      vi.clearAllTimers();
+    }
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
   it("contains immediate background flush rejections and preserves pending text", async () => {
     await captureUnhandledRejections(async (rejections) => {
       const error = new Error("send failed");
@@ -46,7 +70,7 @@ describe("createDraftStreamLoop", () => {
       });
 
       loop.update("hello");
-      await flushMicrotasks();
+      await waitForBackgroundFlushError(onBackgroundFlushError);
       await flushMacrotask();
       await loop.flush();
 
@@ -91,7 +115,9 @@ describe("createDraftStreamLoop", () => {
         },
       );
     } finally {
+      vi.clearAllTimers();
       vi.useRealTimers();
+      vi.restoreAllMocks();
     }
   });
 
@@ -99,18 +125,23 @@ describe("createDraftStreamLoop", () => {
     vi.useFakeTimers();
     try {
       vi.setSystemTime(0);
-      const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
+      const sendOrEditStreamMessage = vi.fn(async () => true);
       const loop = createDraftStreamLoop({
         throttleMs: Number.MAX_SAFE_INTEGER,
         isStopped: () => false,
-        sendOrEditStreamMessage: vi.fn(async () => true),
+        sendOrEditStreamMessage,
       });
 
       loop.update("hello");
 
-      expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), MAX_TIMER_TIMEOUT_MS);
+      expect(vi.getTimerCount()).toBe(1);
+      vi.advanceTimersByTime(MAX_TIMER_TIMEOUT_MS - 1);
+      expect(sendOrEditStreamMessage).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+      expect(sendOrEditStreamMessage).toHaveBeenCalledExactlyOnceWith("hello");
       loop.stop();
     } finally {
+      vi.clearAllTimers();
       vi.useRealTimers();
     }
   });
@@ -134,7 +165,7 @@ describe("createDraftStreamLoop", () => {
       });
 
       loop.update("hello");
-      await flushMicrotasks();
+      await waitForBackgroundFlushError(onBackgroundFlushError);
       await flushMacrotask();
       await loop.flush();
 
@@ -164,7 +195,7 @@ describe("createDraftStreamLoop", () => {
       });
 
       loop.update("hello");
-      await flushMicrotasks();
+      await waitForBackgroundFlushError(onBackgroundFlushError);
       await flushMacrotask();
       await loop.flush();
 
