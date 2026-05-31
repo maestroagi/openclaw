@@ -140,7 +140,9 @@ const DISCORD_RESPONSE_BODY_MAX_BYTES = 1024 * 1024;
 const WEBHOOK_CLEANUP_TIMEOUT_MS = 10_000;
 
 function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 function remainingTimeoutMs(deadlineMs: number, nowMs = Date.now()): number {
@@ -761,10 +763,10 @@ async function run(): Promise<SuccessResult | FailureResult> {
   });
 
   let readAuthHeader = "";
-  let sentMessageId = "";
+  let sentMessageId;
   let setupStage: "discord-api" | "send-message" = "discord-api";
   let senderAuthorId: string | undefined;
-  let minBindingBoundAt = startedAt - 3_000;
+  let minBindingBoundAt;
   let webhookForCleanup: WebhookForCleanup | undefined;
 
   try {

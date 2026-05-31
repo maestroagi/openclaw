@@ -1413,6 +1413,14 @@ export async function runEmbeddedAttempt(
       modelApi: params.model.api,
       model: params.model,
       runtimeHandle: getProviderRuntimeHandle(),
+      onPreNormalizationSchemaDiagnostics: (diagnostics, sourceTools) =>
+        logRuntimeToolSchemaQuarantine({
+          diagnostics,
+          tools: sourceTools,
+          runId: params.runId,
+          sessionKey: params.sessionKey,
+          sessionId: params.sessionId,
+        }),
     });
     const clientTools = toolsEnabled && !isRawModelRun ? params.clientTools : undefined;
     const bundleMcpEnabled = shouldCreateBundleMcpRuntimeForAttempt({
@@ -1501,6 +1509,14 @@ export async function runEmbeddedAttempt(
             modelApi: params.model.api,
             model: params.model,
             runtimeHandle: getProviderRuntimeHandle(),
+            onPreNormalizationSchemaDiagnostics: (diagnostics, sourceTools) =>
+              logRuntimeToolSchemaQuarantine({
+                diagnostics,
+                tools: sourceTools,
+                runId: params.runId,
+                sessionKey: params.sessionKey,
+                sessionId: params.sessionId,
+              }),
           })
         : filteredBundledTools;
     const projectedUncompactedEffectiveTools = filterLocalModelLeanTools({
@@ -5131,7 +5147,6 @@ export async function runEmbeddedAttempt(
       );
     }
     retainedSessionFileOwner?.release();
-    retainedSessionFileOwner = undefined;
     emitDiagnosticRunCompleted?.(
       aborted ? "aborted" : "error",
       promptError ?? new Error("run exited before diagnostic completion"),

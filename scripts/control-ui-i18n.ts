@@ -601,7 +601,9 @@ function buildBatchPrompt(items: readonly TranslationBatchItem[]): string {
 }
 
 function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 function formatDuration(ms: number): string {
@@ -877,7 +879,7 @@ async function syncControlUiRawCopyBaseline(options: { checkOnly: boolean; write
     await writeFile(RAW_COPY_BASELINE_PATH, expected, "utf8");
   }
   if (options.checkOnly && current !== expected) {
-    let currentEntries: RawCopyBaselineEntry[] = [];
+    let currentEntries: RawCopyBaselineEntry[];
     try {
       const parsed = JSON.parse(current) as Partial<RawCopyBaseline>;
       currentEntries = Array.isArray(parsed.entries) ? parsed.entries : [];

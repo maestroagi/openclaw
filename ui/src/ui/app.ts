@@ -279,7 +279,7 @@ export class OpenClawApp extends LitElement {
   @state() sessionSwitchNotice: { id: number; text: string } | null = null;
   @state() sessionSwitchFlashKey: string | null = null;
   @state() chatSessionPickerOpen = false;
-  @state() chatSessionPickerSurface: "desktop" | "mobile" | null = null;
+  @state() chatSessionPickerSurface: "desktop" | "mobile" | "sidebar" | null = null;
   @state() chatSessionPickerQuery = "";
   @state() chatSessionPickerAppliedQuery = "";
   @state() chatSessionPickerLoading = false;
@@ -725,7 +725,9 @@ export class OpenClawApp extends LitElement {
     if (!this.chatMobileControlsOpen) {
       return;
     }
-    const wrapper = this.querySelector(".chat-mobile-controls-wrapper");
+    const wrapper =
+      this.querySelector(".chat-settings-popover-wrapper") ??
+      this.querySelector(".chat-mobile-controls-wrapper");
     if (wrapper && path.includes(wrapper)) {
       return;
     }
@@ -742,12 +744,6 @@ export class OpenClawApp extends LitElement {
       switch (action) {
         case "new-session":
           await createChatSessionInternal(this as unknown as AppViewState);
-          break;
-        case "toggle-focus":
-          this.applySettings({
-            ...this.settings,
-            chatFocusMode: !this.settings.chatFocusMode,
-          });
           break;
         case "export":
           exportChatMarkdown(this.chatMessages, this.assistantName);
