@@ -350,6 +350,77 @@ describe("config view", () => {
     expect(onSectionChange).toHaveBeenCalledWith("gateway");
   });
 
+  it("renders the virtual Notifications tab in Communication settings", () => {
+    const onSectionChange = vi.fn();
+    const { container } = renderConfigView({
+      navRootLabel: "Communication",
+      includeSections: ["channels", "messages", "broadcast", "__notifications__", "talk", "audio"],
+      includeVirtualSections: true,
+      onSectionChange,
+      schema: {
+        type: "object",
+        properties: {
+          channels: { type: "object", properties: {} },
+          messages: { type: "object", properties: {} },
+        },
+      },
+      formValue: { channels: {}, messages: {} },
+      originalValue: { channels: {}, messages: {} },
+      webPush: {
+        supported: true,
+        permission: "default",
+        subscribed: false,
+        loading: false,
+      },
+    });
+
+    const tabs = Array.from(container.querySelectorAll(".config-top-tabs__tab")).map((tab) =>
+      tab.textContent?.trim(),
+    );
+    expect(tabs).toContain("Notifications");
+
+    const btn = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "Notifications",
+    );
+    expect(btn).toBeTruthy();
+    btn?.click();
+    expect(onSectionChange).toHaveBeenCalledWith("__notifications__");
+  });
+
+  it("renders Notifications with the shared settings card and button styles", () => {
+    const onWebPushSubscribe = vi.fn();
+    const { container } = renderConfigView({
+      activeSection: "__notifications__",
+      includeSections: ["channels", "messages", "__notifications__"],
+      includeVirtualSections: true,
+      onWebPushSubscribe,
+      schema: {
+        type: "object",
+        properties: {
+          channels: { type: "object", properties: {} },
+          messages: { type: "object", properties: {} },
+        },
+      },
+      webPush: {
+        supported: true,
+        permission: "default",
+        subscribed: false,
+        loading: false,
+      },
+    });
+
+    const card = queryRequired(container, ".settings-notifications__card", HTMLElement);
+    expect(card.querySelector(".settings-notifications__badge")?.textContent?.trim()).toBe("Ready");
+
+    const enableButton = findButtonByText(container, "Enable notifications");
+    expect(enableButton.classList.contains("btn")).toBe(true);
+    expect(enableButton.classList.contains("primary")).toBe(true);
+    expect(container.querySelector(".config-bar__btn")).toBeNull();
+
+    enableButton.click();
+    expect(onWebPushSubscribe).toHaveBeenCalledOnce();
+  });
+
   it("resets config content scroll when switching top-tab sections", async () => {
     const { container } = renderConfigView({
       activeSection: "channels",
