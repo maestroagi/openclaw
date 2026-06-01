@@ -99,10 +99,12 @@ import {
 } from "../../utils/message-channel.js";
 import {
   abortChatRunById,
+  boundInFlightRunSnapshotForChatHistory,
   type ChatAbortControllerEntry,
   type ChatAbortOps,
   isChatStopCommandText,
   registerChatAbortController,
+  resolveInFlightRunSnapshot,
   updateChatRunProvider,
 } from "../chat-abort.js";
 import {
@@ -157,8 +159,8 @@ import {
   buildWebchatAssistantMessageFromReplyPayloads,
   buildWebchatAudioContentBlocksFromReplyPayloads,
 } from "./chat-webchat-media.js";
+import { loadOptionalServerMethodModelCatalog } from "./optional-model-catalog.js";
 import { hasTrackedActiveSessionRun } from "./session-active-runs.js";
-import { loadOptionalSessionMetadataModelCatalog } from "./session-model-catalog.js";
 import type {
   GatewayRequestContext,
   GatewayRequestHandlerOptions,
@@ -739,7 +741,7 @@ function scheduleChatHistoryManagedImageCleanup(params: {
     ...(params.sessionKey === "global" && params.agentId ? { agentId: params.agentId } : {}),
   })
     .then(() => undefined)
-    .catch((error) => {
+    .catch((error: unknown) => {
       params.context.logGateway.debug(
         `chat.history managed image cleanup skipped sessionKey=${JSON.stringify(params.sessionKey)} error=${formatForLog(error)}`,
       );
@@ -2516,7 +2518,7 @@ export const chatHandlers: GatewayRequestHandlers = {
     }
     const modelCatalog = await measureDiagnosticsTimelineSpan(
       "gateway.chat.history.model_catalog",
-      () => loadOptionalSessionMetadataModelCatalog(context, "chat.history"),
+      () => loadOptionalServerMethodModelCatalog(context, "chat.history"),
       {
         config: cfg,
         phase: "chat.history",
@@ -2531,19 +2533,36 @@ export const chatHandlers: GatewayRequestHandlers = {
       agentId: selectedAgent.agentId,
       modelCatalog,
     });
+    const defaultAgentId = resolveDefaultAgentId(cfg);
+    const activeRunAgentId =
+      canonicalKey === "global" ? (selectedAgent.agentId ?? defaultAgentId) : selectedAgent.agentId;
     sessionInfo.hasActiveRun = hasTrackedActiveSessionRun({
       context,
       requestedKey: sessionKey,
       canonicalKey,
-      ...(canonicalKey === "global" && selectedAgent.agentId
-        ? { agentId: selectedAgent.agentId }
-        : {}),
-      defaultAgentId: resolveDefaultAgentId(cfg),
+      ...(activeRunAgentId ? { agentId: activeRunAgentId } : {}),
+      defaultAgentId,
     });
     const defaults = getSessionDefaults(cfg, modelCatalog, { allowPluginNormalization: false });
     const thinkingLevel = sessionInfo.thinkingLevel ?? sessionInfo.thinkingDefault;
     const verboseLevel = entry?.verboseLevel ?? cfg.agents?.defaults?.verboseDefault;
     sessionInfo.verboseLevel = verboseLevel;
+    // Surface any run still streaming for this session+agent so a client that
+    // switched away (and stopped receiving the run's per-agent-delivered events)
+    // can restore the in-flight assistant text on switch-back.
+    const inFlightRun = resolveInFlightRunSnapshot({
+      chatAbortControllers: context.chatAbortControllers,
+      chatRunBuffers: context.chatRunBuffers,
+      requestedSessionKey: sessionKey,
+      canonicalSessionKey: resolveSessionStoreKey({ cfg, sessionKey }),
+      agentId: activeRunAgentId,
+      defaultAgentId,
+    });
+    const boundedInFlightRun = boundInFlightRunSnapshotForChatHistory({
+      snapshot: inFlightRun,
+      messages: bounded.messages,
+      maxBytes: maxHistoryBytes,
+    });
     respond(true, {
       sessionKey,
       sessionId,
@@ -2553,6 +2572,7 @@ export const chatHandlers: GatewayRequestHandlers = {
       thinkingLevel,
       fastMode: entry?.fastMode,
       verboseLevel,
+      ...(boundedInFlightRun ? { inFlightRun: boundedInFlightRun } : {}),
     });
   },
   "chat.message.get": async ({ params, respond, context }) => {
@@ -4150,12 +4170,12 @@ export const chatHandlers: GatewayRequestHandlers = {
             },
           );
         })
-        .catch(async (err) => {
+        .catch(async (err: unknown) => {
           const emitAfterError =
             userTurnRecorder.hasPersisted() || userTurnRecorder.isBlocked()
               ? Promise.resolve()
               : persistGatewayUserTurnTranscript();
-          await emitAfterError.catch((transcriptErr) => {
+          await emitAfterError.catch((transcriptErr: unknown) => {
             context.logGateway.warn(
               `webchat user transcript update failed after error: ${formatForLog(transcriptErr)}`,
             );

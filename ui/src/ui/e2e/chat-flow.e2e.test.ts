@@ -80,7 +80,7 @@ describeControlUiE2e("Control UI mocked Gateway E2E", () => {
   beforeAll(async () => {
     if (!chromiumAvailable) {
       throw new Error(
-        `Playwright Chromium is not installed at ${chromiumExecutablePath}. Run \`pnpm --dir ui exec playwright install chromium\`, or set OPENCLAW_UI_E2E_ALLOW_MISSING_CHROMIUM=1 only when intentionally skipping this lane.`,
+        `Playwright Chromium is not installed at ${chromiumExecutablePath}. Run \`pnpm --dir ui exec playwright install chromium\`, set PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH to a compatible browser, or set OPENCLAW_UI_E2E_ALLOW_MISSING_CHROMIUM=1 only when intentionally skipping this lane.`,
       );
     }
     server = await startControlUiE2eServer();
@@ -154,10 +154,10 @@ describeControlUiE2e("Control UI mocked Gateway E2E", () => {
       await page.goto(`${server.baseUrl}chat`);
 
       await page.getByText("History renders before sessions finish.").waitFor({ timeout: 10_000 });
-      await page
-        .locator(".agent-chat__composer-combobox textarea")
-        .waitFor({ state: "visible", timeout: 10_000 });
+      const composer = page.locator(".agent-chat__composer-combobox textarea");
+      await composer.waitFor({ state: "visible", timeout: 10_000 });
 
+      await page.getByRole("button", { name: "Chat session" }).click();
       const sessionsList = await gateway.waitForRequest("sessions.list");
       expect(requireRecord(sessionsList.params)).toMatchObject({
         includeGlobal: true,
@@ -165,11 +165,59 @@ describeControlUiE2e("Control UI mocked Gateway E2E", () => {
         limit: 50,
       });
 
+      await composer.fill("draft while sessions load");
+      expect(await composer.inputValue()).toBe("draft while sessions load");
+      await composer.fill("");
+
       await gateway.resolveDeferred("sessions.list");
-      await page.getByRole("button", { name: "Chat session" }).waitFor({
+      await page.getByRole("option", { name: /Main/ }).waitFor({
         state: "visible",
         timeout: 10_000,
       });
+    } finally {
+      await context.close();
+    }
+  });
+
+  it("sends the first chat turn while agents startup loading is still pending", async () => {
+    const context = await browser.newContext({
+      locale: "en-US",
+      serviceWorkers: "block",
+      viewport: { height: 900, width: 1280 },
+    });
+    const page = await context.newPage();
+    const gateway = await installMockGateway(page, {
+      deferredMethods: ["agents.list", "chat.history"],
+      historyMessages: [],
+    });
+
+    try {
+      await page.goto(`${server.baseUrl}chat`);
+      await gateway.waitForRequest("agents.list");
+
+      const prompt = "send before agents list completes";
+      await page
+        .locator(".agent-chat__composer-combobox textarea")
+        .waitFor({ state: "visible", timeout: 10_000 });
+      await page.locator(".agent-chat__composer-combobox textarea").fill(prompt);
+      await page.getByRole("button", { name: "Send message" }).click();
+
+      const sendRequest = await gateway.waitForRequest("chat.send");
+      const params = requireRecord(sendRequest.params);
+      expect(params.message).toBe(prompt);
+      expect(params.sessionKey).toBe("main");
+
+      const runId = requireString(params.idempotencyKey, "chat send idempotency key");
+      await gateway.resolveDeferred("chat.history", {
+        messages: [],
+        sessionId: "control-ui-e2e-session",
+        thinkingLevel: null,
+      });
+      await page.locator(".chat-thread").getByText(prompt).waitFor({ timeout: 10_000 });
+      await gateway.emitChatFinal({ runId, text: "History race stayed visible." });
+      await page.getByText("History race stayed visible.").waitFor({ timeout: 10_000 });
+
+      await gateway.resolveDeferred("agents.list");
     } finally {
       await context.close();
     }

@@ -57,6 +57,7 @@ import {
   recomputeNextRunsForMaintenance,
   recordScheduleComputeError,
   resolveJobErrorBackoffUntilMs,
+  resolveJobLastRunStatus,
   resolveJobPayloadTextForMain,
 } from "./jobs.js";
 import { locked } from "./locked.js";
@@ -152,7 +153,7 @@ export async function executeJobCoreWithTimeout(
     onExecutionPhase: deferTimeoutUntilExecutionStart ? watchdog.notePhase : undefined,
   });
   watchdog.start();
-  void corePromise.catch((err) => {
+  void corePromise.catch((err: unknown) => {
     if (runAbortController.signal.aborted) {
       state.deps.log.warn(
         { jobId: job.id, err: String(err) },
@@ -751,7 +752,7 @@ export function armTimer(state: CronServiceState) {
   // Vitest's fake-timer helpers can await async callbacks, which would block
   // tests that simulate long-running jobs. Runtime behavior is unchanged.
   state.timer = setTimeout(() => {
-    void onTimer(state).catch((err) => {
+    void onTimer(state).catch((err: unknown) => {
       state.deps.log.error({ err: String(err) }, "cron: timer tick failed");
     });
   }, clampedDelay);
@@ -766,7 +767,7 @@ function armRunningRecheckTimer(state: CronServiceState) {
     clearTimeout(state.timer);
   }
   state.timer = setTimeout(() => {
-    void onTimer(state).catch((err) => {
+    void onTimer(state).catch((err: unknown) => {
       state.deps.log.error({ err: String(err) }, "cron: timer tick failed");
     });
   }, MAX_TIMER_DELAY_MS);
@@ -968,14 +969,15 @@ function isRunnableJob(params: {
   if (typeof job.state.runningAtMs === "number") {
     return false;
   }
-  if (params.skipAtIfAlreadyRan && job.schedule.kind === "at" && job.state.lastStatus) {
+  const lastRunStatus = resolveJobLastRunStatus(job);
+  if (params.skipAtIfAlreadyRan && job.schedule.kind === "at" && lastRunStatus) {
     // One-shot with terminal status: skip unless it's a transient-error retry.
     // Retries have nextRunAtMs > lastRunAtMs (scheduled after the failed run) (#24355).
     // ok/skipped or error-without-retry always skip (#13845).
     const lastRun = job.state.lastRunAtMs;
     const nextRun = job.state.nextRunAtMs;
     if (
-      job.state.lastStatus === "error" &&
+      lastRunStatus === "error" &&
       isJobEnabled(job) &&
       typeof nextRun === "number" &&
       typeof lastRun === "number" &&
@@ -1015,7 +1017,7 @@ function isRunnableJob(params: {
 }
 
 function isErrorBackoffPending(state: CronServiceState, job: CronJob, nowMs: number): boolean {
-  if (job.schedule.kind === "at" || job.state.lastStatus !== "error") {
+  if (job.schedule.kind === "at" || resolveJobLastRunStatus(job) !== "error") {
     return false;
   }
   const backoffUntilMs = resolveJobErrorBackoffUntilMs(
