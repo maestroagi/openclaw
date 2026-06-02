@@ -733,6 +733,9 @@ describe("package artifact reuse", () => {
     expect(retryHelper).toContain("fetch failed");
     expect(retryHelper).toContain("gateway request timeout");
     expect(retryHelper).toContain("model idle timeout");
+    expect(retryHelper).toContain("OPENCLAW_LIVE_COMMAND_RATE_LIMIT_RETRY_DELAY_SECONDS:-60");
+    expect(retryHelper).toContain("Rate limit reached");
+    expect(retryHelper).toContain("tokens per min");
   });
 
   it("runs Docker live harnesses from trusted helper scripts", () => {
@@ -885,8 +888,9 @@ describe("package artifact reuse", () => {
     expect(build).toContain('source "$SCRIPT_ROOT_DIR/scripts/lib/docker-build.sh"');
     expect(build).toContain('source "$SCRIPT_ROOT_DIR/scripts/lib/docker-e2e-container.sh"');
     expect(build).toContain(
-      'DOCKER_COMMAND_TIMEOUT="${DOCKER_COMMAND_TIMEOUT:-${OPENCLAW_LIVE_DOCKER_PULL_TIMEOUT:-600s}}"',
+      'DOCKER_COMMAND_TIMEOUT="${DOCKER_COMMAND_TIMEOUT:-${OPENCLAW_LIVE_DOCKER_PULL_TIMEOUT:-180s}}"',
     );
+    expect(build).toContain('LIVE_IMAGE_PULL_ATTEMPTS="${OPENCLAW_LIVE_DOCKER_PULL_ATTEMPTS:-3}"');
     expect(build).toContain('docker_e2e_docker_cmd pull "$LIVE_IMAGE_NAME"');
     expect(build).not.toContain('docker pull "$LIVE_IMAGE_NAME"');
     expect(stage).toContain(
