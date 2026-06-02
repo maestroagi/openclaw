@@ -681,6 +681,37 @@ describe.concurrent("scripts/crabbox-wrapper", () => {
     expectGroupedShellCommand(remoteCommand, "node --version");
   });
 
+  it("normalizes inherited Linux UTF-8 locale names for raw AWS macOS bootstrap", () => {
+    const result = runWrapper(
+      "provider: hetzner, aws, local-container, blacksmith-testbox, or cloudflare\n",
+      ["run", "--provider", "aws", "--target", "macos", "--", "node", "--version"],
+      {
+        env: {
+          LANG: "C.UTF-8",
+          LC_ALL: "C.UTF-8",
+          LC_CTYPE: "C.UTF-8",
+        },
+      },
+    );
+
+    const output = parseFakeCrabboxOutput(result);
+    const remoteCommand = normalizeShellLineEndings(output.args.at(-1) ?? "");
+    expect(result.status).toBe(0);
+    expect(remoteCommand).toContain(
+      'macos_locale="${OPENCLAW_CRABBOX_MACOS_LOCALE:-en_US.UTF-8}"',
+    );
+    expect(remoteCommand).toContain(
+      'case "${LANG:-}" in C.UTF-8|C.utf8|c.UTF-8|c.utf8) export LANG="$macos_locale" ;; esac;',
+    );
+    expect(remoteCommand).toContain(
+      'case "${LC_ALL:-}" in C.UTF-8|C.utf8|c.UTF-8|c.utf8) export LC_ALL="$macos_locale" ;; esac;',
+    );
+    expect(remoteCommand).toContain(
+      'case "${LC_CTYPE:-}" in C.UTF-8|C.utf8|c.UTF-8|c.utf8) export LC_CTYPE="$macos_locale" ;; esac;',
+    );
+    expectGroupedShellCommand(remoteCommand, "node --version");
+  });
+
   it("bootstraps Corepack for raw AWS macOS pnpm commands", () => {
     const result = runWrapper(
       "provider: hetzner, aws, local-container, blacksmith-testbox, or cloudflare\n",
@@ -697,6 +728,30 @@ describe.concurrent("scripts/crabbox-wrapper", () => {
     expect(remoteCommand).toContain("openclaw_crabbox_bootstrap_macos_js");
     expect(remoteCommand).toContain("node-v${node_version}-darwin-${node_arch}.tar.gz");
     expect(remoteCommand).toContain("shasum -a 256 -c -");
+    expect(remoteCommand).toContain(
+      'ready_marker="$node_dir/.openclaw-crabbox-node-ready"',
+    );
+    expect(remoteCommand).toContain(
+      'if [ -x "$node_dir/bin/node" ] && [ -f "$ready_marker" ]; then break; fi;',
+    );
+    expect(remoteCommand).toContain('touch "$ready_marker"');
+    expect(remoteCommand).toContain(
+      'install_lock="$tool_root/.node-${node_version}-${node_arch}.lock"',
+    );
+    expect(remoteCommand).toContain('lock_deadline=$((SECONDS + 300))');
+    expect(remoteCommand).toContain(
+      'printf "%s\\n" "$$" >"$install_lock/pid"',
+    );
+    expect(remoteCommand).toContain(
+      "timed out waiting for active macOS Node toolchain install lock: $install_lock pid=$lock_pid",
+    );
+    expect(remoteCommand).toContain(
+      "reclaiming stale macOS Node toolchain install lock: $install_lock",
+    );
+    expect(remoteCommand).toContain(
+      'rm -rf "$install_lock"',
+    );
+    expect(remoteCommand).toContain("release_install_lock");
     expect(remoteCommand).not.toContain("set -euo pipefail");
     expect(remoteCommand).toContain('return "$status"');
     expect(remoteCommand).toContain('if [ -z "${TMPDIR:-}" ]; then export TMPDIR="/tmp"; fi;');
