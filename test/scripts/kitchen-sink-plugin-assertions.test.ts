@@ -193,11 +193,20 @@ function runAssertClawhubInstalled({
   }
 }
 
-function runScanLogs({ home, scratchRoot }: { home: string; scratchRoot: string }) {
+function runScanLogs({
+  env = {},
+  home,
+  scratchRoot,
+}: {
+  env?: NodeJS.ProcessEnv;
+  home: string;
+  scratchRoot: string;
+}) {
   return spawnSync(process.execPath, [ASSERTIONS_SCRIPT, "scan-logs"], {
     encoding: "utf8",
     env: {
       ...process.env,
+      ...env,
       HOME: home,
       KITCHEN_SINK_TMP_DIR: scratchRoot,
     },
@@ -291,6 +300,35 @@ describe("kitchen-sink plugin assertions", () => {
     }
   });
 
+  it("bounds irrelevant OpenClaw home traversal during log scans", () => {
+    const parent = mkdtempSync(path.join(tmpdir(), "openclaw-kitchen-sink-scan-"));
+    const home = path.join(parent, "home");
+    const scratchRoot = path.join(parent, "scratch");
+    try {
+      mkdirSync(path.join(home, ".openclaw"), { recursive: true });
+      mkdirSync(scratchRoot, { recursive: true });
+      writeFileSync(path.join(scratchRoot, "scenario.log"), "0 errors\n");
+      for (let index = 0; index < 20; index += 1) {
+        const dir = path.join(home, ".openclaw", `cache-${index}`);
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(path.join(dir, "state.txt"), "not a log\n");
+      }
+
+      const result = runScanLogs({
+        env: { KITCHEN_SINK_LOG_SCAN_MAX_ENTRIES: "8" },
+        home,
+        scratchRoot,
+      });
+
+      expect(result.status).not.toBe(0);
+      expect(`${result.stdout}\n${result.stderr}`).toContain(
+        "kitchen-sink log scan exceeded 8 filesystem entries",
+      );
+    } finally {
+      rmSync(parent, { force: true, recursive: true });
+    }
+  });
+
   it("does not allow dirty error lines just because they mention zero errors", () => {
     const parent = mkdtempSync(path.join(tmpdir(), "openclaw-kitchen-sink-scan-"));
     const home = path.join(parent, "home");
@@ -349,6 +387,50 @@ describe("kitchen-sink plugin assertions", () => {
       expect(result.status).not.toBe(0);
       expect(`${result.stdout}\n${result.stderr}`).toContain("additional findings omitted");
       expect(`${result.stdout}\n${result.stderr}`).not.toContain("[ERROR] failure 104");
+    } finally {
+      rmSync(parent, { force: true, recursive: true });
+    }
+  });
+
+  it("bounds huge single-line kitchen-sink log findings", () => {
+    const parent = mkdtempSync(path.join(tmpdir(), "openclaw-kitchen-sink-scan-"));
+    const home = path.join(parent, "home");
+    const scratchRoot = path.join(parent, "scratch");
+    try {
+      mkdirSync(home, { recursive: true });
+      mkdirSync(scratchRoot, { recursive: true });
+      writeFileSync(
+        path.join(scratchRoot, "single-line.jsonl"),
+        `DO_NOT_DUMP_OLD_PREFIX${"x".repeat(256 * 1024)}recent marker [ERROR] bad state`,
+      );
+
+      const result = runScanLogs({ home, scratchRoot });
+
+      expect(result.status).not.toBe(0);
+      expect(`${result.stdout}\n${result.stderr}`).toContain("recent marker");
+      expect(`${result.stdout}\n${result.stderr}`).not.toContain("DO_NOT_DUMP_OLD_PREFIX");
+      expect(`${result.stdout}\n${result.stderr}`.length).toBeLessThan(25 * 1024);
+    } finally {
+      rmSync(parent, { force: true, recursive: true });
+    }
+  });
+
+  it("detects kitchen-sink log errors split across scan segment boundaries", () => {
+    const parent = mkdtempSync(path.join(tmpdir(), "openclaw-kitchen-sink-scan-"));
+    const home = path.join(parent, "home");
+    const scratchRoot = path.join(parent, "scratch");
+    try {
+      mkdirSync(home, { recursive: true });
+      mkdirSync(scratchRoot, { recursive: true });
+      writeFileSync(
+        path.join(scratchRoot, "split-marker.jsonl"),
+        `${"x".repeat(16 * 1024 - 3)}[ERROR] split boundary marker`,
+      );
+
+      const result = runScanLogs({ home, scratchRoot });
+
+      expect(result.status).not.toBe(0);
+      expect(`${result.stdout}\n${result.stderr}`).toContain("split boundary marker");
     } finally {
       rmSync(parent, { force: true, recursive: true });
     }
@@ -435,6 +517,43 @@ grep -q "cli transcript: plugins install demo" "$SCRATCH_ROOT/install_log.log"
 
       expect(result.status).toBe(0);
       expect(result.stdout).toContain("cli transcript: plugins install demo");
+    } finally {
+      rmSync(parent, { force: true, recursive: true });
+    }
+  });
+
+  it("bounds printed kitchen-sink CLI command logs without truncating saved logs", () => {
+    const parent = mkdtempSync(path.join(tmpdir(), "openclaw-kitchen-sink-log-print-"));
+    const scratchRoot = path.join(parent, "scratch");
+    const entry = path.join(parent, "entry.mjs");
+    try {
+      mkdirSync(scratchRoot, { recursive: true });
+      writeFileSync(
+        entry,
+        'process.stdout.write(`prefix\\n${"x".repeat(2048)}\\nTAIL_MARKER\\n`);\n',
+      );
+
+      const result = runSweepShell(
+        `
+set -euo pipefail
+export KITCHEN_SINK_SWEEP_SOURCE_ONLY=1
+export KITCHEN_SINK_TMP_DIR="$SCRATCH_ROOT"
+export OPENCLAW_ENTRY="$ENTRY"
+export OPENCLAW_DOCKER_E2E_LOG_PRINT_BYTES=64
+source scripts/e2e/lib/kitchen-sink-plugin/sweep.sh
+run_kitchen_sink_openclaw_logged "install/noisy" plugins install demo
+grep -q "prefix" "$SCRATCH_ROOT/install_noisy.log"
+`,
+        {
+          ENTRY: entry,
+          SCRATCH_ROOT: scratchRoot,
+        },
+      );
+
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain("truncated: showing last 64");
+      expect(result.stdout).toContain("TAIL_MARKER");
+      expect(result.stdout).not.toContain("prefix");
     } finally {
       rmSync(parent, { force: true, recursive: true });
     }
