@@ -14,6 +14,7 @@ import type { SessionTranscriptUpdate } from "../../sessions/transcript-events.j
 import { getRuntimeConfig } from "../io.js";
 import type { OpenClawConfig } from "../types.openclaw.js";
 import { formatSessionArchiveTimestamp } from "./artifacts.js";
+import { extractGeneratedTranscriptSessionId } from "./generated-transcript-session-id.js";
 import {
   resolveSessionFilePath,
   resolveSessionFilePathOptions,
@@ -32,6 +33,7 @@ import {
   loadSessionStore,
   applySessionEntryPatchProjection as applyFileSessionEntryPatchProjection,
   patchSessionEntry as patchFileSessionEntry,
+  purgeDeletedAgentSessionEntries as purgeFileDeletedAgentSessionEntries,
   readSessionUpdatedAt as readFileSessionUpdatedAt,
   resolveSessionStoreEntry,
   resetSessionEntryLifecycle as resetFileSessionEntryLifecycle,
@@ -40,6 +42,7 @@ import {
   type DeleteSessionEntryLifecycleResult,
   type ResetSessionEntryLifecycleMutation,
   type ResetSessionEntryLifecycleResult,
+  type DeletedAgentSessionEntryPurgeParams,
   type SessionArchivedTranscriptCleanupRule,
   type SessionEntryLifecycleMutationResult,
   type SessionEntryLifecycleRemoval,
@@ -321,6 +324,7 @@ export type {
 };
 
 export type {
+  DeletedAgentSessionEntryPurgeParams,
   SessionArchivedTranscriptCleanupRule,
   SessionEntryLifecycleMutationResult,
   SessionEntryLifecycleRemoval,
@@ -630,6 +634,13 @@ export async function applySessionEntryLifecycleMutation(params: {
   return await applyFileSessionEntryLifecycleMutation(params);
 }
 
+/** Purges session entries owned by a deleted agent at the storage boundary. */
+export async function purgeDeletedAgentSessionEntries(
+  params: DeletedAgentSessionEntryPurgeParams,
+): Promise<SessionEntryLifecycleMutationResult> {
+  return await purgeFileDeletedAgentSessionEntries(params);
+}
+
 /** Reads parsed transcript records from an explicit or derived transcript target. */
 export async function loadTranscriptEvents(
   scope: SessionTranscriptReadScope,
@@ -903,34 +914,6 @@ function classifyGeneratedTranscriptCandidate(
     return "custom";
   }
   return transcriptSessionId === sessionId ? "current" : "stale";
-}
-
-function extractGeneratedTranscriptSessionId(sessionFile?: string): string | undefined {
-  const trimmed = sessionFile?.trim();
-  if (!trimmed) {
-    return undefined;
-  }
-  const base = path.basename(trimmed);
-  if (!base.endsWith(".jsonl")) {
-    return undefined;
-  }
-  const withoutExt = base.slice(0, -".jsonl".length);
-  const topicIndex = withoutExt.indexOf("-topic-");
-  if (topicIndex > 0) {
-    const topicSessionId = withoutExt.slice(0, topicIndex);
-    return looksLikeGeneratedSessionId(topicSessionId) ? topicSessionId : undefined;
-  }
-  const forkMatch = withoutExt.match(
-    /^(\d{4}-\d{2}-\d{2}T[\w-]+(?:Z|[+-]\d{2}(?:-\d{2})?)?)_(.+)$/,
-  );
-  if (forkMatch?.[2]) {
-    return looksLikeGeneratedSessionId(forkMatch[2]) ? forkMatch[2] : undefined;
-  }
-  return looksLikeGeneratedSessionId(withoutExt) ? withoutExt : undefined;
-}
-
-function looksLikeGeneratedSessionId(value: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 /**
