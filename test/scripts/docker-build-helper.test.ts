@@ -1,5 +1,5 @@
 // Docker Build Helper tests cover docker build helper script behavior.
-import { execFileSync, spawn } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import {
   chmodSync,
   existsSync,
@@ -35,6 +35,7 @@ const ONBOARD_DOCKER_E2E_PATH = "scripts/e2e/onboard-docker.sh";
 const KITCHEN_SINK_PLUGIN_DOCKER_E2E_PATH = "scripts/e2e/kitchen-sink-plugin-docker.sh";
 const KITCHEN_SINK_RPC_DOCKER_E2E_PATH = "scripts/e2e/kitchen-sink-rpc-docker.sh";
 const CODEX_ON_DEMAND_DOCKER_E2E_PATH = "scripts/e2e/codex-on-demand-docker.sh";
+const MCP_CODE_MODE_GATEWAY_DOCKER_E2E_PATH = "scripts/e2e/mcp-code-mode-gateway-docker.sh";
 const MCP_CODE_MODE_GATEWAY_LIVE_DOCKER_E2E_PATH =
   "scripts/e2e/mcp-code-mode-gateway-live-docker.sh";
 const CODEX_MEDIA_PATH_SCENARIO_PATH = "scripts/e2e/lib/codex-media-path/scenario.sh";
@@ -1912,6 +1913,25 @@ fi
     const publishedRunner = readFileSync(UPGRADE_SURVIVOR_RUN_SCRIPT, "utf8");
     const updateRestartAuth = readFileSync(UPGRADE_SURVIVOR_UPDATE_RESTART_AUTH_PATH, "utf8");
 
+    expect(runner).toContain('source "$ROOT_DIR/scripts/lib/openclaw-e2e-instance.sh"');
+    expect(runner).toContain(
+      'START_BUDGET_SECONDS="$(openclaw_e2e_read_positive_int_env OPENCLAW_UPGRADE_SURVIVOR_START_BUDGET_SECONDS 90)"',
+    );
+    expect(runner).toContain(
+      'STATUS_BUDGET_SECONDS="$(openclaw_e2e_read_positive_int_env OPENCLAW_UPGRADE_SURVIVOR_STATUS_BUDGET_SECONDS 30)"',
+    );
+    expect(runner).toContain(
+      '-e OPENCLAW_UPGRADE_SURVIVOR_START_BUDGET_SECONDS="$START_BUDGET_SECONDS"',
+    );
+    expect(runner).toContain(
+      '-e OPENCLAW_UPGRADE_SURVIVOR_STATUS_BUDGET_SECONDS="$STATUS_BUDGET_SECONDS"',
+    );
+    expect(runner).toContain(
+      'START_BUDGET="$(openclaw_e2e_read_positive_int_env OPENCLAW_UPGRADE_SURVIVOR_START_BUDGET_SECONDS 90)"',
+    );
+    expect(runner).toContain(
+      'STATUS_BUDGET="$(openclaw_e2e_read_positive_int_env OPENCLAW_UPGRADE_SURVIVOR_STATUS_BUDGET_SECONDS 30)"',
+    );
     expect(runner).toContain(
       'COMMAND_TIMEOUT="${OPENCLAW_UPGRADE_SURVIVOR_COMMAND_TIMEOUT:-900s}"',
     );
@@ -1937,6 +1957,12 @@ fi
 
     expect(publishedRunner).toContain(
       'COMMAND_TIMEOUT="${OPENCLAW_UPGRADE_SURVIVOR_COMMAND_TIMEOUT:-900s}"',
+    );
+    expect(publishedRunner).toContain(
+      'budget="$(openclaw_e2e_read_positive_int_env OPENCLAW_UPGRADE_SURVIVOR_START_BUDGET_SECONDS 90)"',
+    );
+    expect(publishedRunner).toContain(
+      'budget="$(openclaw_e2e_read_positive_int_env OPENCLAW_UPGRADE_SURVIVOR_STATUS_BUDGET_SECONDS 30)"',
     );
     expect(publishedRunner).toContain(
       'openclaw_e2e_maybe_timeout "$COMMAND_TIMEOUT" env -u OPENCLAW_GATEWAY_TOKEN',
@@ -1978,6 +2004,24 @@ fi
     expect(updateRestartAuth).toContain(
       'openclaw_e2e_wait_gateway_ready "$gateway_pid" "$log_file" 360 "$port"',
     );
+  });
+
+  it.each([
+    ["start budget", "OPENCLAW_UPGRADE_SURVIVOR_START_BUDGET_SECONDS", "90s"],
+    ["status budget", "OPENCLAW_UPGRADE_SURVIVOR_STATUS_BUDGET_SECONDS", "30s"],
+  ])("rejects invalid upgrade survivor Docker %s before Docker setup", (_label, envName, value) => {
+    const result = spawnSync("bash", [UPGRADE_SURVIVOR_DOCKER_E2E_PATH], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        OPENCLAW_UPGRADE_SURVIVOR_E2E_SKIP_BUILD: "1",
+        [envName]: value,
+      },
+    });
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain(`invalid ${envName}: ${value}`);
+    expect(result.stderr).not.toContain("Docker image not found");
   });
 
   it("bounds upgrade survivor failure log diagnostics", () => {
@@ -2270,11 +2314,18 @@ grep -Fxq preserved "$TMPDIR/caller-fd"
   it("threads the live plugin tool output cap into the Docker harness", () => {
     const runner = readFileSync(LIVE_PLUGIN_TOOL_DOCKER_E2E_PATH, "utf8");
 
+    expect(runner).toContain('source "$ROOT_DIR/scripts/lib/openclaw-e2e-instance.sh"');
     expect(runner).toContain(
-      'AGENT_OUTPUT_MAX_BYTES="${OPENCLAW_LIVE_PLUGIN_TOOL_AGENT_OUTPUT_MAX_BYTES:-1048576}"',
+      'AGENT_TURN_TIMEOUT_SECONDS="$(openclaw_e2e_read_positive_int_env OPENCLAW_LIVE_PLUGIN_TOOL_TIMEOUT_SECONDS 300)"',
+    );
+    expect(runner).toContain(
+      'AGENT_OUTPUT_MAX_BYTES="$(openclaw_e2e_read_positive_int_env OPENCLAW_LIVE_PLUGIN_TOOL_AGENT_OUTPUT_MAX_BYTES 1048576)"',
     );
     expect(runner).toContain(
       '-e "OPENCLAW_LIVE_PLUGIN_TOOL_AGENT_OUTPUT_MAX_BYTES=$AGENT_OUTPUT_MAX_BYTES"',
+    );
+    expect(runner).not.toContain(
+      'AGENT_OUTPUT_MAX_BYTES="${OPENCLAW_LIVE_PLUGIN_TOOL_AGENT_OUTPUT_MAX_BYTES:-1048576}"',
     );
     expect(runner).toContain("OPENCLAW_LIVE_PLUGIN_TOOL_AGENT_OUTPUT_DUMP_BYTES");
     expect(runner).toContain('tail -c "$agent_output_dump_bytes" /tmp/openclaw-agent.json');
@@ -2282,6 +2333,28 @@ grep -Fxq preserved "$TMPDIR/caller-fd"
     const dumpLogsEnd = runner.indexOf("\n}", dumpLogsStart);
     expect(runner.slice(dumpLogsStart, dumpLogsEnd)).not.toContain("/tmp/openclaw-agent.json");
   });
+
+  it.each([
+    ["timeout", "OPENCLAW_LIVE_PLUGIN_TOOL_TIMEOUT_SECONDS", "1e3"],
+    ["output cap", "OPENCLAW_LIVE_PLUGIN_TOOL_AGENT_OUTPUT_MAX_BYTES", "64kb"],
+  ])(
+    "rejects invalid live plugin tool Docker %s values before Docker setup",
+    (_label, envName, value) => {
+      const result = spawnSync("bash", [LIVE_PLUGIN_TOOL_DOCKER_E2E_PATH], {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          OPENCLAW_LIVE_PLUGIN_TOOL_HOST_BUILD: "0",
+          OPENCLAW_SKIP_DOCKER_BUILD: "1",
+          [envName]: value,
+        },
+      });
+
+      expect(result.status).toBe(2);
+      expect(result.stderr).toContain(`invalid ${envName}: ${value}`);
+      expect(result.stderr).not.toContain("Docker image not found");
+    },
+  );
 
   it("keeps live plugin tool npm pack tarball paths inside the fixture directory", () => {
     const runner = readFileSync(LIVE_PLUGIN_TOOL_DOCKER_E2E_PATH, "utf8");
@@ -2687,6 +2760,14 @@ output="$(cat "$sampler_log")"
   it("keeps Open WebUI Docker E2E resource-guarded", () => {
     const runner = readFileSync(OPENWEBUI_DOCKER_E2E_PATH, "utf8");
 
+    expect(runner).toContain(
+      'validate_positive_int OPENCLAW_OPENWEBUI_PROVIDER_TIMEOUT_SECONDS "$PROVIDER_TIMEOUT_SECONDS"',
+    );
+    expect(runner).toContain(
+      'validate_positive_int OPENCLAW_OPENWEBUI_FETCH_TIMEOUT_MS "$PROBE_FETCH_TIMEOUT_MS"',
+    );
+    expect(runner).toContain('validate_tcp_port OPENCLAW_OPENWEBUI_GATEWAY_PORT "$PORT"');
+    expect(runner).toContain('validate_tcp_port OPENCLAW_OPENWEBUI_PORT "$WEBUI_PORT"');
     expect(runner).toContain("OPENCLAW_OPENWEBUI_MAX_MEMORY_MIB");
     expect(runner).toContain("OPENCLAW_OPENWEBUI_MAX_CPU_PERCENT");
     expect(runner).toContain('STATS_LOG="$(mktemp');
@@ -2712,6 +2793,81 @@ output="$(cat "$sampler_log")"
       /sample_openwebui_stats_once\nstop_openwebui_stats_samplers\nassert_openwebui_stats\necho "OK"/u,
     );
   });
+
+  it.each([
+    ["gateway", "OPENCLAW_OPENWEBUI_GATEWAY_PORT", "1e3"],
+    ["webui", "OPENCLAW_OPENWEBUI_PORT", "65536"],
+  ])("rejects invalid Open WebUI Docker %s ports before Docker setup", (_label, envName, value) => {
+    const result = spawnSync("bash", [OPENWEBUI_DOCKER_E2E_PATH], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        [envName]: value,
+      },
+    });
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain(`invalid ${envName}: ${value}`);
+    expect(result.stderr).not.toContain("OPENAI_API_KEY is required");
+  });
+
+  it.each([
+    ["provider", "OPENCLAW_OPENWEBUI_PROVIDER_TIMEOUT_SECONDS", "300s"],
+    ["fetch", "OPENCLAW_OPENWEBUI_FETCH_TIMEOUT_MS", "8000ms"],
+  ])(
+    "rejects invalid Open WebUI Docker %s timeouts before Docker setup",
+    (_label, envName, value) => {
+      const result = spawnSync("bash", [OPENWEBUI_DOCKER_E2E_PATH], {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          [envName]: value,
+        },
+      });
+
+      expect(result.status).toBe(2);
+      expect(result.stderr).toContain(`invalid ${envName}: ${value}`);
+      expect(result.stderr).not.toContain("OPENAI_API_KEY is required");
+    },
+  );
+
+  it("accepts decimal Open WebUI Docker numeric inputs with leading zeroes", () => {
+    const result = spawnSync("bash", [OPENWEBUI_DOCKER_E2E_PATH], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        OPENCLAW_OPENWEBUI_FETCH_TIMEOUT_MS: "09000",
+        OPENCLAW_OPENWEBUI_GATEWAY_PORT: "018789",
+        OPENCLAW_OPENWEBUI_PORT: "08080",
+        OPENCLAW_OPENWEBUI_PROVIDER_TIMEOUT_SECONDS: "08",
+      },
+    });
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain("OPENAI_API_KEY is required");
+    expect(result.stderr).not.toContain("value too great for base");
+  });
+
+  it.each([
+    [MCP_CODE_MODE_GATEWAY_DOCKER_E2E_PATH, "OPENCLAW_MCP_CODE_MODE_GATEWAY_PORT", "1e3"],
+    [MCP_CODE_MODE_GATEWAY_DOCKER_E2E_PATH, "OPENCLAW_MCP_CODE_MODE_MOCK_PORT", "65536"],
+    [MCP_CODE_MODE_GATEWAY_LIVE_DOCKER_E2E_PATH, "OPENCLAW_MCP_CODE_MODE_LIVE_GATEWAY_PORT", "0"],
+  ])(
+    "rejects invalid MCP code-mode Docker ports before Docker setup",
+    (scriptPath, envName, value) => {
+      const result = spawnSync("bash", [scriptPath], {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          [envName]: value,
+        },
+      });
+
+      expect(result.status).toBe(2);
+      expect(result.stderr).toContain(`invalid ${envName}: ${value}`);
+      expect(result.stderr).not.toContain("OPENAI_API_KEY was not available");
+    },
+  );
 
   it("forwards every kitchen-sink RPC runtime env knob into Docker", () => {
     const runner = readFileSync(KITCHEN_SINK_RPC_DOCKER_E2E_PATH, "utf8");
