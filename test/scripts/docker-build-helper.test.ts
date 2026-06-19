@@ -1889,6 +1889,7 @@ grep -qx -- "OPENCLAW_E2E_COMMAND_TIMEOUT=23s" "$TMPDIR/package-args"
     expect(runner).toContain(
       "append_positive_int_env OPENCLAW_PLUGIN_LIFECYCLE_TIMEOUT_KILL_GRACE_MS",
     );
+    expect(runner).toContain("append_positive_int_env OPENCLAW_PLUGIN_LIFECYCLE_METRIC_POLL_MS");
     expect(runner).toContain("append_positive_int_env OPENCLAW_PLUGIN_LIFECYCLE_MAX_RSS_KB");
     expect(runner).toContain("append_positive_int_env OPENCLAW_PLUGIN_LIFECYCLE_MAX_WALL_MS");
     expect(runner).toContain(
@@ -2634,19 +2635,29 @@ grep -Fxq preserved "$TMPDIR/caller-fd"
     expect(runner).not.toContain("cat /tmp/openclaw-codex-plugin-pack.log");
     expect(runner).toContain("tail -n 120 /tmp/openclaw-codex-agent-after-uninstall.err");
     expect(runner).not.toContain("cat /tmp/openclaw-codex-agent-after-uninstall.err");
-    const profileSourceIndex = runner.indexOf('source "$PROFILE_FILE"');
-    const agentTimeoutEnvIndex = runner.indexOf(
+    const earlyAgentTimeoutEnvIndex = runner.indexOf(
       "docker_e2e_read_positive_int_env OPENCLAW_CODEX_NPM_PLUGIN_AGENT_TIMEOUT_SECONDS 420",
+    );
+    const profileSourceIndex = runner.indexOf('source "$PROFILE_FILE"');
+    const finalAgentTimeoutEnvIndex = runner.lastIndexOf(
+      "docker_e2e_read_positive_int_env OPENCLAW_CODEX_NPM_PLUGIN_AGENT_TIMEOUT_SECONDS",
     );
     const dockerBuildIndex = runner.indexOf("docker_e2e_build_or_reuse");
+    const preparePluginSpecIndex = runner.indexOf("\nprepare_codex_plugin_spec\n");
+    expect(earlyAgentTimeoutEnvIndex).toBeGreaterThanOrEqual(0);
+    expect(dockerBuildIndex).toBeGreaterThan(earlyAgentTimeoutEnvIndex);
+    expect(preparePluginSpecIndex).toBeGreaterThan(dockerBuildIndex);
     expect(profileSourceIndex).toBeGreaterThanOrEqual(0);
-    expect(agentTimeoutEnvIndex).toBeGreaterThan(profileSourceIndex);
-    expect(dockerBuildIndex).toBeGreaterThan(agentTimeoutEnvIndex);
+    expect(profileSourceIndex).toBeGreaterThan(preparePluginSpecIndex);
+    expect(finalAgentTimeoutEnvIndex).toBeGreaterThan(profileSourceIndex);
     expect(runner).toContain(
       "docker_e2e_read_positive_int_env OPENCLAW_CODEX_NPM_PLUGIN_AGENT_TIMEOUT_SECONDS 420",
     );
     expect(runner).toContain(
-      'COMMAND_TIMEOUT="${OPENCLAW_E2E_COMMAND_TIMEOUT:-$((AGENT_TURN_TIMEOUT_SECONDS + 60))s}"',
+      'docker_e2e_read_positive_int_env OPENCLAW_CODEX_NPM_PLUGIN_AGENT_TIMEOUT_SECONDS "$AGENT_TURN_TIMEOUT_SECONDS"',
+    );
+    expect(runner).toContain(
+      'COMMAND_TIMEOUT="${OPENCLAW_E2E_COMMAND_TIMEOUT:-$((10#$AGENT_TURN_TIMEOUT_SECONDS + 60))s}"',
     );
     expect(runner).toContain(
       '-e "OPENCLAW_CODEX_NPM_PLUGIN_AGENT_TIMEOUT_SECONDS=$AGENT_TURN_TIMEOUT_SECONDS"',
@@ -2776,8 +2787,27 @@ grep -Fxq preserved "$TMPDIR/caller-fd"
     const runner = readFileSync(LIVE_PLUGIN_TOOL_DOCKER_E2E_PATH, "utf8");
 
     expect(runner).toContain('source "$ROOT_DIR/scripts/lib/openclaw-e2e-instance.sh"');
+    const earlyTimeoutEnvIndex = runner.indexOf(
+      "openclaw_e2e_read_positive_int_env OPENCLAW_LIVE_PLUGIN_TOOL_TIMEOUT_SECONDS 300",
+    );
+    const profileSourceIndex = runner.indexOf('source "$PROFILE_FILE"');
+    const finalTimeoutEnvIndex = runner.lastIndexOf(
+      "openclaw_e2e_read_positive_int_env OPENCLAW_LIVE_PLUGIN_TOOL_TIMEOUT_SECONDS",
+    );
+    const dockerBuildIndex = runner.indexOf("docker_e2e_build_or_reuse");
+    expect(earlyTimeoutEnvIndex).toBeGreaterThanOrEqual(0);
+    expect(dockerBuildIndex).toBeGreaterThan(earlyTimeoutEnvIndex);
+    expect(profileSourceIndex).toBeGreaterThanOrEqual(0);
+    expect(profileSourceIndex).toBeGreaterThan(dockerBuildIndex);
+    expect(finalTimeoutEnvIndex).toBeGreaterThan(profileSourceIndex);
     expect(runner).toContain(
       'AGENT_TURN_TIMEOUT_SECONDS="$(openclaw_e2e_read_positive_int_env OPENCLAW_LIVE_PLUGIN_TOOL_TIMEOUT_SECONDS 300)"',
+    );
+    expect(runner).toContain(
+      'AGENT_TURN_TIMEOUT_SECONDS="$(openclaw_e2e_read_positive_int_env OPENCLAW_LIVE_PLUGIN_TOOL_TIMEOUT_SECONDS "$AGENT_TURN_TIMEOUT_SECONDS")"',
+    );
+    expect(runner).toContain(
+      'COMMAND_TIMEOUT="${OPENCLAW_E2E_COMMAND_TIMEOUT:-$((10#$AGENT_TURN_TIMEOUT_SECONDS + 60))s}"',
     );
     expect(runner).toContain(
       'AGENT_OUTPUT_MAX_BYTES="$(openclaw_e2e_read_positive_int_env OPENCLAW_LIVE_PLUGIN_TOOL_AGENT_OUTPUT_MAX_BYTES 1048576)"',
@@ -2797,6 +2827,7 @@ grep -Fxq preserved "$TMPDIR/caller-fd"
     expect(runner).toContain(
       '-e "OPENCLAW_LIVE_PLUGIN_TOOL_SESSION_SCAN_MAX_ENTRIES=$SESSION_SCAN_MAX_ENTRIES"',
     );
+    expect(runner).toContain('-e "OPENCLAW_E2E_COMMAND_TIMEOUT=$COMMAND_TIMEOUT"');
     expect(runner).not.toContain(
       'AGENT_OUTPUT_MAX_BYTES="${OPENCLAW_LIVE_PLUGIN_TOOL_AGENT_OUTPUT_MAX_BYTES:-1048576}"',
     );
@@ -3547,6 +3578,14 @@ output="$(cat "$sampler_log")"
     const missing = [...consumed].filter((envName) => !forwarded.has(envName)).toSorted();
 
     expect(missing).toEqual([]);
+  });
+
+  it("keeps the kitchen-sink RPC Docker watchdog above the internal walk budgets", () => {
+    const runner = readFileSync(KITCHEN_SINK_RPC_DOCKER_E2E_PATH, "utf8");
+
+    expect(runner).toContain(
+      'DOCKER_RUN_TIMEOUT="${OPENCLAW_KITCHEN_SINK_RPC_DOCKER_RUN_TIMEOUT:-1500s}"',
+    );
   });
 
   it("bounds kitchen-sink plugin CLI commands inside the Docker sweep", () => {
