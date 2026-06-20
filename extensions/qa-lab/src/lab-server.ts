@@ -21,6 +21,7 @@ import {
   buildQaEvidenceGalleryModel,
   resolveQaEvidenceArtifactFileByIndex,
   resolveQaEvidenceArtifactFile,
+  resolveQaEvidenceProducerFile,
 } from "./evidence-gallery.js";
 import { createQaRunnerRuntime } from "./harness-runtime.js";
 import {
@@ -138,12 +139,33 @@ function createBootstrapDefaults(autoKickoffTarget?: string): QaLabBootstrapDefa
 
 const CONTROL_UI_CREDENTIAL_QUERY_KEYS = new Set([
   "access_token",
+  "api_key",
+  "apikey",
   "auth",
   "devicetoken",
+  "id_token",
   "password",
   "refresh_token",
   "token",
 ]);
+const CONTROL_UI_CREDENTIAL_QUERY_PATTERN =
+  /([?&])(?:access_token|api_?key|auth|deviceToken|id_token|password|refresh_token|token)=[^&#\s]*&?/gi;
+
+function stripSensitiveQueryParamsFromText(rawUrl: string): string {
+  let sanitized = rawUrl;
+  for (;;) {
+    const next = sanitized
+      .replace(CONTROL_UI_CREDENTIAL_QUERY_PATTERN, (match: string, separator: string) =>
+        match.endsWith("&") ? separator : "",
+      )
+      .replace(/[?&]$/, "")
+      .replace("?&", "?");
+    if (next === sanitized) {
+      return next;
+    }
+    sanitized = next;
+  }
+}
 
 function stripSensitiveQueryParams(rawUrl: string): string {
   try {
@@ -155,13 +177,7 @@ function stripSensitiveQueryParams(rawUrl: string): string {
     }
     return url.toString();
   } catch {
-    return rawUrl
-      .replace(
-        /([?&])(?:access_token|auth|deviceToken|password|refresh_token|token)=[^&#\s]*&?/gi,
-        (match: string, separator: string) => (match.endsWith("&") ? separator : ""),
-      )
-      .replace(/[?&]$/, "")
-      .replace("?&", "?");
+    return stripSensitiveQueryParamsFromText(rawUrl);
   }
 }
 
@@ -454,9 +470,13 @@ export async function startQaLabServer(
         ) {
           const evidencePath = url.searchParams.get("evidencePath")?.trim();
           const artifactPath = url.searchParams.get("artifactPath")?.trim();
+          const producerFile = url.searchParams.get("producerFile")?.trim();
           const entryIndexText = url.searchParams.get("entryIndex")?.trim();
           const artifactIndexText = url.searchParams.get("artifactIndex")?.trim();
-          if (!evidencePath || (!artifactPath && (!entryIndexText || !artifactIndexText))) {
+          if (
+            !evidencePath ||
+            (!artifactPath && !producerFile && (!entryIndexText || !artifactIndexText))
+          ) {
             writeError(res, 400, "Missing evidencePath and artifact selector");
             return;
           }
@@ -466,12 +486,18 @@ export async function startQaLabServer(
                 evidencePath,
                 repoRoot,
               })
-            : await resolveQaEvidenceArtifactFileByIndex({
-                artifactIndex: Number(artifactIndexText),
-                entryIndex: Number(entryIndexText),
-                evidencePath,
-                repoRoot,
-              });
+            : producerFile
+              ? await resolveQaEvidenceProducerFile({
+                  evidencePath,
+                  producerFile,
+                  repoRoot,
+                })
+              : await resolveQaEvidenceArtifactFileByIndex({
+                  artifactIndex: Number(artifactIndexText),
+                  entryIndex: Number(entryIndexText),
+                  evidencePath,
+                  repoRoot,
+                });
           const artifactStats = await fs.promises.stat(artifactFile);
           res.writeHead(200, {
             "content-type": detectQaEvidenceArtifactContentType(artifactFile),
