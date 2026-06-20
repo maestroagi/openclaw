@@ -596,6 +596,24 @@ function signalCommandTree(child: ChildProcess, signal: NodeJS.Signals) {
   child.kill(signal);
 }
 
+function commandProcessTreeAlive(child: ChildProcess) {
+  if (!child.pid || process.platform === "win32") {
+    return child.exitCode === null && child.signalCode === null;
+  }
+  try {
+    process.kill(-child.pid, 0);
+    return true;
+  } catch (error) {
+    return error && typeof error === "object" && "code" in error && error.code === "EPERM";
+  }
+}
+
+function untrackCommandChild(child: ChildProcess) {
+  if (!commandProcessTreeAlive(child)) {
+    activeCommandChildren.delete(child);
+  }
+}
+
 function signalActiveCommandChildren(signal: NodeJS.Signals) {
   for (const child of activeCommandChildren) {
     signalCommandTree(child, signal);
@@ -707,7 +725,7 @@ export function runCommand(params: {
         return;
       }
       settled = true;
-      activeCommandChildren.delete(child);
+      untrackCommandChild(child);
       clearTimers();
       reject(error);
     });
@@ -716,7 +734,7 @@ export function runCommand(params: {
         return;
       }
       settled = true;
-      activeCommandChildren.delete(child);
+      untrackCommandChild(child);
       if (timeoutError) {
         signalCommandTree(child, "SIGKILL");
         clearTimers();
@@ -813,7 +831,7 @@ function waitForOutput(
 }
 
 function killTree(child: ChildProcess | undefined) {
-  if (!child || child.killed || child.exitCode !== null) {
+  if (!child) {
     return;
   }
   if (!child.pid) {
@@ -869,6 +887,9 @@ function sleep(ms: number) {
 }
 
 function waitForChildExit(child: ChildProcess) {
+  if (child.exitCode !== null || child.signalCode !== null) {
+    return Promise.resolve(child.exitCode);
+  }
   return new Promise<number | null>((resolve, reject) => {
     child.once("error", reject);
     child.once("exit", resolve);
