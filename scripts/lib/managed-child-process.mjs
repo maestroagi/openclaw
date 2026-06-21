@@ -2,6 +2,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { constants as osConstants } from "node:os";
 import { buildCmdExeCommandLine } from "../windows-cmd-helpers.mjs";
+import { resolveWindowsTaskkillPath } from "./windows-taskkill.mjs";
 
 const FORWARDED_SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"];
 const FORCE_KILL_DELAY_MS = 5_000;
@@ -50,13 +51,20 @@ export function terminateManagedChild(
   }
 
   if (platform === "win32") {
+    const taskkillPath = resolveWindowsTaskkillPath();
     const args = ["/PID", String(child.pid), "/T"];
     if (signal === "SIGKILL") {
       args.push("/F");
     }
-    const result = runTaskkill("taskkill", args, { stdio: "ignore" });
+    const result = runTaskkill(taskkillPath, args, { stdio: "ignore" });
     if (!result?.error && result?.status === 0) {
       return;
+    }
+    if (signal !== "SIGKILL") {
+      const forceResult = runTaskkill(taskkillPath, [...args, "/F"], { stdio: "ignore" });
+      if (!forceResult?.error && forceResult?.status === 0) {
+        return;
+      }
     }
   }
 
