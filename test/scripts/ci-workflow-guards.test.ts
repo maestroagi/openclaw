@@ -6,6 +6,8 @@ import { parse } from "yaml";
 const CHECKOUT_V6 = "actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10";
 const CACHE_V5 = "actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae";
 const UPLOAD_ARTIFACT_V7 = "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a";
+const OPENGREP_PR_DIFF_WORKFLOW = ".github/workflows/opengrep-precise.yml";
+const OPENGREP_FULL_WORKFLOW = ".github/workflows/opengrep-precise-full.yml";
 
 function readCiWorkflow() {
   return parse(readFileSync(".github/workflows/ci.yml", "utf8"));
@@ -104,6 +106,34 @@ describe("ci workflow guards", () => {
     expect(findUnpinnedExternalActions()).toEqual([]);
   });
 
+  it("fails OpenGrep SARIF artifact uploads when reports are missing", () => {
+    const cases = [
+      {
+        workflowPath: OPENGREP_PR_DIFF_WORKFLOW,
+        artifactName: "opengrep-pr-diff-sarif",
+      },
+      {
+        workflowPath: OPENGREP_FULL_WORKFLOW,
+        artifactName: "opengrep-full-sarif",
+      },
+    ];
+
+    for (const item of cases) {
+      const workflow = parse(readFileSync(item.workflowPath, "utf8"));
+      const uploadStep = workflow.jobs.scan.steps.find(
+        (step) => step.name === "Upload SARIF as workflow artifact",
+      );
+
+      expect(uploadStep.if, item.workflowPath).toBe("always()");
+      expect(uploadStep.uses, item.workflowPath).toBe(UPLOAD_ARTIFACT_V7);
+      expect(uploadStep.with, item.workflowPath).toMatchObject({
+        name: item.artifactName,
+        path: ".opengrep-out/precise.sarif",
+        "if-no-files-found": "error",
+      });
+    }
+  });
+
   it("runs real behavior proof from the trusted workflow revision", () => {
     const workflow = readRealBehaviorProofWorkflow();
     const source = readFileSync(".github/workflows/real-behavior-proof.yml", "utf8");
@@ -141,7 +171,7 @@ describe("ci workflow guards", () => {
       "github.event_name == 'pull_request'",
     );
     expect(workflow.jobs["checks-fast-core"].strategy["max-parallel"]).toBe(8);
-    expect(workflow.jobs["checks-node-core-test-nondist-shard"].strategy["max-parallel"]).toBe(12);
+    expect(workflow.jobs["checks-node-core-test-nondist-shard"].strategy["max-parallel"]).toBe(16);
     expect(workflow.jobs["checks-fast-plugin-contracts-shard"].strategy["max-parallel"]).toBe(8);
     expect(workflow.jobs["checks-fast-channel-contracts-shard"].strategy["max-parallel"]).toBe(8);
     expect(workflow.jobs["check-shard"].strategy["max-parallel"]).toBe(8);
@@ -589,6 +619,10 @@ describe("ci workflow guards", () => {
       "taxonomy.profiles.find((entry) => entry.id === requested)",
     );
     expect(validateProfileStep.run).toContain("profile=${profile.id}");
+    const ensurePlaywrightStep = qaRunJob.steps.find(
+      (step) => step.name === "Ensure Playwright Chromium",
+    );
+    expect(ensurePlaywrightStep.run).toBe("node scripts/ensure-playwright-chromium.mjs");
     expect(generateJob.if).toBe("${{ inputs.qa_evidence_run_id == '' }}");
     expect(generateJob.uses).toBe("./.github/workflows/qa-profile-evidence.yml");
     expect(generateJob.with).toMatchObject({
