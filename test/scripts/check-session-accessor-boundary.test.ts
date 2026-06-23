@@ -24,11 +24,17 @@ describe("session accessor boundary guard", () => {
     expect(migratedSessionAccessorFiles).toEqual(
       new Set([
         "packages/memory-host-sdk/src/host/session-files.ts",
+        "src/acp/runtime/session-meta.ts",
+        "src/agents/acp-spawn.ts",
+        "src/agents/auth-profiles/session-override.ts",
         "src/agents/embedded-agent-runner/compaction-successor-transcript.ts",
         "src/agents/embedded-agent-runner/run/attempt.ts",
         "src/agents/embedded-agent-runner/tool-result-truncation.ts",
         "src/agents/embedded-agent-runner/transcript-rewrite.ts",
         "src/agents/embedded-agent-runner/transcript-runtime-state.ts",
+        "src/auto-reply/reply/abort.ts",
+        "src/agents/subagent-control.ts",
+        "src/agents/subagent-registry-helpers.ts",
         "src/auto-reply/reply/agent-runner-helpers.ts",
         "src/auto-reply/reply/agent-runner.ts",
         "src/auto-reply/reply/commands-subagents/action-info.ts",
@@ -72,6 +78,7 @@ describe("session accessor boundary guard", () => {
       new Set([
         "extensions/discord/src/monitor/native-command-model-picker-apply.ts",
         "extensions/discord/src/monitor/thread-session-close.ts",
+        "extensions/memory-core/src/dreaming-narrative.ts",
         "extensions/telegram/src/bot-handlers.runtime.ts",
       ]),
     );
@@ -80,11 +87,17 @@ describe("session accessor boundary guard", () => {
   it("ratchets only files migrated to session accessor writes", () => {
     expect(migratedSessionAccessorWriteFiles).toEqual(
       new Set([
+        "src/acp/runtime/session-meta.ts",
+        "src/agents/auth-profiles/session-override.ts",
         "src/agents/command/attempt-execution.shared.ts",
         "src/agents/command/session-store.ts",
         "src/agents/embedded-agent-runner/run.ts",
         "src/agents/embedded-agent-runner/run/attempt.ts",
+        "src/agents/live-model-switch.ts",
         "src/agents/main-session-restart-recovery.ts",
+        "src/auto-reply/reply/abort.ts",
+        "src/agents/subagent-control.ts",
+        "src/agents/subagent-registry-helpers.ts",
         "src/auto-reply/reply/abort-cutoff.runtime.ts",
         "src/auto-reply/reply/agent-runner-cli-dispatch.ts",
         "src/auto-reply/reply/agent-runner-execution.ts",

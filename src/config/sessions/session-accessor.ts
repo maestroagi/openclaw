@@ -49,6 +49,7 @@ import {
   loadSessionStore,
   applySessionEntryPatchProjection as applyFileSessionEntryPatchProjection,
   patchSessionEntry as patchFileSessionEntry,
+  patchSessionEntryWithKey as patchFileSessionEntryWithKey,
   purgeDeletedAgentSessionEntries as purgeFileDeletedAgentSessionEntries,
   readSessionUpdatedAt as readFileSessionUpdatedAt,
   resolveSessionStoreEntry,
@@ -344,6 +345,25 @@ export type SessionEntryUpdateOptions = {
   requireWriteSuccess?: boolean;
 };
 
+export type SessionAbortTargetCutoff = {
+  messageSid?: string;
+  timestamp?: number;
+};
+
+export type SessionAbortTargetContext = {
+  entry: SessionEntry;
+  sessionKey: string;
+};
+
+export type SessionAbortTargetIdentity = SessionAbortTargetContext & {
+  sessionId?: string;
+};
+
+export type SessionAbortTargetResult = SessionAbortTargetIdentity & {
+  persisted: boolean;
+  persistenceError?: string;
+};
+
 export type SessionLifecycleTranscriptInfo = {
   sessionFile?: string;
   transcriptArchived?: boolean;
@@ -375,13 +395,26 @@ export type SessionEntryPatchOptions = {
   maintenanceConfig?: ResolvedSessionMaintenanceConfig;
   /** Keep the previous updatedAt value when the patch should not count as activity. */
   preserveActivity?: boolean;
+  /** Throw when best-effort store recovery cannot confirm the requested write. */
+  requireWriteSuccess?: boolean;
   /** Replace the whole entry instead of merging the returned patch. */
   replaceEntry?: boolean;
+  /** Skip prune/cap/rotation maintenance for specialized internal updates. */
+  skipMaintenance?: boolean;
+  /** Let the writer cache retain the updated object without cloning. */
+  takeCacheOwnership?: boolean;
 };
 
 export type SessionEntryPatchContext = {
   /** Present when the patched entry already existed before fallback synthesis. */
   existingEntry?: SessionEntry;
+};
+
+export type SessionEntryPatchResult = {
+  /** Exact persisted key for the patched entry after alias normalization. */
+  sessionKey: string;
+  /** Persisted entry returned by the backing store. */
+  entry: SessionEntry;
 };
 
 export type RestartRecoveryLifecycleEntry = {
@@ -735,7 +768,35 @@ export async function patchSessionEntry(
     fallbackEntry: options.fallbackEntry,
     maintenanceConfig: options.maintenanceConfig,
     preserveActivity: options.preserveActivity,
+    requireWriteSuccess: options.requireWriteSuccess,
     replaceEntry: options.replaceEntry,
+    skipMaintenance: options.skipMaintenance,
+    takeCacheOwnership: options.takeCacheOwnership,
+    update,
+  });
+}
+
+/**
+ * Applies an atomic patch and returns the persisted key selected by the backing
+ * store. Use when a caller must keep sidecar state keyed to the final row.
+ */
+export async function patchSessionEntryWithKey(
+  scope: SessionAccessScope,
+  update: (
+    entry: SessionEntry,
+    context: SessionEntryPatchContext,
+  ) => Promise<Partial<SessionEntry> | null> | Partial<SessionEntry> | null,
+  options: SessionEntryPatchOptions = {},
+): Promise<SessionEntryPatchResult | null> {
+  return await patchFileSessionEntryWithKey({
+    ...scope,
+    fallbackEntry: options.fallbackEntry,
+    maintenanceConfig: options.maintenanceConfig,
+    preserveActivity: options.preserveActivity,
+    requireWriteSuccess: options.requireWriteSuccess,
+    replaceEntry: options.replaceEntry,
+    skipMaintenance: options.skipMaintenance,
+    takeCacheOwnership: options.takeCacheOwnership,
     update,
   });
 }
@@ -850,6 +911,109 @@ export async function updateSessionEntry(
     requireWriteSuccess: options.requireWriteSuccess,
     update,
   });
+}
+
+/** Resolves one abort target identity without exposing the mutable store. */
+export function resolveSessionAbortTarget(
+  scope: SessionAccessScope,
+): SessionAbortTargetIdentity | null {
+  const store = loadSessionStore(resolveAccessStorePath(scope));
+  const resolved = resolveSessionStoreEntry({ store, sessionKey: scope.sessionKey });
+  if (!resolved.existing) {
+    return null;
+  }
+  return {
+    entry: { ...resolved.existing },
+    sessionId: resolved.existing.sessionId,
+    sessionKey: resolved.normalizedKey,
+  };
+}
+
+/**
+ * Resolves, marks, touches, and canonicalizes one abort target entry as a
+ * storage-sized operation. Runtime abort side effects remain with callers.
+ */
+export async function markSessionAbortTarget(params: {
+  resolveAbortCutoff?: (context: SessionAbortTargetContext) => SessionAbortTargetCutoff | undefined;
+  scope: SessionAccessScope;
+  now?: () => number;
+}): Promise<SessionAbortTargetResult | null> {
+  const storePath = resolveAccessStorePath(params.scope);
+  let canPersistSingleEntry = false;
+  let resolvedTarget: SessionAbortTargetResult | null = null;
+  try {
+    return await updateSessionStore(
+      storePath,
+      (store) => {
+        const resolved = resolveSessionStoreEntry({
+          store,
+          sessionKey: params.scope.sessionKey,
+        });
+        if (!resolved.existing) {
+          return null;
+        }
+        const sessionKey = resolved.normalizedKey;
+        resolvedTarget = {
+          entry: { ...resolved.existing },
+          persisted: false,
+          sessionId: resolved.existing.sessionId,
+          sessionKey,
+        };
+        const entry = {
+          ...resolved.existing,
+          abortedLastRun: true,
+          updatedAt: params.now?.() ?? Date.now(),
+        };
+        applySessionAbortCutoff(
+          entry,
+          params.resolveAbortCutoff?.({
+            entry: { ...resolved.existing },
+            sessionKey,
+          }),
+        );
+        store[sessionKey] = entry;
+        canPersistSingleEntry = resolved.legacyKeys.length === 0;
+        for (const legacyKey of resolved.legacyKeys) {
+          if (legacyKey !== sessionKey) {
+            delete store[legacyKey];
+          }
+        }
+        return {
+          entry: { ...entry },
+          persisted: true,
+          sessionId: entry.sessionId,
+          sessionKey,
+        };
+      },
+      {
+        resolveSingleEntryPersistence: (result) =>
+          result && result.sessionKey && canPersistSingleEntry
+            ? { sessionKey: result.sessionKey, entry: result.entry }
+            : null,
+        skipSaveWhenResult: (result) => result === null,
+      },
+    );
+  } catch (error) {
+    const fallbackTarget = resolvedTarget as unknown as SessionAbortTargetResult | null;
+    if (fallbackTarget) {
+      return {
+        entry: fallbackTarget.entry,
+        persisted: fallbackTarget.persisted,
+        sessionId: fallbackTarget.sessionId,
+        sessionKey: fallbackTarget.sessionKey,
+        persistenceError: formatErrorMessage(error),
+      };
+    }
+    throw error;
+  }
+}
+
+function applySessionAbortCutoff(
+  entry: Pick<SessionEntry, "abortCutoffMessageSid" | "abortCutoffTimestamp">,
+  cutoff: SessionAbortTargetCutoff | undefined,
+): void {
+  entry.abortCutoffMessageSid = cutoff?.messageSid;
+  entry.abortCutoffTimestamp = cutoff?.timestamp;
 }
 
 /**
