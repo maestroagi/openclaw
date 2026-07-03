@@ -71,7 +71,8 @@ describe("crabline transport", () => {
       });
 
       try {
-        await transport.sendNativeCommand({
+        expect(transport.sendNativeCommand).toBeTypeOf("function");
+        await transport.sendNativeCommand?.({
           command: "stop",
           conversation: { id: "alice", kind: "direct" },
           senderId: "alice",
@@ -100,6 +101,83 @@ describe("crabline transport", () => {
       } finally {
         await transport.cleanup?.();
       }
+    });
+  });
+
+  it("defers a partial recorder tail until Crabline finishes the JSONL record", async () => {
+    await withTempDir("qa-crabline-transport-", async (outputDir) => {
+      const transport = await createQaCrablineTransportAdapter({
+        outputDir,
+        selection: createSelection(),
+        state: createQaBusState(),
+      });
+      const manifest = JSON.parse(
+        await fs.readFile(path.join(outputDir, OPENCLAW_CRABLINE_MANIFEST_PATH), "utf8"),
+      ) as { recorderPath: string };
+      const recorderLine = JSON.stringify({
+        body: {
+          chat_id: "100001",
+          text: `partial recorder write ${"x".repeat(240)}`,
+        },
+        path: "/bot<redacted>/sendMessage",
+        type: "api",
+      });
+      const splitIndex = 191;
+
+      try {
+        await transport.reset();
+        await fs.appendFile(manifest.recorderPath, recorderLine.slice(0, splitIndex), "utf8");
+
+        await expect(transport.reset()).resolves.toBeUndefined();
+
+        await fs.appendFile(manifest.recorderPath, `${recorderLine.slice(splitIndex)}\n`, "utf8");
+        await expect(
+          transport.state.searchMessages({ query: "partial recorder write" }),
+        ).resolves.toHaveLength(1);
+      } finally {
+        await transport.cleanup?.();
+      }
+    });
+  });
+
+  it("rejects a malformed newline-terminated recorder record", async () => {
+    await withTempDir("qa-crabline-transport-", async (outputDir) => {
+      const transport = await createQaCrablineTransportAdapter({
+        outputDir,
+        selection: createSelection(),
+        state: createQaBusState(),
+      });
+      const manifest = JSON.parse(
+        await fs.readFile(path.join(outputDir, OPENCLAW_CRABLINE_MANIFEST_PATH), "utf8"),
+      ) as { recorderPath: string };
+
+      try {
+        await transport.reset();
+        await fs.appendFile(manifest.recorderPath, '{"broken":\n', "utf8");
+
+        await expect(transport.reset()).rejects.toThrow(SyntaxError);
+        await fs.writeFile(manifest.recorderPath, "", "utf8");
+      } finally {
+        await transport.cleanup?.();
+      }
+    });
+  });
+
+  it("rejects a permanently truncated recorder tail during cleanup", async () => {
+    await withTempDir("qa-crabline-transport-", async (outputDir) => {
+      const transport = await createQaCrablineTransportAdapter({
+        outputDir,
+        selection: createSelection(),
+        state: createQaBusState(),
+      });
+      const manifest = JSON.parse(
+        await fs.readFile(path.join(outputDir, OPENCLAW_CRABLINE_MANIFEST_PATH), "utf8"),
+      ) as { recorderPath: string };
+
+      await transport.reset();
+      await fs.appendFile(manifest.recorderPath, '{"unfinished":"recorder tail', "utf8");
+
+      await expect(transport.cleanup?.()).rejects.toThrow(SyntaxError);
     });
   });
 
@@ -141,8 +219,9 @@ describe("crabline transport", () => {
           text: "final marker",
         });
 
+        expect(transport.waitForOutboundSequence).toBeTypeOf("function");
         await expect(
-          transport.waitForOutboundSequence({
+          transport.waitForOutboundSequence!({
             conversationId: "-1001234567890",
             finalSettleMs: 0,
             finalTextIncludes: "final marker",
@@ -171,6 +250,8 @@ describe("crabline transport", () => {
       try {
         expect(transport.id).toBe("crabline");
         expect(transport.requiredPluginIds).toEqual(["slack"]);
+        expect(transport.sendNativeCommand).toBeUndefined();
+        expect(transport.waitForOutboundSequence).toBeUndefined();
         expect(transport.createGatewayConfig({ baseUrl: "http://127.0.0.1:1" })).toMatchObject({
           channels: {
             slack: {
