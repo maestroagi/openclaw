@@ -7541,6 +7541,7 @@ public struct DevicePairSetupCodeResult: Codable, Sendable {
     public let setupcode: String
     public let qrdataurl: String?
     public let gatewayurl: String
+    public let gatewayurls: [String]?
     public let auth: AnyCodable
     public let urlsource: String
 
@@ -7548,12 +7549,14 @@ public struct DevicePairSetupCodeResult: Codable, Sendable {
         setupcode: String,
         qrdataurl: String?,
         gatewayurl: String,
+        gatewayurls: [String]? = nil,
         auth: AnyCodable,
         urlsource: String)
     {
         self.setupcode = setupcode
         self.qrdataurl = qrdataurl
         self.gatewayurl = gatewayurl
+        self.gatewayurls = gatewayurls
         self.auth = auth
         self.urlsource = urlsource
     }
@@ -7562,6 +7565,7 @@ public struct DevicePairSetupCodeResult: Codable, Sendable {
         case setupcode = "setupCode"
         case qrdataurl = "qrDataUrl"
         case gatewayurl = "gatewayUrl"
+        case gatewayurls = "gatewayUrls"
         case auth
         case urlsource = "urlSource"
     }
@@ -8074,6 +8078,7 @@ public struct ChatAbortedEvent: Codable, Sendable {
     public let seq: Int
     public let state: String
     public let message: AnyCodable?
+    public let errormessage: String?
     public let stopreason: String?
 
     public init(
@@ -8084,6 +8089,7 @@ public struct ChatAbortedEvent: Codable, Sendable {
         seq: Int,
         state: String,
         message: AnyCodable?,
+        errormessage: String? = nil,
         stopreason: String?)
     {
         self.runid = runid
@@ -8093,6 +8099,7 @@ public struct ChatAbortedEvent: Codable, Sendable {
         self.seq = seq
         self.state = state
         self.message = message
+        self.errormessage = errormessage
         self.stopreason = stopreason
     }
 
@@ -8104,6 +8111,7 @@ public struct ChatAbortedEvent: Codable, Sendable {
         case seq
         case state
         case message
+        case errormessage = "errorMessage"
         case stopreason = "stopReason"
     }
 }
