@@ -140,6 +140,10 @@ import {
   TalkSpeakParamsSchema,
   type TalkSpeakResult,
   TalkSpeakResultSchema,
+  type TtsSpeakParams,
+  TtsSpeakParamsSchema,
+  type TtsSpeakResult,
+  TtsSpeakResultSchema,
   type ChannelsStatusParams,
   ChannelsStatusParamsSchema,
   type ChannelsStatusResult,
@@ -270,6 +274,7 @@ import {
   errorShape,
   type GatewayFrame,
   GatewayFrameSchema,
+  GATEWAY_SERVER_CAPS,
   type HelloOk,
   HelloOkSchema,
   type LogsTailParams,
@@ -906,6 +911,8 @@ export const validateTalkSessionOkResult =
   lazyCompile<TalkSessionOkResult>(TalkSessionOkResultSchema);
 export const validateTalkSpeakParams = lazyCompile<TalkSpeakParams>(TalkSpeakParamsSchema);
 export const validateTalkSpeakResult = lazyCompile<TalkSpeakResult>(TalkSpeakResultSchema);
+export const validateTtsSpeakParams = lazyCompile<TtsSpeakParams>(TtsSpeakParamsSchema);
+export const validateTtsSpeakResult = lazyCompile<TtsSpeakResult>(TtsSpeakResultSchema);
 export const validateChannelsStatusParams = lazyCompile<ChannelsStatusParams>(
   ChannelsStatusParamsSchema,
 );
@@ -1130,6 +1137,7 @@ export function formatValidationErrors(errors: ValidationError[] | null | undefi
 // protocol surface changes.
 export {
   ConnectParamsSchema,
+  GATEWAY_SERVER_CAPS,
   HelloOkSchema,
   RequestFrameSchema,
   ResponseFrameSchema,
@@ -1270,6 +1278,8 @@ export {
   TalkSessionOkResultSchema,
   TalkSpeakParamsSchema,
   TalkSpeakResultSchema,
+  TtsSpeakParamsSchema,
+  TtsSpeakResultSchema,
   ChannelsStatusParamsSchema,
   ChannelsStatusResultSchema,
   ChannelsStartParamsSchema,
@@ -1465,6 +1475,8 @@ export type {
   TalkSessionOkResult,
   TalkSpeakParams,
   TalkSpeakResult,
+  TtsSpeakParams,
+  TtsSpeakResult,
   TalkModeParams,
   ChannelsStatusParams,
   ChannelsStatusResult,
