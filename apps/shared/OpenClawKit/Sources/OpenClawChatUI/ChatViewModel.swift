@@ -53,7 +53,10 @@ public final class OpenClawChatViewModel {
 
     public private(set) var pendingRunCount: Int = 0
 
-    public private(set) var sessionKey: String
+    public private(set) var sessionKey: String {
+        didSet { self.syncContextUsageFraction() }
+    }
+
     public private(set) var sessionId: String?
     public private(set) var streamingAssistantText: String?
 
@@ -61,7 +64,11 @@ public final class OpenClawChatViewModel {
 
     private(set) var timelineRevision: UInt64 = 0
     /// Setter is module-internal for the transcript-cache extension only.
-    public internal(set) var sessions: [OpenClawChatSessionEntry] = []
+    public internal(set) var sessions: [OpenClawChatSessionEntry] = [] {
+        didSet { self.syncContextUsageFraction() }
+    }
+
+    public internal(set) var contextUsageFraction: Double?
     /// True while the visible transcript came from the offline cache and no
     /// live history response has replaced it yet (possibly stale).
     public internal(set) var isShowingCachedTranscript = false
@@ -114,7 +121,10 @@ public final class OpenClawChatViewModel {
     var pendingCacheWriteTask: Task<Void, Never>?
     private(set) var activeAgentId: String?
     private(set) var sessionRoutingContract: String?
-    var sessionDefaults: OpenClawChatSessionsDefaults?
+    var sessionDefaults: OpenClawChatSessionsDefaults? {
+        didSet { self.syncContextUsageFraction() }
+    }
+
     private let prefersExplicitThinkingLevel: Bool
     private let onSessionChanged: (@MainActor (String) -> Void)?
     private let onThinkingLevelChanged: (@MainActor @Sendable (String) -> Void)?
@@ -1222,7 +1232,7 @@ public final class OpenClawChatViewModel {
                 fileName: att.fileName,
                 content: att.data.base64EncodedString())
         }
-        for att in encodedAttachments {
+        for (attachment, att) in zip(draftAttachments, encodedAttachments) {
             userContent.append(
                 OpenClawChatMessageContent(
                     type: att.type,
@@ -1231,6 +1241,7 @@ public final class OpenClawChatViewModel {
                     thinkingSignature: nil,
                     mimeType: att.mimeType,
                     fileName: att.fileName,
+                    durationSeconds: attachment.durationSeconds,
                     content: AnyCodable(att.content),
                     id: nil,
                     name: nil,
@@ -1810,6 +1821,7 @@ public final class OpenClawChatViewModel {
             inputTokens: current.inputTokens,
             outputTokens: current.outputTokens,
             totalTokens: current.totalTokens,
+            totalTokensFresh: current.totalTokensFresh,
             modelProvider: current.modelProvider,
             model: current.model,
             contextTokens: current.contextTokens,
@@ -1856,6 +1868,7 @@ public final class OpenClawChatViewModel {
                 inputTokens: current.inputTokens,
                 outputTokens: current.outputTokens,
                 totalTokens: current.totalTokens,
+                totalTokensFresh: current.totalTokensFresh,
                 modelProvider: modelProvider,
                 model: modelID,
                 contextTokens: current.contextTokens,
@@ -1889,6 +1902,7 @@ public final class OpenClawChatViewModel {
                     inputTokens: placeholder.inputTokens,
                     outputTokens: placeholder.outputTokens,
                     totalTokens: placeholder.totalTokens,
+                    totalTokensFresh: placeholder.totalTokensFresh,
                     modelProvider: modelProvider,
                     model: modelID,
                     contextTokens: placeholder.contextTokens))
