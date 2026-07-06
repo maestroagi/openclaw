@@ -239,6 +239,14 @@ describeControlUiE2e("Control UI mocked Gateway E2E", () => {
       await gateway.emitChatFinal({ runId, text: "Harness verified." });
 
       await page.getByText("Harness verified.").waitFor({ timeout: 10_000 });
+
+      const spacedPairCommand = "/ pair qr";
+      await page.locator(".agent-chat__composer-combobox textarea").fill(spacedPairCommand);
+      await page.getByRole("button", { name: "Send message" }).click();
+
+      const commandRequests = await waitForRequests(gateway, "chat.send", 2);
+      const commandParams = requireRecord(commandRequests[1]?.params);
+      expect(commandParams.message).toBe(spacedPairCommand);
     } finally {
       await closeBrowserContext(context);
     }
@@ -356,6 +364,56 @@ describeControlUiE2e("Control UI mocked Gateway E2E", () => {
 
       await page.keyboard.press("Escape");
       await expect.poll(() => popover.isHidden()).toBe(true);
+    } finally {
+      await closeBrowserContext(context);
+    }
+  });
+
+  it("keeps stale context visible as approximate without warning or compaction", async () => {
+    const context = await newBrowserContext({
+      locale: "en-US",
+      serviceWorkers: "block",
+      viewport: { height: 900, width: 1280 },
+    });
+    const page = await context.newPage();
+    await installMockGateway(page, {
+      methodResponses: {
+        "sessions.list": {
+          count: 1,
+          defaults: { contextTokens: 200_000, model: "gpt-5.5", modelProvider: "openai" },
+          path: "",
+          sessions: [
+            {
+              contextTokens: 200_000,
+              key: "main",
+              kind: "direct",
+              totalTokens: 190_000,
+              totalTokensFresh: false,
+              updatedAt: Date.now(),
+            },
+          ],
+          ts: Date.now(),
+        },
+      },
+    });
+
+    try {
+      await page.goto(`${server.baseUrl}chat`);
+      const trigger = page.locator("summary.context-ring");
+      await trigger.waitFor({ timeout: 10_000 });
+      expect((await trigger.textContent())?.trim()).toBe("~95%");
+      expect(await trigger.getAttribute("aria-label")).toBe(
+        "Session context usage: ~190k of 200k (~95%)",
+      );
+      expect(
+        await trigger.evaluate((element) => element.classList.contains("context-ring--warning")),
+      ).toBe(false);
+
+      await trigger.click();
+      await expect
+        .poll(() => page.locator(".context-usage__popover").textContent())
+        .toContain("~190k / 200k · ~95%");
+      expect(await page.locator(".context-ring__action").count()).toBe(0);
     } finally {
       await closeBrowserContext(context);
     }
@@ -1498,6 +1556,74 @@ describeControlUiE2e("Control UI mocked Gateway E2E", () => {
 
       await page.getByText("Recovered from refreshed history.").waitFor({ timeout: 15_000 });
       expect(await page.locator(".chat-queue").count()).toBe(0);
+    } finally {
+      await closeBrowserContext(context);
+    }
+  });
+
+  it("keeps live assistant stream text before the matching tool card", async () => {
+    const context = await newBrowserContext({
+      locale: "en-US",
+      serviceWorkers: "block",
+      viewport: { height: 900, width: 1280 },
+    });
+    const page = await context.newPage();
+    const gateway = await installMockGateway(page);
+
+    try {
+      await page.goto(`${server.baseUrl}chat`);
+
+      const prompt = "stream before tool";
+      await page.locator(".agent-chat__composer-combobox textarea").fill(prompt);
+      await page.getByRole("button", { name: "Send message" }).click();
+
+      const sendRequest = await gateway.waitForRequest("chat.send");
+      const params = requireRecord(sendRequest.params);
+      const runId = requireString(params.idempotencyKey, "chat send idempotency key");
+
+      await gateway.emitGatewayEvent("chat", {
+        deltaText: "I will inspect the file.",
+        message: {
+          content: [{ text: "I will inspect the file.", type: "text" }],
+          role: "assistant",
+          timestamp: Date.now(),
+        },
+        runId,
+        sessionKey: "main",
+        state: "delta",
+      });
+      await page.getByText("I will inspect the file.").waitFor({ timeout: 10_000 });
+
+      await gateway.emitGatewayEvent("agent", {
+        data: {
+          name: "read",
+          phase: "result",
+          result: "file contents",
+          toolCallId: "call-read",
+        },
+        runId,
+        seq: 1,
+        sessionKey: "main",
+        stream: "tool",
+        ts: Date.now() - 10_000,
+      });
+      const toolBubble = page.locator('[data-message-id^="tool:assistant:call-read"]');
+      await toolBubble.waitFor({ timeout: 10_000 });
+
+      const visibleOrder = await page.locator(".chat-thread").evaluate((thread: Element) => {
+        return Array.from(thread.querySelectorAll(".chat-group")).flatMap((group: Element) => {
+          const text = group.textContent ?? "";
+          if (text.includes("I will inspect the file.")) {
+            return ["assistant stream"];
+          }
+          if (group.querySelector('[data-message-id^="tool:assistant:call-read"]')) {
+            return ["tool card"];
+          }
+          return [];
+        });
+      });
+
+      expect(visibleOrder).toEqual(["assistant stream", "tool card"]);
     } finally {
       await closeBrowserContext(context);
     }
