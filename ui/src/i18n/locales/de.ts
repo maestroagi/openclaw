@@ -1591,9 +1591,19 @@ export const de: TranslationMap = {
     updateNow: "Jetzt aktualisieren",
     dismissUpdateBanner: "Update-Banner ausblenden",
     switchedSession: "Zu {session} gewechselt",
+    splitView: {
+      open: "Geteilte Ansicht öffnen",
+      splitRight: "Nach rechts teilen",
+      splitDown: "Nach unten teilen",
+      closePane: "Bereich schließen",
+      sessionSelect: "Bereichssitzung",
+    },
     sidebar: {
       allSessions: "Alle Sitzungen",
       openSessionMenu: "Open session menu",
+      sortCreated: "Erstellt",
+      sortSessions: "Sitzungen sortieren",
+      sortUpdated: "Zuletzt aktualisiert",
       sessionMenu: "Actions for {session}",
     },
     welcome: {

@@ -1592,9 +1592,19 @@ export const ru: TranslationMap = {
     updateNow: "Обновить сейчас",
     dismissUpdateBanner: "Скрыть баннер обновления",
     switchedSession: "Переключено на {session}",
+    splitView: {
+      open: "Открыть разделенный вид",
+      splitRight: "Разделить вправо",
+      splitDown: "Разделить вниз",
+      closePane: "Закрыть панель",
+      sessionSelect: "Сессия панели",
+    },
     sidebar: {
       allSessions: "Все сеансы",
       openSessionMenu: "Open session menu",
+      sortCreated: "Создано",
+      sortSessions: "Сортировать сеансы",
+      sortUpdated: "Последнее обновление",
       sessionMenu: "Actions for {session}",
     },
     welcome: {
