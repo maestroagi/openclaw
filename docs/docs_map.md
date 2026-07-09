@@ -3583,6 +3583,7 @@ Do not edit it by hand; run `pnpm docs:map:gen`.
   - H2: Node event trust boundaries (2026.3.31+)
   - H2: Auto-approval (macOS app)
   - H2: Trusted-CIDR device auto-approval
+  - H2: Silent pairing supersede cleanup
   - H2: Metadata-upgrade auto-approval
   - H2: QR pairing helpers
   - H2: Locality and forwarded headers
@@ -4942,6 +4943,7 @@ Do not edit it by hand; run `pnpm docs:map:gen`.
   - H2: What it does
   - H2: Requirements
   - H2: Quick start (pair + connect)
+  - H2: Optional direct Apple Watch node
   - H2: Relay-backed push for official builds
   - H2: Background alive beacons
   - H2: Authentication and trust flow
@@ -5184,6 +5186,7 @@ Do not edit it by hand; run `pnpm docs:map:gen`.
 - Headings:
   - H2: Download
   - H2: First run
+  - H2: Open dashboard links
   - H2: Choose a Gateway mode
   - H2: What the app owns
   - H2: macOS detail pages
