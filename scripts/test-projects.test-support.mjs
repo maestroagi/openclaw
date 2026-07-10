@@ -565,10 +565,6 @@ const GITHUB_WORKFLOW_OWNER_TEST_TARGETS = new Map([
     ],
   ],
   [
-    ".github/workflows/openclaw-shared-image-publish-reusable.yml",
-    ["test/scripts/release-no-push-workflow.test.ts"],
-  ],
-  [
     ".github/workflows/openclaw-npm-release.yml",
     [
       "test/openclaw-npm-postpublish-verify.test.ts",
@@ -1225,6 +1221,7 @@ const TOOLING_SOURCE_TEST_TARGETS = new Map([
   ["scripts/lib/local-heavy-check-runtime.mjs", ["test/scripts/local-heavy-check-runtime.test.ts"]],
   ["scripts/lib/kova-report-gate.mjs", ["test/scripts/kova-report-gate.test.ts"]],
   ["scripts/lib/kova-report-publish-files.mjs", ["test/scripts/kova-report-publish-files.test.ts"]],
+  ["scripts/lib/kova-report-selector.mjs", ["test/scripts/kova-report-selector.test.ts"]],
   ["scripts/lib/kova-workflow-evidence.mjs", ["test/scripts/kova-workflow-evidence.test.ts"]],
   ["scripts/lib/managed-child-process.mjs", ["test/scripts/managed-child-process.test.ts"]],
   [
