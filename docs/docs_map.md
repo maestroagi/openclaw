@@ -2715,13 +2715,14 @@ Do not edit it by hand; run `pnpm docs:map:gen`.
   - H2: Producers (where presence comes from)
   - H3: 1) Gateway self entry
   - H3: 2) WebSocket connect
-  - H4: Why one-off CLI commands do not show up
+  - H4: Why ephemeral control-plane connections do not show up
   - H3: 3) system-event beacons
   - H3: 4) Node connects (role: node)
   - H2: Merge + dedupe rules (why instanceId matters)
   - H2: TTL and bounded size
   - H2: Remote/tunnel caveat (loopback IPs)
   - H2: Consumers
+  - H3: Control UI Devices page
   - H3: macOS Instances tab
   - H2: Debugging tips
   - H2: Related
@@ -3666,6 +3667,7 @@ Do not edit it by hand; run `pnpm docs:map:gen`.
 - Headings:
   - H2: Transport and framing
   - H2: Handshake
+  - H3: Worker role and closed protocol
   - H3: Client capabilities
   - H3: Node connect example
   - H2: Roles and scopes
