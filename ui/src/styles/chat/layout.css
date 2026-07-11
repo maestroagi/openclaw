@@ -208,7 +208,7 @@ openclaw-chat-page {
   border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--popover) 96%, var(--card));
   color: var(--popover-foreground);
-  box-shadow: 0 20px 56px rgba(0, 0, 0, 0.28);
+  box-shadow: var(--shadow-lg);
   animation: fade-in 150ms var(--ease-out);
 }
 
@@ -1623,7 +1623,7 @@ openclaw-chat-page {
   border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--bg-elevated) 94%, var(--card));
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.22);
+  box-shadow: var(--shadow-lg);
   overflow-y: auto;
 }
 
@@ -2256,7 +2256,7 @@ openclaw-chat-page {
   border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--bg-elevated) 96%, var(--card));
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-md);
   overflow-y: auto;
 }
 
@@ -3411,7 +3411,7 @@ openclaw-chat-page {
   border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--bg-elevated) 96%, var(--card));
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-md);
   overflow-y: auto;
 }
 
@@ -3465,6 +3465,37 @@ openclaw-chat-page {
   max-height: 220px;
   flex: 1 1 220px;
   overflow: hidden;
+}
+
+.chat-controls__locked-model {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--card) 78%, transparent);
+}
+
+.chat-controls__locked-model-value {
+  overflow: hidden;
+  flex: 1 1 auto;
+  color: var(--text-strong);
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-controls__locked-model-badge {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: var(--radius-full);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .chat-controls__provider-list {
