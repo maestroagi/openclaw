@@ -14,9 +14,11 @@ import { t } from "../../i18n/index.ts";
 import { searchForSession } from "../../lib/sessions/index.ts";
 import { buildAgentMainSessionKey, normalizeAgentId } from "../../lib/sessions/session-key.ts";
 import { normalizeOptionalString } from "../../lib/string-coerce.ts";
+import { generateUUID } from "../../lib/uuid.ts";
 import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import { renderWelcomeState } from "../chat/components/chat-welcome.ts";
+import { admitStoredChatComposerQueueItem } from "../chat/composer-persistence.ts";
 import { buildDraftSessionCreateParams } from "./create-params.ts";
 
 type NewSessionRouteData = { agentId?: string };
@@ -289,13 +291,14 @@ class NewSessionPage extends OpenClawLightDomElement {
     if (!context || !this.canSubmit()) {
       return;
     }
+    const message = this.message.trim();
     this.submitting = true;
     this.error = null;
     try {
-      const key = await context.sessions.create(
+      const result = await context.sessions.createResult(
         buildDraftSessionCreateParams({
           agentId: this.agentId,
-          message: this.message.trim(),
+          message,
           worktree: this.worktree,
           baseRef: this.baseRef,
           worktreeName: this.worktreeName,
@@ -304,12 +307,42 @@ class NewSessionPage extends OpenClawLightDomElement {
           execNode: this.execNode,
         }),
       );
-      if (!key) {
+      if (!result) {
         this.error = context.sessions.state.error ?? t("newSession.createFailed");
         return;
       }
-      context.gateway.setSessionKey(key);
-      context.navigate("chat", { search: searchForSession(key) });
+      if (result.initialRun.status === "rejected") {
+        const gateway = context.gateway.snapshot;
+        const persisted = admitStoredChatComposerQueueItem(
+          {
+            settings: loadSettings(),
+            assistantAgentId: gateway.assistantAgentId,
+            agentsList: context.agents.state.agentsList,
+            hello: gateway.hello,
+          },
+          result.key,
+          {
+            id: generateUUID(),
+            text: message,
+            createdAt: Date.now(),
+            kind: "queued",
+            refreshSessions: true,
+            sendAttempts: 1,
+            sendError: result.initialRun.error,
+            sendState: "failed",
+            sessionKey: result.key,
+            agentId: normalizeAgentId(this.agentId),
+          },
+        );
+        if (!persisted) {
+          // Stay on the draft when browser storage is unavailable: preserving
+          // the typed task takes priority over navigating to the partial session.
+          this.error = result.initialRun.error;
+          return;
+        }
+      }
+      context.gateway.setSessionKey(result.key);
+      context.navigate("chat", { search: searchForSession(result.key) });
     } finally {
       this.submitting = false;
     }
@@ -647,62 +680,64 @@ class NewSessionPage extends OpenClawLightDomElement {
               `
             : nothing}
         </label>
-        <label
-          class="new-session-page__target new-session-page__target--toggle"
-          title=${worktreeAvailable
-            ? t("chat.runControls.newSessionWorktree")
-            : t("newSession.worktreeUnavailable")}
-        >
-          <input
-            type="checkbox"
-            .checked=${this.worktree}
-            ?disabled=${!worktreeAvailable || customFolder}
-            @change=${(event: Event) => {
-              this.worktree = (event.target as HTMLInputElement).checked;
-              if (this.worktree) {
-                this.maybeLoadBranches();
-              }
-            }}
-          />
-          <span class="new-session-page__target-icon" aria-hidden="true">${icons.gitBranch}</span>
-          <span>${t("newSession.worktree")}</span>
-        </label>
-        ${this.worktree
-          ? html`
-              <label class="new-session-page__target" title=${t("newSession.baseBranch")}>
-                <input
-                  type="text"
-                  list="new-session-branches"
-                  class="new-session-page__branch"
-                  aria-label=${t("newSession.baseBranch")}
-                  placeholder=${this.branchesLoading
-                    ? t("common.loading")
-                    : (branches?.defaultBranch ?? t("newSession.baseBranch"))}
-                  .value=${this.baseRef}
-                  @input=${(event: Event) => {
-                    this.baseRef = (event.target as HTMLInputElement).value.trim();
-                  }}
-                />
-                <datalist id="new-session-branches">
-                  ${(branches?.branches ?? []).map(
-                    (branch) => html`<option value=${branch.name}></option>`,
-                  )}
-                </datalist>
-              </label>
-              <label class="new-session-page__target" title=${t("newSession.worktreeName")}>
-                <input
-                  type="text"
-                  class="new-session-page__branch"
-                  aria-label=${t("newSession.worktreeName")}
-                  placeholder=${t("newSession.worktreeNamePlaceholder")}
-                  .value=${this.worktreeName}
-                  @input=${(event: Event) => {
-                    this.worktreeName = (event.target as HTMLInputElement).value.trim();
-                  }}
-                />
-              </label>
-            `
-          : nothing}
+        <div class="new-session-page__target-group">
+          <label
+            class="new-session-page__target new-session-page__target--toggle"
+            title=${worktreeAvailable
+              ? t("chat.runControls.newSessionWorktree")
+              : t("newSession.worktreeUnavailable")}
+          >
+            <input
+              type="checkbox"
+              .checked=${this.worktree}
+              ?disabled=${!worktreeAvailable || customFolder}
+              @change=${(event: Event) => {
+                this.worktree = (event.target as HTMLInputElement).checked;
+                if (this.worktree) {
+                  this.maybeLoadBranches();
+                }
+              }}
+            />
+            <span class="new-session-page__target-icon" aria-hidden="true">${icons.gitBranch}</span>
+            <span>${t("newSession.worktree")}</span>
+          </label>
+          ${this.worktree
+            ? html`
+                <label class="new-session-page__target" title=${t("newSession.baseBranch")}>
+                  <input
+                    type="text"
+                    list="new-session-branches"
+                    class="new-session-page__branch"
+                    aria-label=${t("newSession.baseBranch")}
+                    placeholder=${this.branchesLoading
+                      ? t("common.loading")
+                      : (branches?.defaultBranch ?? t("newSession.baseBranch"))}
+                    .value=${this.baseRef}
+                    @input=${(event: Event) => {
+                      this.baseRef = (event.target as HTMLInputElement).value.trim();
+                    }}
+                  />
+                  <datalist id="new-session-branches">
+                    ${(branches?.branches ?? []).map(
+                      (branch) => html`<option value=${branch.name}></option>`,
+                    )}
+                  </datalist>
+                </label>
+                <label class="new-session-page__target" title=${t("newSession.worktreeName")}>
+                  <input
+                    type="text"
+                    class="new-session-page__branch"
+                    aria-label=${t("newSession.worktreeName")}
+                    placeholder=${t("newSession.worktreeNamePlaceholder")}
+                    .value=${this.worktreeName}
+                    @input=${(event: Event) => {
+                      this.worktreeName = (event.target as HTMLInputElement).value.trim();
+                    }}
+                  />
+                </label>
+              `
+            : nothing}
+        </div>
       </div>
     `;
   }
