@@ -190,6 +190,7 @@
 }
 
 .chat-main {
+  /* Positioning context for floating overlays (scroll-to-bottom, side chat). */
   position: relative;
   min-width: 312px;
   display: flex;
@@ -871,6 +872,13 @@
 
 .chat-tasks-rail__task-sep {
   opacity: 0.6;
+}
+
+/* Currently running tool name: lifted from the muted meta line so live
+   activity is scannable without reading the whole row. */
+.chat-tasks-rail__task-tool {
+  color: var(--text);
+  font-weight: 550;
 }
 
 .chat-tasks-rail__task-detail {
