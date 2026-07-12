@@ -521,14 +521,14 @@ describe("release Telegram QA workflow", () => {
       (step) => step.name === "Validate required QA credential env",
     );
     expect(validateStep?.env?.RUNNER_ENVIRONMENT).toBe("${{ runner.environment }}");
-    expect(validateStep?.env?.CREDENTIAL_ACQUIRE_TIMEOUT_MS).toBe("60000");
+    expect(validateStep?.env?.CREDENTIAL_ACQUIRE_TIMEOUT_MS).toBe("600000");
     expect(validateStep?.env?.JOB_TIMEOUT_MINUTES).toBe("60");
     expect(validateStep?.env?.LEASE_TTL_MS).toBe("7200000");
     expect(validateStep?.run).toContain('[[ "$RUNNER_ENVIRONMENT" == "github-hosted" ]]');
     expect(validateStep?.run).toContain("JOB_TIMEOUT_MINUTES * 60 * 1000 < LEASE_TTL_MS");
 
     const runStep = job?.steps?.find((step) => step.name === "Run Telegram live lane");
-    expect(runStep?.env?.OPENCLAW_QA_CREDENTIAL_ACQUIRE_TIMEOUT_MS).toBe("60000");
+    expect(runStep?.env?.OPENCLAW_QA_CREDENTIAL_ACQUIRE_TIMEOUT_MS).toBe("600000");
     expect(runStep?.env?.OPENCLAW_QA_CREDENTIAL_LEASE_TTL_MS).toBe("7200000");
     expect(runStep?.env?.OPENCLAW_LOG_LEVEL).toBe("trace");
     expect(runStep?.env?.OPENCLAW_QA_TELEGRAM_SUT_CLEANUP_TIMEOUT_MS).toBe("60000");
@@ -565,6 +565,10 @@ describe("release Telegram QA workflow", () => {
     expect(captureStep?.if).toContain("steps.terminate_sut.outputs.quiescent == 'true'");
     expect(captureStep?.env?.OUTPUT_DIR).toBe("${{ steps.run_lane.outputs.output_dir }}");
     expect(captureStep?.env?.RUNTIME_ROOT).toBe("${{ steps.create_sut.outputs.runtime_root }}");
+    expect(captureStep?.env?.RUN_LANE_OUTCOME).toBe("${{ steps.run_lane.outcome }}");
+    expect(captureStep?.run).toContain('[[ "$RUN_LANE_OUTCOME" != "success" ]]');
+    expect(captureStep?.run).toContain("((${#gateway_logs[@]} > 0))");
+    expect(captureStep?.run).toContain("((${#model_config_proofs[@]} > 0))");
     expect(captureStep?.run).toContain("-name 'openclaw-*.log'");
     expect(captureStep?.run).toContain(
       'trusted_temp_root="$(mktemp -d "${RUNNER_TEMP}/openclaw-telegram-diagnostics.XXXXXX")"',
