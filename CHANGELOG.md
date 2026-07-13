@@ -29,6 +29,7 @@ Docs: https://docs.openclaw.ai
 - **Control UI sidebar usage:** remove the provider usage quota row from the expanded sidebar while keeping usage details available in the chat composer and Usage page. Thanks @shakkernerd.
 - **Android chat code highlighting:** render fenced Kotlin, Swift, TypeScript, JavaScript, Python, Bash, and JSON blocks with bounded, theme-aware syntax colors while preserving plain rendering for unknown, partial, or oversized blocks. (#100217)
 - **Gateway TTS playback:** add an operator-scoped `tts.speak` RPC that returns configured-provider speech as inline whole-clip audio for remote clients. (#100708, #100770)
+- **Workboard dispatch cap:** add a request-scoped `--max-starts` override while preserving the default cap, sequential starts, and one-card-per-owner guard. (#100174) Thanks @souvikDevloper.
 
 ### Fixes
 
@@ -49,6 +50,7 @@ Docs: https://docs.openclaw.ai
 - **Gateway command SecretRefs:** preserve authoritative active-snapshot values when another command secret remains unresolved, falling back locally only for missing paths instead of emitting a per-turn `secrets.resolve` failure. (#96661) Thanks @SunnyShu0925.
 - **Cron delivery status:** keep successful isolated agent turns at `status=ok` when downstream delivery fails, while preserving the send failure separately in delivery state and run logs. (#95419) Thanks @Alix-007.
 - **Channel ingress recovery:** tombstone and scrub malformed durable ingress payloads without letting corrupt rows hide or starve later valid messages. (#98402) Thanks @Pick-cat.
+- **Discord thread archive defaults:** inherit each parent channel's configured auto-archive duration for binding-created threads instead of forcing 60 minutes, while preserving explicit overrides. (#103413) Thanks @wings1029.
 - **Installed plugin loading:** make native-module fallback use jiti's transform path instead of retrying the same synchronous ESM load, preventing Node 24 startup races when official plugins import SDK contract modules.
 - **QA profile channel execution:** partition mixed Crabline channel scenarios into one aggregate host suite so taxonomy-backed profile commands and evidence workflows no longer abort before execution.
 - **Plugin SDK API baseline:** cover every public entrypoint, preserve complete declaration shapes without source-line churn, and run baseline and export-surface guards from changed-file validation.
