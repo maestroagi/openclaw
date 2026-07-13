@@ -27,6 +27,25 @@
   overflow: hidden;
 }
 
+.shell-skip-link {
+  position: fixed;
+  top: 8px;
+  left: 50%;
+  z-index: 250;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--shadow-md), var(--focus-ring);
+  text-decoration: none;
+  transform: translate(-50%, -160%);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.shell-skip-link:focus {
+  transform: translate(-50%, 0);
+}
+
 @supports (height: 100dvh) {
   .shell {
     height: 100dvh;
@@ -1208,6 +1227,24 @@ html.openclaw-native-web-chrome .sidebar-brand__collapse {
   margin-top: 10px;
 }
 
+.sidebar-session-error {
+  flex: 0 0 auto;
+  padding: 8px 10px;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.sidebar-session-error .callout__content {
+  max-height: 72px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+
+.sidebar-session-error .callout__dismiss {
+  width: 22px;
+  height: 22px;
+}
+
 /* min-height: 0 down this chain lets the recent list shrink and scroll instead
    of pushing the sidebar footer out of view. */
 .sidebar-recent-sessions {
@@ -2143,6 +2180,26 @@ openclaw-session-menu[popover] {
   margin-left: auto;
   width: 6px;
   height: 6px;
+}
+
+.sidebar-agent-menu__agent-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.sidebar-agent-menu__agent-switch {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.sidebar-agent-menu__new {
+  margin-inline-end: 4px;
+}
+
+.sidebar-agent-menu__new:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
 }
 
 /* The docs row is the menu's only real hyperlink; keep it looking like a row. */
