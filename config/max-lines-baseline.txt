@@ -477,7 +477,6 @@ src/agents/embedded-agent-runner/run.incomplete-turn.test.ts
 src/agents/embedded-agent-runner/run.overflow-compaction.harness.ts
 src/agents/embedded-agent-runner/run.overflow-compaction.loop.test.ts
 src/agents/embedded-agent-runner/run.overflow-compaction.test.ts
-src/agents/embedded-agent-runner/run.ts
 src/agents/embedded-agent-runner/run/attempt.model-diagnostic-events.test.ts
 src/agents/embedded-agent-runner/run/attempt.model-diagnostic-events.ts
 src/agents/embedded-agent-runner/run/attempt.session-lock.test.ts
@@ -1050,7 +1049,6 @@ src/plugins/install-security-scan.runtime.ts
 src/plugins/install.npm-spec.e2e.test.ts
 src/plugins/install.npm-spec.test.ts
 src/plugins/install.test.ts
-src/plugins/install.ts
 src/plugins/installed-plugin-index.test.ts
 src/plugins/loader.activation.test-utils.ts
 src/plugins/loader.base.test-utils.ts
