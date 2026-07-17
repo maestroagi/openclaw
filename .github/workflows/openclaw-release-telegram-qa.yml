@@ -304,11 +304,23 @@ jobs:
 
           candidate_sha="$(git -C .candidate rev-parse HEAD)"
           [[ "$candidate_sha" == "$TARGET_SHA" ]]
+          repository_owner="${GITHUB_REPOSITORY%%/*}"
+          repository_name="${GITHUB_REPOSITORY#*/}"
+          candidate_metadata_json="$(
+            gh_with_retry api graphql \
+              -f query='query($owner:String!,$name:String!,$oid:GitObjectID!){repository(owner:$owner,name:$name){object(oid:$oid){... on Commit{oid signature{isValid state signer{login}} associatedPullRequests(first:100){nodes{state headRefOid headRepository{nameWithOwner} baseRefName baseRepository{nameWithOwner} mergeCommit{oid} mergedBy{login}}}}}}}' \
+              -f owner="$repository_owner" \
+              -f name="$repository_name" \
+              -f oid="$candidate_sha"
+          )"
           pr_head_count="$(
-            gh_with_retry api \
-              -H "Accept: application/vnd.github+json" \
-              "repos/${GITHUB_REPOSITORY}/commits/${candidate_sha}/pulls" \
-              --jq '[.[] | select(.state == "open" and .head.repo.full_name == "'"${GITHUB_REPOSITORY}"'" and .head.sha == "'"${candidate_sha}"'")] | length'
+            jq -er \
+              --arg repo "$GITHUB_REPOSITORY" \
+              --arg sha "$candidate_sha" \
+              '[.data.repository.object.associatedPullRequests.nodes[] |
+                select(.state == "OPEN" and .headRepository.nameWithOwner == $repo and
+                  .headRefOid == $sha)] | length' \
+              <<<"$candidate_metadata_json"
           )"
           if [[ "$pr_head_count" != "0" ]]; then
             echo "Telegram candidate ${candidate_sha} is an open same-repository PR head." >&2
@@ -373,15 +385,7 @@ jobs:
           fi
 
           if [[ "$trusted_reason" != "main-ancestor" ]]; then
-            repository_owner="${GITHUB_REPOSITORY%%/*}"
-            repository_name="${GITHUB_REPOSITORY#*/}"
-            signature_json="$(
-              gh_with_retry api graphql \
-                -f query='query($owner:String!,$name:String!,$oid:GitObjectID!){repository(owner:$owner,name:$name){object(oid:$oid){... on Commit{oid signature{isValid state signer{login}} associatedPullRequests(first:10){nodes{state baseRefName baseRepository{nameWithOwner} mergeCommit{oid} mergedBy{login}}}}}}}' \
-                -f owner="$repository_owner" \
-                -f name="$repository_name" \
-                -f oid="$candidate_sha"
-            )"
+            signature_json="$candidate_metadata_json"
             signature_status="$(
               jq -er \
                 --arg sha "$candidate_sha" \
@@ -1039,11 +1043,23 @@ jobs:
           }
 
           candidate_sha="$TARGET_SHA"
+          repository_owner="${GITHUB_REPOSITORY%%/*}"
+          repository_name="${GITHUB_REPOSITORY#*/}"
+          candidate_metadata_json="$(
+            gh_with_retry api graphql \
+              -f query='query($owner:String!,$name:String!,$oid:GitObjectID!){repository(owner:$owner,name:$name){object(oid:$oid){... on Commit{oid signature{isValid state signer{login}} associatedPullRequests(first:100){nodes{state headRefOid headRepository{nameWithOwner} baseRefName baseRepository{nameWithOwner} mergeCommit{oid} mergedBy{login}}}}}}}' \
+              -f owner="$repository_owner" \
+              -f name="$repository_name" \
+              -f oid="$candidate_sha"
+          )"
           pr_head_count="$(
-            gh_with_retry api \
-              -H "Accept: application/vnd.github+json" \
-              "repos/${GITHUB_REPOSITORY}/commits/${candidate_sha}/pulls" \
-              --jq '[.[] | select(.state == "open" and .head.repo.full_name == "'"${GITHUB_REPOSITORY}"'" and .head.sha == "'"${candidate_sha}"'")] | length'
+            jq -er \
+              --arg repo "$GITHUB_REPOSITORY" \
+              --arg sha "$candidate_sha" \
+              '[.data.repository.object.associatedPullRequests.nodes[] |
+                select(.state == "OPEN" and .headRepository.nameWithOwner == $repo and
+                  .headRefOid == $sha)] | length' \
+              <<<"$candidate_metadata_json"
           )"
           [[ "$pr_head_count" == "0" ]]
 
@@ -1101,15 +1117,7 @@ jobs:
           [[ -n "$trusted_reason" ]]
 
           if [[ "$trusted_reason" != "main-ancestor" ]]; then
-            repository_owner="${GITHUB_REPOSITORY%%/*}"
-            repository_name="${GITHUB_REPOSITORY#*/}"
-            signature_json="$(
-              gh_with_retry api graphql \
-                -f query='query($owner:String!,$name:String!,$oid:GitObjectID!){repository(owner:$owner,name:$name){object(oid:$oid){... on Commit{oid signature{isValid state signer{login}} associatedPullRequests(first:10){nodes{state baseRefName baseRepository{nameWithOwner} mergeCommit{oid} mergedBy{login}}}}}}}' \
-                -f owner="$repository_owner" \
-                -f name="$repository_name" \
-                -f oid="$candidate_sha"
-            )"
+            signature_json="$candidate_metadata_json"
             signature_status="$(
               jq -er \
                 --arg sha "$candidate_sha" \
