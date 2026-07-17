@@ -59,6 +59,7 @@ import {
   renderMicrophoneActivity,
   voiceStatusLabel,
 } from "./chat-voice-activity.ts";
+import "./chat-question-card.ts";
 
 const COMPACTION_TOAST_DURATION_MS = 5000;
 const FALLBACK_TOAST_DURATION_MS = 8000;
@@ -91,6 +92,7 @@ type ChatComposerProps = {
   compactionStatus?: CompactionStatus | null;
   fallbackStatus?: FallbackStatus | null;
   planStatus?: PlanStatus | null;
+  questionStatus?: import("../tool-stream.ts").QuestionStatus | null;
   messages: unknown[];
   stream: string | null;
   queue: ChatQueueItem[];
@@ -108,6 +110,7 @@ type ChatComposerProps = {
   realtimeTalkDetail?: string | null;
   realtimeTalkInputLevel?: RealtimeTalkLevelSignal;
   realtimeTalkConversation?: RealtimeTalkConversationEntry[];
+  realtimeTalkVideoStream?: MediaStream | null;
   composerControls?: TemplateResult | typeof nothing;
   getDraft?: () => string;
   onDraftChange: (next: string) => void;
@@ -117,6 +120,7 @@ type ChatComposerProps = {
   onSend: () => void;
   onCompact?: () => void | Promise<void>;
   onToggleRealtimeTalk?: () => void;
+  onToggleRealtimeVideo?: () => void;
   onDismissRealtimeTalkError?: () => void;
   onAbort?: () => void;
   onQueueRemove: (id: string) => void;
@@ -126,6 +130,11 @@ type ChatComposerProps = {
   onClearReply?: () => void;
   onAttachmentsChange?: (attachments: ChatAttachment[]) => void;
   onGoalCommand?: (command: string) => void;
+  onQuestionSubmit?: (
+    actionToken: string,
+    answers: Record<string, string>,
+    onRejected: () => void,
+  ) => void;
 };
 
 type PendingClearedSubmittedDraft = {
@@ -1686,6 +1695,7 @@ type ChatRunControlsProps = {
   onSend: () => void;
   onStoreDraft: (draft: string) => void;
   onToggleVoice?: () => void;
+  onToggleVideo?: () => void;
   showPrimary?: boolean;
   showSecondary?: boolean;
 };
@@ -1833,6 +1843,23 @@ function renderChatPrimaryActions(props: ChatRunControlsProps) {
                   >
                 </button>
               </openclaw-tooltip>
+              ${props.onToggleVideo
+                ? html`
+                    <openclaw-tooltip .content=${t("chat.composer.startVideoTalk")}>
+                      <button
+                        class="chat-send-btn chat-send-btn--voice"
+                        @click=${props.onToggleVideo}
+                        ?disabled=${!props.connected || props.sending || props.isBusy}
+                        aria-label=${t("chat.composer.startVideoTalk")}
+                      >
+                        ${icons.camera}
+                        <span class="agent-chat__control-label"
+                          >${t("chat.composer.startVideoTalk")}</span
+                        >
+                      </button>
+                    </openclaw-tooltip>
+                  `
+                : nothing}
             `}
   `;
 }
@@ -2155,6 +2182,7 @@ export function renderChatComposer(props: ChatComposerProps) {
     onSend: handleSend,
     onStoreDraft: () => {},
     onToggleVoice: props.onToggleRealtimeTalk ? handleVoicePrimaryAction : undefined,
+    onToggleVideo: props.onToggleRealtimeVideo,
   };
   const slashMenuVisible = props.connected && canCompose && isSlashMenuVisible(state);
   const activeSlashMenuOptionId = getActiveSlashMenuOptionId(state, props.paneId);
@@ -2203,6 +2231,20 @@ export function renderChatComposer(props: ChatComposerProps) {
             `
           : nothing}
         <div class="agent-chat__composer-status-stack">
+          ${props.questionStatus
+            ? html`<openclaw-chat-question
+                .props=${{
+                  status: props.questionStatus,
+                  disabled: !props.connected,
+                  onSubmit: (answers: Record<string, string>, onRejected: () => void) =>
+                    props.onQuestionSubmit?.(
+                      props.questionStatus!.actionToken,
+                      answers,
+                      onRejected,
+                    ),
+                }}
+              ></openclaw-chat-question>`
+            : nothing}
           ${renderChatPlanChecklist(props.planStatus, {
             active: showAbortableUi,
             variant: "bar",
@@ -2227,6 +2269,23 @@ export function renderChatComposer(props: ChatComposerProps) {
           detail: props.realtimeTalkDetail,
           onDismissError: props.onDismissRealtimeTalkError,
         })}
+        ${props.realtimeTalkVideoStream
+          ? html`
+              <div class="agent-chat__video-preview">
+                <video
+                  autoplay
+                  .muted=${true}
+                  playsinline
+                  aria-label=${t("chat.composer.cameraPreview")}
+                  ${ref((element) => {
+                    if (element instanceof HTMLVideoElement) {
+                      element.srcObject = props.realtimeTalkVideoStream ?? null;
+                    }
+                  })}
+                ></video>
+              </div>
+            `
+          : nothing}
 
         <div class="agent-chat__composer-input-row">
           ${renderChatAttachmentMenu({ ...props, disabled: !canCompose })}
