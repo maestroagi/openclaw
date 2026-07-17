@@ -186,16 +186,21 @@ Remote-gateway onboarding keeps its legacy conversational handoff
 ### Phase 5 — hatch and bootstrap (planned)
 
 - Custodian creates a nameless agent (tool call); the agent's bootstrap opens
-  with self-naming and a self-drawn avatar (image-gen ladder: model-generated
-  candidates → preset marks → keep logo). Same thread, avatar swap; the claw
-  mark stays reserved for the custodian. Cap the birth sequence at roughly
-  three beats (name+face → soul line → skills question) before the agent is
-  useful.
+  with self-naming. PR1 ships the ceremony capped at three beats (name → soul
+  line → skills question) and defers the self-drawn avatar/image-gen ladder
+  (model-generated candidates → preset marks → keep logo) to a follow-up. Same
+  thread, avatar swap; the claw mark stays reserved for the custodian. The
+  agreed identity persists twice: into `IDENTITY.md`/`SOUL.md` (what the agent
+  reads) and via `openclaw agents set-identity` (what channels and the UI
+  display).
 - Recommendations (phase 1 service, stored scan with once-semantics) land as
   the last bootstrap step before the bootstrap file is removed: "minimal set
-  or maximum convenience?" Channel connect buttons carry per-channel setup
-  playbooks; the agent collects credentials conversationally and relays config
-  writes to the custodian ("asking OpenClaw…" is the canonical idiom).
+  or maximum convenience?" The bootstrap reads the stored offer via
+  `openclaw onboard recommendations --json` (opaque install IDs only) and
+  acknowledges it after the choice is handled so it never asks again. Channel
+  connect buttons carry per-channel setup playbooks; the agent collects
+  credentials conversationally and relays config writes to the custodian
+  ("asking OpenClaw…" is the canonical idiom).
 - Self-learning is asked, not announced, and doubles as skill-workshop
   consent; describe ClawHub's release-trust, scan, verification, and integrity
   checks plus the publisher-code warning — never imply every release is signed.
@@ -255,11 +260,16 @@ restart` from the real environment and verify the plist. Product follow-up:
 - **Agent landing needs exact-head hosted CI.** The heavy `CI` workflow may
   not queue on pushes under org load; the maintainer fallback is a
   release-gate dispatch on the PR branch:
-  `gh workflow run ci.yml --ref <branch> -f target_ref=<head-sha>
--f release_gate=true -f pull_request_number=<pr>` (the run must be on the
+
+  ```bash
+  gh workflow run ci.yml --ref <branch> -f target_ref=<head-sha> -f release_gate=true -f pull_request_number=<pr>
+  ```
+
+  The run must be on the
   branch ref so `head_sha` matches, and the title becomes
   `CI release gate <sha>`, which `scripts/verify-pr-hosted-gates.mjs`
-  accepts). Then `scripts/pr` prepare/merge as usual.
+  accepts. Then `scripts/pr` prepare/merge as usual.
+
 - **Gates that CI enforces beyond focused tests**: docs map
   (`pnpm docs:map:gen` after adding any docs page), oxlint (`no-map-spread`,
   `max-lines` — split files, never suppress), `check:test-types`, knip
