@@ -6906,6 +6906,7 @@ public struct SystemAgentChatResult: Codable, Sendable {
     public let action: AnyCodable
     public let needsapproval: Bool?
     public let proposalid: String?
+    public let question: [String: AnyCodable]?
 
     public init(
         sessionid: String,
@@ -6913,7 +6914,8 @@ public struct SystemAgentChatResult: Codable, Sendable {
         sensitive: Bool? = nil,
         action: AnyCodable,
         needsapproval: Bool? = nil,
-        proposalid: String? = nil)
+        proposalid: String? = nil,
+        question: [String: AnyCodable]? = nil)
     {
         self.sessionid = sessionid
         self.reply = reply
@@ -6921,6 +6923,7 @@ public struct SystemAgentChatResult: Codable, Sendable {
         self.action = action
         self.needsapproval = needsapproval
         self.proposalid = proposalid
+        self.question = question
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -6930,6 +6933,7 @@ public struct SystemAgentChatResult: Codable, Sendable {
         case action
         case needsapproval = "needsApproval"
         case proposalid = "proposalId"
+        case question
     }
 }
 
@@ -13746,6 +13750,7 @@ public struct DevicePairRequestedEvent: Codable, Sendable {
     public let devicefamily: String?
     public let clientid: String?
     public let clientmode: String?
+    public let browserorigin: String?
     public let role: String?
     public let roles: [String]?
     public let scopes: [String]?
@@ -13763,6 +13768,7 @@ public struct DevicePairRequestedEvent: Codable, Sendable {
         devicefamily: String? = nil,
         clientid: String? = nil,
         clientmode: String? = nil,
+        browserorigin: String? = nil,
         role: String? = nil,
         roles: [String]? = nil,
         scopes: [String]? = nil,
@@ -13779,6 +13785,7 @@ public struct DevicePairRequestedEvent: Codable, Sendable {
         self.devicefamily = devicefamily
         self.clientid = clientid
         self.clientmode = clientmode
+        self.browserorigin = browserorigin
         self.role = role
         self.roles = roles
         self.scopes = scopes
@@ -13797,6 +13804,7 @@ public struct DevicePairRequestedEvent: Codable, Sendable {
         case devicefamily = "deviceFamily"
         case clientid = "clientId"
         case clientmode = "clientMode"
+        case browserorigin = "browserOrigin"
         case role
         case roles
         case scopes
@@ -13989,6 +13997,7 @@ public struct ChatSendParams: Codable, Sendable {
     public let originatingaccountid: String?
     public let originatingthreadid: String?
     public let attachments: [AnyCodable]?
+    public let toolbindings: [String: AnyCodable]?
     public let timeoutms: Int?
     public let systeminputprovenance: [String: AnyCodable]?
     public let systemprovenancereceipt: String?
@@ -14011,6 +14020,7 @@ public struct ChatSendParams: Codable, Sendable {
         originatingaccountid: String? = nil,
         originatingthreadid: String? = nil,
         attachments: [AnyCodable]? = nil,
+        toolbindings: [String: AnyCodable]? = nil,
         timeoutms: Int? = nil,
         systeminputprovenance: [String: AnyCodable]? = nil,
         systemprovenancereceipt: String? = nil,
@@ -14032,6 +14042,7 @@ public struct ChatSendParams: Codable, Sendable {
         self.originatingaccountid = originatingaccountid
         self.originatingthreadid = originatingthreadid
         self.attachments = attachments
+        self.toolbindings = toolbindings
         self.timeoutms = timeoutms
         self.systeminputprovenance = systeminputprovenance
         self.systemprovenancereceipt = systemprovenancereceipt
@@ -14054,6 +14065,7 @@ public struct ChatSendParams: Codable, Sendable {
         originatingaccountid: String? = nil,
         originatingthreadid: String? = nil,
         attachments: [AnyCodable]? = nil,
+        toolbindings: [String: AnyCodable]? = nil,
         timeoutms: Int? = nil,
         systeminputprovenance: [String: AnyCodable]? = nil,
         systemprovenancereceipt: String? = nil,
@@ -14076,6 +14088,7 @@ public struct ChatSendParams: Codable, Sendable {
             originatingaccountid: originatingaccountid,
             originatingthreadid: originatingthreadid,
             attachments: attachments,
+            toolbindings: toolbindings,
             timeoutms: timeoutms,
             systeminputprovenance: systeminputprovenance,
             systemprovenancereceipt: systemprovenancereceipt,
@@ -14099,6 +14112,7 @@ public struct ChatSendParams: Codable, Sendable {
         case originatingaccountid = "originatingAccountId"
         case originatingthreadid = "originatingThreadId"
         case attachments
+        case toolbindings = "toolBindings"
         case timeoutms = "timeoutMs"
         case systeminputprovenance = "systemInputProvenance"
         case systemprovenancereceipt = "systemProvenanceReceipt"
