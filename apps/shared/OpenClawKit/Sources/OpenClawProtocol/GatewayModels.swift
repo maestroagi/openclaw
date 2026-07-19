@@ -117,6 +117,22 @@ public enum TaskSuggestionResolution: String, Codable, Sendable {
     case expired = "expired"
 }
 
+public enum SystemChangeKind: String, Codable, Sendable {
+    case operation = "operation"
+    case configWrite = "config-write"
+    case externalEdit = "external-edit"
+}
+
+public enum SystemChangeSource: String, Codable, Sendable {
+    case systemAgent = "system-agent"
+    case doctor = "doctor"
+    case configRpc = "config-rpc"
+    case cli = "cli"
+    case pluginInstall = "plugin-install"
+    case external = "external"
+    case unknown = "unknown"
+}
+
 public enum MemoryMigrationItemStatus: String, Codable, Sendable {
     case planned = "planned"
     case migrated = "migrated"
@@ -948,6 +964,7 @@ public struct PresenceEntry: Codable, Sendable {
     public let scopes: [String]?
     public let instanceid: String?
     public let user: [String: AnyCodable]?
+    public let watchedsessions: [String]?
 
     public init(
         host: String? = nil,
@@ -966,7 +983,8 @@ public struct PresenceEntry: Codable, Sendable {
         roles: [String]? = nil,
         scopes: [String]? = nil,
         instanceid: String? = nil,
-        user: [String: AnyCodable]? = nil)
+        user: [String: AnyCodable]? = nil,
+        watchedsessions: [String]? = nil)
     {
         self.host = host
         self.ip = ip
@@ -985,6 +1003,7 @@ public struct PresenceEntry: Codable, Sendable {
         self.scopes = scopes
         self.instanceid = instanceid
         self.user = user
+        self.watchedsessions = watchedsessions
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -1005,6 +1024,7 @@ public struct PresenceEntry: Codable, Sendable {
         case scopes
         case instanceid = "instanceId"
         case user
+        case watchedsessions = "watchedSessions"
     }
 }
 
@@ -4611,6 +4631,7 @@ public struct ActiveWorkerSessionPlacement: Codable, Sendable {
     public let remoteworkspacedir: String
     public let lasttranscriptackcursor: Int?
     public let lastliveeventackcursor: Int?
+    public let workspaceresultconflict: [String: AnyCodable]?
 
     public init(
         state: String,
@@ -4624,7 +4645,8 @@ public struct ActiveWorkerSessionPlacement: Codable, Sendable {
         workspacebasemanifestref: String,
         remoteworkspacedir: String,
         lasttranscriptackcursor: Int? = nil,
-        lastliveeventackcursor: Int? = nil)
+        lastliveeventackcursor: Int? = nil,
+        workspaceresultconflict: [String: AnyCodable]? = nil)
     {
         self.state = state
         self.generation = generation
@@ -4638,6 +4660,7 @@ public struct ActiveWorkerSessionPlacement: Codable, Sendable {
         self.remoteworkspacedir = remoteworkspacedir
         self.lasttranscriptackcursor = lasttranscriptackcursor
         self.lastliveeventackcursor = lastliveeventackcursor
+        self.workspaceresultconflict = workspaceresultconflict
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -4653,6 +4676,7 @@ public struct ActiveWorkerSessionPlacement: Codable, Sendable {
         case remoteworkspacedir = "remoteWorkspaceDir"
         case lasttranscriptackcursor = "lastTranscriptAckCursor"
         case lastliveeventackcursor = "lastLiveEventAckCursor"
+        case workspaceresultconflict = "workspaceResultConflict"
     }
 }
 
@@ -4669,6 +4693,7 @@ public struct DrainingSessionPlacement: Codable, Sendable {
     public let remoteworkspacedir: String
     public let lasttranscriptackcursor: Int?
     public let lastliveeventackcursor: Int?
+    public let workspaceresultconflict: [String: AnyCodable]?
 
     public init(
         state: String,
@@ -4682,7 +4707,8 @@ public struct DrainingSessionPlacement: Codable, Sendable {
         workspacebasemanifestref: String,
         remoteworkspacedir: String,
         lasttranscriptackcursor: Int? = nil,
-        lastliveeventackcursor: Int? = nil)
+        lastliveeventackcursor: Int? = nil,
+        workspaceresultconflict: [String: AnyCodable]? = nil)
     {
         self.state = state
         self.generation = generation
@@ -4696,6 +4722,7 @@ public struct DrainingSessionPlacement: Codable, Sendable {
         self.remoteworkspacedir = remoteworkspacedir
         self.lasttranscriptackcursor = lasttranscriptackcursor
         self.lastliveeventackcursor = lastliveeventackcursor
+        self.workspaceresultconflict = workspaceresultconflict
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -4711,6 +4738,7 @@ public struct DrainingSessionPlacement: Codable, Sendable {
         case remoteworkspacedir = "remoteWorkspaceDir"
         case lasttranscriptackcursor = "lastTranscriptAckCursor"
         case lastliveeventackcursor = "lastLiveEventAckCursor"
+        case workspaceresultconflict = "workspaceResultConflict"
     }
 }
 
@@ -4727,6 +4755,7 @@ public struct ReconcilingSessionPlacement: Codable, Sendable {
     public let remoteworkspacedir: String
     public let lasttranscriptackcursor: Int?
     public let lastliveeventackcursor: Int?
+    public let workspaceresultconflict: [String: AnyCodable]?
 
     public init(
         state: String,
@@ -4740,7 +4769,8 @@ public struct ReconcilingSessionPlacement: Codable, Sendable {
         workspacebasemanifestref: String,
         remoteworkspacedir: String,
         lasttranscriptackcursor: Int? = nil,
-        lastliveeventackcursor: Int? = nil)
+        lastliveeventackcursor: Int? = nil,
+        workspaceresultconflict: [String: AnyCodable]? = nil)
     {
         self.state = state
         self.generation = generation
@@ -4754,6 +4784,7 @@ public struct ReconcilingSessionPlacement: Codable, Sendable {
         self.remoteworkspacedir = remoteworkspacedir
         self.lasttranscriptackcursor = lasttranscriptackcursor
         self.lastliveeventackcursor = lastliveeventackcursor
+        self.workspaceresultconflict = workspaceresultconflict
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -4769,6 +4800,7 @@ public struct ReconcilingSessionPlacement: Codable, Sendable {
         case remoteworkspacedir = "remoteWorkspaceDir"
         case lasttranscriptackcursor = "lastTranscriptAckCursor"
         case lastliveeventackcursor = "lastLiveEventAckCursor"
+        case workspaceresultconflict = "workspaceResultConflict"
     }
 }
 
@@ -4785,6 +4817,7 @@ public struct ReclaimedSessionPlacement: Codable, Sendable {
     public let workerbundlehash: String?
     public let lasttranscriptackcursor: Int?
     public let lastliveeventackcursor: Int?
+    public let workspaceresultconflict: [String: AnyCodable]?
 
     public init(
         state: String,
@@ -4798,7 +4831,8 @@ public struct ReclaimedSessionPlacement: Codable, Sendable {
         remoteworkspacedir: String? = nil,
         workerbundlehash: String? = nil,
         lasttranscriptackcursor: Int? = nil,
-        lastliveeventackcursor: Int? = nil)
+        lastliveeventackcursor: Int? = nil,
+        workspaceresultconflict: [String: AnyCodable]? = nil)
     {
         self.state = state
         self.generation = generation
@@ -4812,6 +4846,7 @@ public struct ReclaimedSessionPlacement: Codable, Sendable {
         self.workerbundlehash = workerbundlehash
         self.lasttranscriptackcursor = lasttranscriptackcursor
         self.lastliveeventackcursor = lastliveeventackcursor
+        self.workspaceresultconflict = workspaceresultconflict
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -4827,6 +4862,7 @@ public struct ReclaimedSessionPlacement: Codable, Sendable {
         case workerbundlehash = "workerBundleHash"
         case lasttranscriptackcursor = "lastTranscriptAckCursor"
         case lastliveeventackcursor = "lastLiveEventAckCursor"
+        case workspaceresultconflict = "workspaceResultConflict"
     }
 }
 
@@ -4843,6 +4879,7 @@ public struct FailedSessionPlacement: Codable, Sendable {
     public let workerbundlehash: String?
     public let lasttranscriptackcursor: Int?
     public let lastliveeventackcursor: Int?
+    public let workspaceresultconflict: [String: AnyCodable]?
     public let recoveryerror: String
 
     public init(
@@ -4858,6 +4895,7 @@ public struct FailedSessionPlacement: Codable, Sendable {
         workerbundlehash: String? = nil,
         lasttranscriptackcursor: Int? = nil,
         lastliveeventackcursor: Int? = nil,
+        workspaceresultconflict: [String: AnyCodable]? = nil,
         recoveryerror: String)
     {
         self.state = state
@@ -4872,6 +4910,7 @@ public struct FailedSessionPlacement: Codable, Sendable {
         self.workerbundlehash = workerbundlehash
         self.lasttranscriptackcursor = lasttranscriptackcursor
         self.lastliveeventackcursor = lastliveeventackcursor
+        self.workspaceresultconflict = workspaceresultconflict
         self.recoveryerror = recoveryerror
     }
 
@@ -4888,6 +4927,7 @@ public struct FailedSessionPlacement: Codable, Sendable {
         case workerbundlehash = "workerBundleHash"
         case lasttranscriptackcursor = "lastTranscriptAckCursor"
         case lastliveeventackcursor = "lastLiveEventAckCursor"
+        case workspaceresultconflict = "workspaceResultConflict"
         case recoveryerror = "recoveryError"
     }
 }
@@ -7589,6 +7629,84 @@ public struct SystemAgentChatResult: Codable, Sendable {
         case needsapproval = "needsApproval"
         case proposalid = "proposalId"
         case question
+    }
+}
+
+public struct SystemChangeEntry: Codable, Sendable {
+    public let id: String
+    public let at: Double
+    public let kind: SystemChangeKind
+    public let source: SystemChangeSource
+    public let summary: String
+    public let changedpaths: [String]?
+    public let invalid: Bool?
+    public let opaquechange: Bool?
+
+    public init(
+        id: String,
+        at: Double,
+        kind: SystemChangeKind,
+        source: SystemChangeSource,
+        summary: String,
+        changedpaths: [String]? = nil,
+        invalid: Bool? = nil,
+        opaquechange: Bool? = nil)
+    {
+        self.id = id
+        self.at = at
+        self.kind = kind
+        self.source = source
+        self.summary = summary
+        self.changedpaths = changedpaths
+        self.invalid = invalid
+        self.opaquechange = opaquechange
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case at
+        case kind
+        case source
+        case summary
+        case changedpaths = "changedPaths"
+        case invalid
+        case opaquechange = "opaqueChange"
+    }
+}
+
+public struct SystemChangesListParams: Codable, Sendable {
+    public let limit: Int?
+    public let beforecursor: String?
+
+    public init(
+        limit: Int? = nil,
+        beforecursor: String? = nil)
+    {
+        self.limit = limit
+        self.beforecursor = beforecursor
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case limit
+        case beforecursor = "beforeCursor"
+    }
+}
+
+public struct SystemChangesListResult: Codable, Sendable {
+    public let entries: [SystemChangeEntry]
+    public let nextcursor: String?
+
+    public init(
+        entries: [SystemChangeEntry],
+        nextcursor: String? = nil)
+    {
+        self.entries = entries
+        self.nextcursor = nextcursor
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case entries
+        case nextcursor = "nextCursor"
     }
 }
 

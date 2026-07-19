@@ -361,6 +361,10 @@ export class GatewayBrowserClient {
     });
   }
 
+  get instanceId(): string | undefined {
+    return this.opts.instanceId;
+  }
+
   start() {
     this.client.start();
   }
@@ -373,6 +377,10 @@ export class GatewayBrowserClient {
 
   get connected() {
     return this.client.connected;
+  }
+
+  get instanceId() {
+    return this.opts.instanceId;
   }
 
   get recoveryScope() {
