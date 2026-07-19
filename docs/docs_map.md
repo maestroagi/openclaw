@@ -1283,6 +1283,7 @@ Do not edit it by hand; run `pnpm docs:map:gen`.
   - H1: openclaw approvals
   - H2: openclaw exec-policy
   - H2: Common commands
+  - H2: Pending approvals
   - H2: Replace approvals from a file
   - H2: "Never prompt" / YOLO example
   - H2: Allowlist helpers
@@ -4121,6 +4122,7 @@ Do not edit it by hand; run `pnpm docs:map:gen`.
   - H2: How it works
   - H2: Configuration
   - H3: Configuration reference
+  - H2: Automatic device approval
   - H2: Control UI pairing behavior
   - H2: Operator scopes header
   - H2: TLS termination and HSTS
@@ -9663,6 +9665,7 @@ Do not edit it by hand; run `pnpm docs:map:gen`.
   - H2: Missing browser command or tool
   - H2: Profiles: openclaw, user, chrome
   - H2: Configuration
+  - H3: Tab cleanup ownership
   - H3: Screenshot vision (text-only model support)
   - H2: Use Brave or another Chromium-based browser
   - H2: Local vs remote control
@@ -9858,6 +9861,7 @@ Do not edit it by hand; run `pnpm docs:map:gen`.
   - H3: Safe bins versus allowlist
   - H2: Interpreter/runtime commands
   - H3: Followup delivery behavior
+  - H2: Minimal scopes for third-party clients
   - H2: Approval forwarding to chat channels
   - H3: Plugin approval forwarding
   - H3: Same-chat approvals on any channel
