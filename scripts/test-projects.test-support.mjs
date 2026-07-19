@@ -1535,6 +1535,7 @@ const TOOLING_SOURCE_TEST_TARGETS = new Map([
   ],
   ["scripts/run-oxlint.mjs", ["test/scripts/run-oxlint.test.ts"]],
   ["scripts/run-oxlint-shards.mjs", ["test/scripts/run-oxlint.test.ts"]],
+  ["scripts/run-lint.mjs", ["test/scripts/run-oxlint.test.ts"]],
   ["scripts/run-with-env.mjs", ["test/scripts/run-with-env.test.ts"]],
   ["scripts/run-node.mjs", ["src/infra/run-node.test.ts"]],
   [
@@ -4624,12 +4625,15 @@ function sanitizeVitestCachePathSegment(value) {
 
 export function applyParallelVitestCachePaths(specs, params = {}) {
   const baseEnv = params.env ?? process.env;
-  if (baseEnv[FS_MODULE_CACHE_PATH_ENV_KEY]?.trim()) {
-    return specs;
-  }
   const cwd = params.cwd ?? process.cwd();
+  const configuredCacheRoot = baseEnv[FS_MODULE_CACHE_PATH_ENV_KEY]?.trim() || undefined;
+  // CI publishes a persistent cache root, not a writer-safe leaf. Every
+  // concurrent Vitest process still needs its own live directory below it.
+  const cacheRoot =
+    configuredCacheRoot ?? path.join(cwd, "node_modules", ".experimental-vitest-cache");
   return specs.map((spec, index) => {
-    if (spec.env?.[FS_MODULE_CACHE_PATH_ENV_KEY]?.trim()) {
+    const specCachePath = spec.env?.[FS_MODULE_CACHE_PATH_ENV_KEY]?.trim();
+    if (specCachePath && specCachePath !== configuredCacheRoot) {
       return spec;
     }
     const cacheSegment = sanitizeVitestCachePathSegment(`${index}-${spec.config}`);
@@ -4637,12 +4641,7 @@ export function applyParallelVitestCachePaths(specs, params = {}) {
       ...spec,
       env: {
         ...spec.env,
-        [FS_MODULE_CACHE_PATH_ENV_KEY]: path.join(
-          cwd,
-          "node_modules",
-          ".experimental-vitest-cache",
-          cacheSegment,
-        ),
+        [FS_MODULE_CACHE_PATH_ENV_KEY]: path.join(cacheRoot, cacheSegment),
       },
     };
   });
