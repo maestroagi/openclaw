@@ -59,6 +59,7 @@ import {
 import type { RealtimeTalkLevelSignal } from "../realtime-talk-level.ts";
 import type { RealtimeTalkStatus } from "../realtime-talk.ts";
 import { CHAT_RUN_STATUS_TOAST_DURATION_MS, type ChatRunUiStatus } from "../run-lifecycle.ts";
+import { isInflightSteer, isSteeredQueueItem } from "../steered-chip.ts";
 import type { CompactionStatus, FallbackStatus, PlanStatus } from "../tool-stream.ts";
 import {
   handleChatAttachmentPaste,
@@ -1048,6 +1049,9 @@ type ChatQueueProps = {
 };
 
 function sendStateLabel(item: ChatQueueItem): string | null {
+  if (isInflightSteer(item)) {
+    return "Steering";
+  }
   switch (item.sendState) {
     case "waiting-model":
       // Persisted state name predates reasoning and speed picker gating.
@@ -1056,8 +1060,6 @@ function sendStateLabel(item: ChatQueueItem): string | null {
       return "Waiting for current run";
     case "executing-command":
       return "Running command";
-    case "steering":
-      return "Steering";
     case "waiting-reconnect":
       return "Waiting for reconnect";
     case "unconfirmed":
@@ -1083,9 +1085,9 @@ function renderChatQueue(props: ChatQueueProps) {
 
 function renderChatQueueItem(item: ChatQueueItem, props: ChatQueueProps) {
   const stateLabel = sendStateLabel(item);
-  const steered = item.kind === "steered";
+  const steered = isSteeredQueueItem(item);
   const failed = item.sendState === "failed" || item.sendState === "unconfirmed";
-  const busy = item.sendState === "executing-command" || item.sendState === "steering";
+  const busy = item.sendState === "executing-command" || isInflightSteer(item);
   const canSteer =
     Boolean(props.canAbort && props.onQueueSteer) &&
     !steered &&
