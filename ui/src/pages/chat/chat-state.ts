@@ -154,6 +154,7 @@ import {
   type FallbackStatus,
   type PlanStatus,
   type ToolStreamEntry,
+  type WaitingApprovalStatus,
 } from "./tool-stream.ts";
 
 type ChatPageElement = {
@@ -232,6 +233,9 @@ export type ChatPageHost = ChatHost &
     compactionStatus: CompactionStatus | null;
     fallbackStatus: FallbackStatus | null;
     planStatus: PlanStatus | null;
+    knownAgentRunIds: Set<string>;
+    waitingApprovalStatuses: Map<string, WaitingApprovalStatus>;
+    waitingApprovalResolvedIds: Set<string>;
     chatRunStatus: ChatProps["runStatus"];
     chatNewMessagesBelow: boolean;
     chatMetadataRequestVersion: number;
@@ -1273,6 +1277,9 @@ export function createPageState(
     compactionStatus: null,
     fallbackStatus: null,
     planStatus: null,
+    knownAgentRunIds: new Set(),
+    waitingApprovalStatuses: new Map(),
+    waitingApprovalResolvedIds: new Set(),
     chatAvatarUrl: null,
     chatAvatarStatus: null,
     chatAvatarReason: null,
