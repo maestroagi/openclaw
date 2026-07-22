@@ -95,6 +95,7 @@ import {
   isGatewayMethodAdvertised,
 } from "../../lib/gateway-methods.ts";
 import {
+  ObserverDigestHistory,
   pickFreshestObserverDigest,
   resolveChatPaneObserverRunId,
 } from "../../lib/observer-digest.ts";
@@ -466,10 +467,12 @@ class ChatPane extends OpenClawLightDomElement {
       }
     | undefined;
   private readonly lastVisibleBoardDock = new Map<string, VisibleBoardDock>();
-  private swarmBoardSnapshot: BoardViewSnapshot | null = null;
-  private swarmBoardSnapshotBase: BoardSnapshot | null = null;
-  private swarmBoardSnapshotRequest = 0;
+  private readonly observerDigestHistory = new ObserverDigestHistory();
+  private builtinBoardSnapshot: BoardViewSnapshot | null = null;
+  private builtinBoardSnapshotBase: BoardSnapshot | null = null;
+  private builtinBoardSnapshotRequest = 0;
   private readonly sessionDiscussionStates = new Map<string, SessionDiscussionState>();
+  private readonly sessionDiscussionOpenUrls = new Map<string, string | null>();
   private readonly sessionDiscussionProbes = new Set<string>();
   private headerRenameInitialLabel: string | null = null;
   private headerRenameInitialValue = "";
@@ -497,7 +500,7 @@ class ChatPane extends OpenClawLightDomElement {
         () => this.resolveBoardProvider(),
         (provider, notify) =>
           provider.snapshot$.subscribe(() => {
-            this.refreshSwarmBoardSnapshot();
+            this.refreshBuiltinBoardSnapshot();
             notify();
           }),
       )
@@ -923,6 +926,7 @@ class ChatPane extends OpenClawLightDomElement {
     // Close old-session portals and listener-owning popovers before the next
     // render detaches their DOM and makes owner-scoped cleanup impossible.
     resetChatThreadPresentationState(this.paneId, this);
+    this.sessionDiscussionOpenUrls.clear();
     const previousSessionKey = state.sessionKey;
     // An in-progress title edit belongs to the previous session; committing
     // it against the newly routed row would rename the wrong session.
@@ -1686,30 +1690,42 @@ class ChatPane extends OpenClawLightDomElement {
     return normalized === "main" ? buildAgentMainSessionKey({ agentId: "main" }) : normalized;
   }
 
-  private refreshSwarmBoardSnapshot(): void {
+  private refreshBuiltinBoardSnapshot(): void {
     const state = this.state;
     if (!state) {
       return;
     }
-    const request = ++this.swarmBoardSnapshotRequest;
+    const request = ++this.builtinBoardSnapshotRequest;
     const sessions = state.sessionsResult?.sessions ?? [];
-    void import("../../lib/board/swarm-dashboard.ts").then(({ withSwarmWidget }) => {
-      if (request !== this.swarmBoardSnapshotRequest) {
+    void import("../../lib/board/builtin-dashboard.ts").then(({ withBuiltinDashboardWidgets }) => {
+      if (request !== this.builtinBoardSnapshotRequest) {
         return;
       }
       const currentBase = this.resolveBoardProvider().snapshot$.value;
-      this.swarmBoardSnapshotBase = currentBase;
-      this.swarmBoardSnapshot = withSwarmWidget(currentBase, sessions);
+      const sessionKey = this.resolveBoardSessionKey(currentBase.sessionKey);
+      this.builtinBoardSnapshotBase = currentBase;
+      this.builtinBoardSnapshot = withBuiltinDashboardWidgets(
+        currentBase,
+        sessions,
+        this.observerDigestHistory.get(sessionKey),
+      );
       this.requestUpdate();
     });
+  }
+
+  private recordObserverDigest(digest: SessionObserverDigest): void {
+    const sessionKey = this.resolveBoardSessionKey(digest.sessionKey);
+    if (this.observerDigestHistory.record({ ...digest, sessionKey })) {
+      this.refreshBuiltinBoardSnapshot();
+    }
   }
 
   private resolveBoardView(): ResolvedBoardView {
     const provider = this.resolveBoardProvider();
     const baseSnapshot = provider.snapshot$.value;
     const snapshot: BoardViewSnapshot =
-      this.swarmBoardSnapshotBase === baseSnapshot
-        ? (this.swarmBoardSnapshot ?? baseSnapshot)
+      this.builtinBoardSnapshotBase === baseSnapshot
+        ? (this.builtinBoardSnapshot ?? baseSnapshot)
         : baseSnapshot;
     const hasBoard = snapshot.tabs.length > 0 || snapshot.widgets.length > 0;
     const sessionKey = this.resolveBoardSessionKey(snapshot.sessionKey);
@@ -2031,7 +2047,23 @@ class ChatPane extends OpenClawLightDomElement {
     state.lastError = null;
     state.chatError = null;
     if (preservesBoard) {
+      // Captured before the await: the reset can land and refresh session rows
+      // mid-flight, and invalidating the post-reset id would eat fresh digests.
+      const preResetSessionId = state.sessionsResult?.sessions.find((row) =>
+        areUiSessionKeysEquivalent(row.key, previousSessionKey),
+      )?.sessionId;
       const resetResult = await clearChatHistory(state);
+      if (resetResult !== "failed") {
+        // A reset reuses the session key; prior-run digests must not survive
+        // into the fresh conversation or keep injecting the observer card.
+        this.observerDigestHistory.markReset(
+          this.resolveBoardSessionKey(previousSessionKey),
+          preResetSessionId,
+        );
+        // Recompute rather than null: the builtin snapshot also carries the
+        // swarm card, which must survive an observer-only invalidation.
+        this.refreshBuiltinBoardSnapshot();
+      }
       return resetResult !== "failed";
     }
     const nextSessionKey = await sessions.create({
@@ -2325,6 +2357,9 @@ class ChatPane extends OpenClawLightDomElement {
           if (event.event === "task.suggestion" && event.payload) {
             this.handleTaskSuggestionEvent(event.payload as TaskSuggestionEvent);
           }
+          if (event.event === "session.observer" && event.payload) {
+            this.recordObserverDigest(event.payload as SessionObserverDigest);
+          }
           handlePageGatewayEvent(state, event);
         }
       }),
@@ -2471,7 +2506,14 @@ class ChatPane extends OpenClawLightDomElement {
     state.sessionsResultAgentId = stateValue.agentId;
     state.sessionsLoading = stateValue.loading;
     state.sessionsError = stateValue.error;
-    this.refreshSwarmBoardSnapshot();
+    for (const row of stateValue.result?.sessions ?? []) {
+      const sessionKey = this.resolveBoardSessionKey(row.key);
+      this.observerDigestHistory.sync(sessionKey, row.sessionId);
+      if (row.observerDigest) {
+        this.observerDigestHistory.hydrate(sessionKey, row.observerDigest, row.sessionId);
+      }
+    }
+    this.refreshBuiltinBoardSnapshot();
     const selectedSession = stateValue.result?.sessions.find((row) =>
       areUiSessionKeysEquivalent(row.key, state.sessionKey),
     );
@@ -2562,6 +2604,7 @@ class ChatPane extends OpenClawLightDomElement {
       this.taskSuggestionBusyIds.clear();
       this.taskSuggestionOperations.clear();
       this.sessionDiscussionStates.clear();
+      this.sessionDiscussionOpenUrls.clear();
       this.resetSessionPullRequests();
       this.resetOlderMessagesViewport();
       state.chatLoading = false;
@@ -2992,6 +3035,7 @@ class ChatPane extends OpenClawLightDomElement {
       kind: "session-discussion",
       sessionKey,
       canOpen,
+      openUrl: this.sessionDiscussionOpenUrls.get(sessionKey) ?? null,
       loadInfo: async (key) => {
         if (!state.connected || !state.client) {
           throw new Error(t("chat.sessionDiscussion.disconnected"));
@@ -3008,13 +3052,20 @@ class ChatPane extends OpenClawLightDomElement {
           sessionKey: key,
         });
       },
-      onStateChange: (key, discussionState) => {
+      onStateChange: (key, discussionState, openUrl) => {
         // Panels created under a previous connection may report late; their
         // state belongs to the old provider and must not touch the new cache.
         if (contentGeneration !== this.connectionGeneration) {
           return;
         }
         this.sessionDiscussionStates.set(key, discussionState);
+        const isCurrentSession = state.sessionKey.trim() === key;
+        if (isCurrentSession) {
+          this.sessionDiscussionOpenUrls.set(key, openUrl);
+        }
+        if (discussionState === "none") {
+          this.sessionDiscussionOpenUrls.delete(key);
+        }
         const current = state.sidebarContent;
         if (
           discussionState === "none" &&
@@ -3023,6 +3074,13 @@ class ChatPane extends OpenClawLightDomElement {
         ) {
           state.handleCloseSidebar();
           return;
+        }
+        if (
+          isCurrentSession &&
+          current?.kind === "session-discussion" &&
+          current.sessionKey === key
+        ) {
+          state.sidebarContent = { ...current, openUrl };
         }
         state.requestUpdate();
       },
@@ -3251,7 +3309,6 @@ class ChatPane extends OpenClawLightDomElement {
       state.sessionsResult?.sessions.some(
         (row) => row.archived === true && areUiSessionKeysEquivalent(row.key, state.sessionKey),
       ) === true;
-    const disabledReason = selectedSessionArchived ? t("chat.archivedSessionDisabled") : null;
     // Never flash "view-only" while metadata loads; after loading, anything short
     // of a continuable session (failed lookups too) explains the disabled composer.
     const catalogDisabledReason =
@@ -3371,13 +3428,15 @@ class ChatPane extends OpenClawLightDomElement {
       gatewayClient: state.client,
       composerHoldToRecord: state.settings.composerHoldToRecord,
       canSend: catalogKey ? this.catalogSession?.canContinue === true : !selectedSessionArchived,
-      disabledReason: catalogDisabledReason ?? disabledReason,
-      disabledActionLabel:
-        selectedSessionArchived && !catalogDisabledReason ? t("common.restore") : null,
-      onDisabledAction:
+      disabledReason: catalogDisabledReason,
+      disabledBanner:
         selectedSessionArchived && !catalogDisabledReason
-          ? () => void this.restoreArchivedSession(state.sessionKey)
-          : null,
+          ? {
+              text: t("chat.archivedSessionDisabled"),
+              actionLabel: t("common.unarchive"),
+              onAction: () => void this.restoreArchivedSession(state.sessionKey),
+            }
+          : undefined,
       error: state.lastError,
       runError: catalogKey ? null : (state.chatRunError ?? null),
       inlineApproval,
@@ -3507,7 +3566,7 @@ class ChatPane extends OpenClawLightDomElement {
       onOpenSessionCheckpoints: () => {
         const search = new URLSearchParams({ session: state.sessionKey });
         if (selectedSessionArchived) {
-          search.set("showArchived", "1");
+          search.set("status", "archived");
         }
         this.context.navigate("sessions", { search: `?${search.toString()}` });
       },
@@ -3607,7 +3666,13 @@ class ChatPane extends OpenClawLightDomElement {
       canvasPluginSurfaceUrl: state.hello?.pluginSurfaceUrls?.canvas ?? null,
       boardProvider: board.provider,
       onOpenSidebar: state.handleOpenSidebar,
-      onCloseSidebar: state.handleCloseSidebar,
+      onCloseSidebar: () => {
+        const content = state.sidebarContent;
+        if (content?.kind === "session-discussion") {
+          this.sessionDiscussionOpenUrls.delete(content.sessionKey);
+        }
+        state.handleCloseSidebar();
+      },
       onSplitRatioChange: state.handleSplitRatioChange,
       assistantName: state.assistantName,
       assistantAvatar: state.assistantAvatar,
@@ -3629,6 +3694,13 @@ class ChatPane extends OpenClawLightDomElement {
         ? renderBoardSessionSurface({
             snapshot: board.snapshot,
             sessions: state.sessionsResult?.sessions ?? [],
+            observer: {
+              activeRunId: observerRunId,
+              digests: this.observerDigestHistory.get(
+                this.resolveBoardSessionKey(board.snapshot.sessionKey),
+              ),
+              lastReadAt: selectedSession?.lastReadAt,
+            },
             activeTabId: board.activeTabId,
             dock: board.dock,
             reopenDock: board.reopenDock,
