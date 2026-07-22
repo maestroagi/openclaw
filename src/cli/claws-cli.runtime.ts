@@ -11,6 +11,11 @@ import {
 } from "../claws/add.js";
 import { assertExperimentalClawsEnabled } from "../claws/experimental.js";
 import {
+  CLAW_EXPORT_RESULT_SCHEMA_VERSION,
+  ClawExportError,
+  exportClawAgent,
+} from "../claws/export.js";
+import {
   applyClawRemovePlan,
   buildClawRemovePlan,
   CLAW_REMOVE_PLAN_SCHEMA_VERSION,
@@ -38,10 +43,12 @@ import { redactSensitiveText } from "../logging/redact.js";
 import { defaultRuntime, writeRuntimeJson, type RuntimeEnv } from "../runtime.js";
 import type {
   ClawsAddOptions,
+  ClawsExportOptions,
   ClawsInspectOptions,
   ClawsRemoveOptions,
   ClawsStatusOptions,
 } from "./claws-cli.js";
+import { callGatewayFromCli } from "./gateway-rpc.js";
 
 type DiagnosticLike = { level: string; code: string; path: string; message: string };
 
@@ -309,6 +316,11 @@ export async function runClawsAddCommand(
     addResult = await applyClawAddPlan(plan, {
       consentPlanIntegrity: opts.planIntegrity,
       runtime: opts.json ? { ...runtime, log: () => undefined } : runtime,
+      cronGateway: {
+        add: async (input) => await callGatewayFromCli("cron.add", {}, input),
+        list: async (agentId) =>
+          await callGatewayFromCli("cron.list", {}, { agentId, includeDisabled: true }),
+      },
     });
   } catch (error) {
     const code = error instanceof ClawAddMutationError ? error.code : "add_failed";
@@ -421,6 +433,10 @@ export async function runClawsRemoveCommand(
     const result = await applyClawRemovePlan(plan, {
       consentPlanIntegrity: opts.planIntegrity,
       referencedCleanup,
+      cronGateway: {
+        get: async (id) => await callGatewayFromCli("cron.get", {}, { id }),
+        remove: async (id) => await callGatewayFromCli("cron.remove", {}, { id }),
+      },
     });
     if (opts.json) {
       writeRuntimeJson(runtime, result);
@@ -444,6 +460,42 @@ export async function runClawsRemoveCommand(
     if (opts.json) {
       writeRuntimeJson(runtime, {
         schemaVersion: CLAW_REMOVE_RESULT_SCHEMA_VERSION,
+        stability: CLAW_OUTPUT_STABILITY,
+        status: "failed",
+        error: { code, message },
+      });
+    } else {
+      runtime.error(message);
+    }
+    runtime.exit(1);
+  }
+}
+
+export async function runClawsExportCommand(
+  agentId: string,
+  opts: ClawsExportOptions,
+  runtime: RuntimeEnv = defaultRuntime,
+): Promise<void> {
+  assertExperimentalClawsEnabled();
+  try {
+    const result = await exportClawAgent(agentId, opts.out, { config: getRuntimeConfig() });
+    if (opts.json) {
+      writeRuntimeJson(runtime, result);
+      return;
+    }
+    logExperimentalWarning(runtime);
+    runtime.log(`Exported agent: ${result.agentId}`);
+    runtime.log(`Package directory: ${result.outputDirectory}`);
+    runtime.log(
+      `Workspace files: ${result.manifest.workspace.files.length + Object.keys(result.manifest.workspace.bootstrapFiles).length}`,
+    );
+    runtime.log(`Packages: ${result.manifest.packages.length}`);
+  } catch (error) {
+    const code = error instanceof ClawExportError ? error.code : "export_failed";
+    const message = error instanceof Error ? error.message : String(error);
+    if (opts.json) {
+      writeRuntimeJson(runtime, {
+        schemaVersion: CLAW_EXPORT_RESULT_SCHEMA_VERSION,
         stability: CLAW_OUTPUT_STABILITY,
         status: "failed",
         error: { code, message },

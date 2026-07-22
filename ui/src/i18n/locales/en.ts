@@ -214,6 +214,8 @@ export const en: TranslationMap = {
       subtitle: "A short guided setup — you can fine-tune everything later.",
       starting: "Starting setup…",
       working: "Working…",
+      sessionExpired:
+        "This setup session expired after the Gateway restarted. Close this dialog, then start channel setup again.",
       continue: "Continue",
       finish: "Finish",
       copyText: "Copy",
@@ -1914,6 +1916,8 @@ export const en: TranslationMap = {
       copy: "Copy",
       expires: "Expires in {count} minutes",
       cancelled: "Provider sign-in was cancelled.",
+      sessionExpired:
+        "This setup session expired after the Gateway restarted. Close this dialog, then start model setup again.",
       notComplete: "Sign-in finished, but model setup is not complete yet.",
     },
   },
