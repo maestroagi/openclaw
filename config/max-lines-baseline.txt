@@ -724,9 +724,6 @@ src/config/schema.ts
 src/config/sessions/disk-budget.ts
 src/config/sessions/session-accessor.conformance.test.ts
 src/config/sessions/session-accessor.test.ts
-src/config/sessions/sessions.test.ts
-src/config/sessions/store.pruning.integration.test.ts
-src/config/sessions/store.ts
 src/config/sessions/transcript.test.ts
 src/config/sessions/transcript.ts
 src/config/validation.ts
@@ -889,7 +886,6 @@ src/infra/exec-approval-forwarder.ts
 src/infra/exec-approvals-allow-always.test.ts
 src/infra/exec-approvals-allowlist.ts
 src/infra/exec-approvals-store.test.ts
-src/infra/exec-approvals.ts
 src/infra/exec-authorization-plan.ts
 src/infra/heartbeat-runner.returns-default-unset.test.ts
 src/infra/heartbeat-runner.ts
@@ -1094,7 +1090,6 @@ ui/src/pages/chat/chat-history.ts
 ui/src/pages/chat/chat-pane.ts
 ui/src/pages/chat/chat-responsive.browser.test.ts
 ui/src/pages/chat/chat-send.test.ts
-ui/src/pages/chat/chat-send.ts
 ui/src/pages/chat/chat-state.test.ts
 ui/src/pages/chat/chat-state.ts
 ui/src/pages/chat/chat-thread.test.ts
