@@ -90,6 +90,9 @@ func translateDocBodyChunked(ctx context.Context, translator docsTranslator, rel
 			maskedListMarkers,
 			extractMarkdownListMarkerPrefixes(translatedBody),
 		)
+		if os.Getenv("OPENCLAW_DOCS_I18N_LOG_REJECTED_BODY") == "1" {
+			log.Printf("docs-i18n: rejected translated body %s %q", relPath, translatedBody)
+		}
 		return "", fmt.Errorf("%s: final document validation: %w", relPath, err)
 	}
 	return translatedBody, nil
