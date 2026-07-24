@@ -263,6 +263,7 @@ import { admitInitialUserMessageHandoff } from "./initial-turn-handoff.ts";
 import {
   hasAbortableSessionRun,
   reconcileStaleChatRunAfterSessionStatePublication,
+  replayPendingChatAbort,
 } from "./run-lifecycle.ts";
 import { scheduleChatScroll } from "./scroll.ts";
 import {
@@ -3267,6 +3268,9 @@ class ChatPane extends OpenClawLightDomElement {
     state.client = snapshot.client;
     state.connected = snapshot.phase === "connected";
     state.connectionEpoch = this.connectionGeneration;
+    if (state.connected && state.pendingAbort) {
+      void replayPendingChatAbort(state).finally(() => state.requestUpdate?.());
+    }
     state.hello = snapshot.hello;
     if (sourceChanged && state.sidebarContent?.kind === "session-discussion") {
       // A reconnect may point at a different gateway/provider; an open panel
@@ -3311,7 +3315,13 @@ class ChatPane extends OpenClawLightDomElement {
         return;
       }
     }
-    state.assistantName = this.context.config.current.assistantIdentity.name;
+    // Keep the session-specific identity loaded by agent.identity.get across
+    // ordinary gateway snapshots. Reset to the configured fallback only when
+    // the logical connection changes; the startup path refreshes the identity
+    // for the active session afterward.
+    if (sourceChanged) {
+      state.assistantName = this.context.config.current.assistantIdentity.name;
+    }
     if (snapshot.phase !== "connected") {
       if (wasConnected) {
         const currentSessionId =
