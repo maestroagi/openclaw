@@ -1256,6 +1256,17 @@ def app_store_build_uploads(app_id:, short_version: nil)
     .flat_map(&:to_models)
 end
 
+def app_store_build_upload_state(upload)
+  # Apple's buildUploads API wraps the scalar state in a StateDetail object
+  # alongside diagnostics; normalize that owner contract at the adapter edge.
+  detail = upload.state
+  UI.user_error!("Invalid App Store build upload state payload: expected a StateDetail object.") unless detail.is_a?(Hash)
+
+  state = detail["state"].to_s.strip
+  UI.user_error!("Invalid App Store build upload state payload: missing state.") unless env_present?(state)
+  state
+end
+
 def release_source_clean?
   stdout, _stderr, status = Open3.capture3(
     "git",
@@ -1295,7 +1306,7 @@ def resolve_ios_release_plan!(release_version: nil, app_store_revision: nil, bui
       {
         buildNumber: upload.cf_build_version.to_s,
         shortVersion: upload.cf_build_short_version_string.to_s,
-        state: upload.state.to_s
+        state: app_store_build_upload_state(upload)
       }
     end,
     explicitBuildNumber: env_present?(build_number.to_s) ? build_number.to_s : nil,
@@ -1394,7 +1405,7 @@ def resolve_release_build_number(api_key:, short_version:, explicit_build_number
 
   app = app_store_connect_target_app
   uploads = app_store_build_uploads(app_id: app.id, short_version: short_version)
-  unknown_states = uploads.map { |upload| upload.state.to_s }.uniq - IOS_BUILD_UPLOAD_STATES
+  unknown_states = uploads.map { |upload| app_store_build_upload_state(upload) }.uniq - IOS_BUILD_UPLOAD_STATES
   unless unknown_states.empty?
     UI.user_error!("Unknown App Store build upload states for #{short_version}: #{unknown_states.join(', ')}.")
   end

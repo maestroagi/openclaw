@@ -157,9 +157,13 @@ describe("iOS Fastlane release upload gates", () => {
     const fastfile = readFastfile();
     const planner = functionBody(fastfile, "resolve_ios_release_plan!");
     const planLane = laneBody(fastfile, "release_plan");
+    const uploadState = functionBody(fastfile, "app_store_build_upload_state");
 
     expect(planner).toContain("get_app_store_versions");
     expect(planner).toContain("app_store_build_uploads");
+    expect(planner).toContain("app_store_build_upload_state(upload)");
+    expect(uploadState).toContain('detail["state"]');
+    expect(uploadState).toContain("expected a StateDetail object");
     expect(planner).toContain("does not match canonical root version");
     expect(planner).toContain('File.join(repo_root, "scripts", "ios-release-plan.ts")');
     expect(planLane).toContain("resolve_ios_release_plan!");
