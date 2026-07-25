@@ -61,12 +61,76 @@ export type ReliabilityReport = {
         before: number;
       };
     };
+    vacuumInterruption: {
+      autoVacuumAfterRecovery: number;
+      autoVacuumBeforeKill: number;
+      exit: {
+        code: number | null;
+        signal: NodeJS.Signals | null;
+      };
+      journalBytesObserved: number;
+      payloadAfterRecovery: {
+        bytes: number;
+        idSum: number;
+        rows: number;
+      };
+      payloadBeforeKill: {
+        bytes: number;
+        idSum: number;
+        rows: number;
+      };
+      recoveryVerified: true;
+      stateAfterRecovery: ReliabilityStateProof;
+      stateBeforeKill: ReliabilityStateProof;
+      walBytesObserved: number;
+    };
     postCompact: {
       restoreMs: number;
       restoreVerified: true;
       snapshotBytes: number;
       snapshotMs: number;
       state: ReliabilityStateProof;
+    };
+    restoreInterruption: {
+      afterPublish: {
+        existingTargetPreserved: true;
+        exit: {
+          code: number | null;
+          signal: NodeJS.Signals | null;
+        };
+        payloadAfterRecovery: {
+          bytes: number;
+          idSum: number;
+          rows: number;
+        };
+        recoveryVerified: true;
+        repositoryVerified: true;
+        retryRestored: false;
+        stagingEntries: number;
+        stateAfterRecovery: ReliabilityStateProof;
+        targetVerifiedAfterCrash: true;
+        targetVisibleAfterCrash: true;
+      };
+      beforePublish: {
+        existingTargetPreserved: false;
+        exit: {
+          code: number | null;
+          signal: NodeJS.Signals | null;
+        };
+        payloadAfterRecovery: {
+          bytes: number;
+          idSum: number;
+          rows: number;
+        };
+        recoveryVerified: true;
+        repositoryVerified: true;
+        retryRestored: true;
+        stagingEntries: number;
+        stateAfterRecovery: ReliabilityStateProof;
+        targetVerifiedAfterCrash: false;
+        targetVisibleAfterCrash: false;
+      };
+      snapshotBytes: number;
     };
   };
   node: string;
