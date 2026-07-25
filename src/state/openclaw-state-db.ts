@@ -7,12 +7,16 @@ import {
   executeSqliteQuerySync,
   getNodeSqliteKysely,
 } from "../infra/kysely-sync.js";
-import { openNodeSqliteDatabase, resolveNodeSqliteReadOnlyLocation } from "../infra/node-sqlite.js";
+import { openNodeSqliteDatabase } from "../infra/node-sqlite.js";
+import type { SqliteFileGeneration } from "../infra/sqlite-file-generation.js";
 import { repairCanonicalSqliteIndexes } from "../infra/sqlite-index-schema.js";
 import {
   assertSqliteIntegrity,
+  confirmSqliteFileIntegrity,
   isTerminalSqliteIntegrityError,
+  type SqliteIntegrityConfirmation,
 } from "../infra/sqlite-integrity.js";
+import { prepareSqliteReadOnlyLocation } from "../infra/sqlite-readonly-location.js";
 import { migrateSqliteSchemaToStrictInTransaction } from "../infra/sqlite-strict.js";
 import { createSqliteTerminalOpenLatch } from "../infra/sqlite-terminal-open-latch.js";
 import {
@@ -42,6 +46,7 @@ import {
   type OpenClawStateDatabaseOptions,
 } from "./openclaw-state-db-contract.js";
 import {
+  assertOpenClawStateDatabaseForMaintenance,
   assertSupportedSchemaVersion,
   createOpenClawDatabaseVerificationError,
   resolveDatabasePath,
@@ -102,9 +107,22 @@ const terminalOpenLatch = createSqliteTerminalOpenLatch({
   },
 });
 
+/** Reconfirm an advisory worker failure on the live owner connection. */
+export function confirmOpenClawStateDatabaseIntegrity(
+  pathname: string,
+): SqliteIntegrityConfirmation {
+  const resolvedPath = path.resolve(pathname);
+  closeOpenClawStateDatabaseByPath(resolvedPath);
+  return confirmSqliteFileIntegrity(resolvedPath, resolvedPath);
+}
+
 /** Latch background verification damage so later opens fail without rescanning. */
-export function recordOpenClawStateDatabaseOpenFailure(pathname: string, error: Error): void {
-  terminalOpenLatch.record(pathname, error);
+export function recordOpenClawStateDatabaseOpenFailure(
+  pathname: string,
+  error: Error,
+  generation?: SqliteFileGeneration,
+): boolean {
+  return terminalOpenLatch.record(pathname, error, generation);
 }
 
 /** Clear a terminal open failure after doctor rewrites the database file. */
@@ -291,34 +309,76 @@ function ensureSchema(db: DatabaseSync, pathname: string): void {
 }
 
 /** Open existing shared state without creating, migrating, chmodding, or configuring it. */
-export function openExistingOpenClawStateDatabaseReadOnly(
+export async function openExistingOpenClawStateDatabaseReadOnly(
   options: OpenClawStateDatabaseOptions = {},
-): OpenClawStateDatabase | undefined {
+): Promise<OpenClawStateDatabase | undefined> {
+  const env = options.env ?? process.env;
   const pathname = resolveDatabasePath(options);
   if (!existsSync(pathname)) {
     return undefined;
   }
-  const hasWalSidecars = existsSync(`${pathname}-wal`) || existsSync(`${pathname}-shm`);
-  const db = openNodeSqliteDatabase(resolveNodeSqliteReadOnlyLocation(pathname, hasWalSidecars), {
-    readOnly: true,
-  });
+  const terminalFailure = terminalOpenLatch.get(pathname);
+  if (terminalFailure) {
+    throw terminalFailure;
+  }
   try {
-    assertSupportedSchemaVersion(db, pathname);
+    const quarantine = readOpenClawDatabaseQuarantine(pathname, { env });
+    if (quarantine) {
+      throw createOpenClawDatabaseVerificationError("state", pathname, quarantine.reason);
+    }
   } catch (error) {
-    db.close();
+    if (error instanceof Error && error.name === "SqliteIntegrityError") {
+      throw error;
+    }
+    // A broken quarantine store must not brick read-only diagnostics.
+  }
+  const prepared = await prepareSqliteReadOnlyLocation(pathname);
+  let db: DatabaseSync;
+  try {
+    db = openNodeSqliteDatabase(prepared.location, {
+      readOnly: true,
+    });
+  } catch (error) {
+    prepared.cleanup();
     throw error;
   }
+  try {
+    db.exec(`PRAGMA busy_timeout = ${OPENCLAW_SQLITE_BUSY_TIMEOUT_MS};`);
+    assertSupportedSchemaVersion(db, pathname);
+    assertSqliteIntegrity(db, pathname);
+    if (readSqliteUserVersion(db) === OPENCLAW_STATE_SCHEMA_VERSION) {
+      assertOpenClawStateDatabaseForMaintenance(db, { pathname });
+    }
+  } catch (error) {
+    try {
+      db.close();
+    } catch {
+      // Preserve the verification failure that explains why the database was refused.
+    }
+    prepared.cleanup();
+    throw error;
+  }
+  let cleanupComplete = false;
   return {
     db,
     path: pathname,
     walMaintenance: {
       checkpoint: () => false,
+      // Cleanup can fail transiently after the database closes. Keep the
+      // close contract retryable until one call finishes both responsibilities.
       close: () => {
-        if (!db.isOpen) {
+        const wasOpen = db.isOpen;
+        if (!wasOpen && cleanupComplete) {
           return false;
         }
-        db.close();
-        return true;
+        try {
+          if (wasOpen) {
+            db.close();
+          }
+        } finally {
+          cleanupComplete = prepared.cleanup();
+        }
+        return cleanupComplete;
       },
     },
   };
