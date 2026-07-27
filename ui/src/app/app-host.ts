@@ -112,6 +112,7 @@ import { controlUiPublicAssetPath } from "./public-assets.ts";
 import {
   applyServerUiPrefs,
   changedServerUiPrefs,
+  flushServerUiPrefs,
   isApplyingServerUiPrefs,
   pushServerUiPrefs,
   resetServerUiPrefsSync,
@@ -123,6 +124,7 @@ import {
   normalizeCatalogOpenTarget,
   setSettingsChangeListener,
 } from "./settings.ts";
+import { isStaleChunkImportError, scheduleStaleChunkReload } from "./stale-chunk-reload.ts";
 
 type AppSidebarElement = HTMLElement & {
   dismissTransientMenus: () => boolean;
@@ -136,6 +138,16 @@ const EMPTY_OUTBOX_COUNT_FOR_SESSION = () => 0;
 const PALETTE_SHORTCUT = /Mac|iP(hone|ad|od)/i.test(globalThis.navigator?.platform ?? "")
   ? "⌘K"
   : "Ctrl K";
+
+i18n.setLocaleLoadRecovery({
+  isUnrecoverableError: isStaleChunkImportError,
+  onUnrecoverableLocaleLoad: () => {
+    // Chrome 149 and WebKit can pin network-failed dynamic imports for the document. Keep the
+    // in-place retry for engines that refetch; repeat failures use the guarded stale-chunk reload
+    // owner instead of adding a locale-specific reload path.
+    void scheduleStaleChunkReload();
+  },
+});
 
 type StoredOutboxScopeHost = {
   settings: { gatewayUrl?: string | null };
@@ -526,6 +538,7 @@ class OpenClawShell extends OpenClawLightDomElement {
   private sessionKeyClient: GatewayBrowserClient | null = null;
   private runtimeConfigClient: GatewayBrowserClient | null = null;
   private runtimeConfigSource: ApplicationContext["runtimeConfig"] | null = null;
+  private previousGatewayPhase: ApplicationContext["gateway"]["snapshot"]["phase"] | null = null;
   private sidebarWorkboardSnapshot = EMPTY_SIDEBAR_WORKBOARD_SNAPSHOT;
   private sidebarWorkboardRuntime: SidebarWorkboardRuntime | null = null;
   private sidebarWorkboardHost: ApplicationContext["workboard"] | null = null;
@@ -683,12 +696,11 @@ class OpenClawShell extends OpenClawLightDomElement {
   private reconcileServerUiPrefs(runtimeConfig: ApplicationContext["runtimeConfig"]) {
     const snapshot = runtimeConfig.state.configSnapshot;
     const context = this.context;
-    if (!snapshot?.config || !context) {
+    if (!snapshot?.config || !context || context.runtimeConfig !== runtimeConfig) {
       return;
     }
     applyServerUiPrefs(snapshot.config, {
       scope: context.gateway.connection.gatewayUrl,
-      snapshotHash: snapshot.hash ?? undefined,
       onApplied: (patch) => {
         if (patch.sidebarEntries !== undefined) {
           context.navigation.update({ sidebarEntries: patch.sidebarEntries });
@@ -733,8 +745,15 @@ class OpenClawShell extends OpenClawLightDomElement {
       }
       const prefs = changedServerUiPrefs(previous, next);
       const snapshot = this.context?.gateway.snapshot;
-      if (prefs && snapshot?.phase === "connected" && snapshot.client) {
-        pushServerUiPrefs(snapshot.client, prefs);
+      if (prefs && snapshot?.client) {
+        pushServerUiPrefs(snapshot.client, prefs, {
+          afterCommit: () => {
+            const runtimeConfig = this.context?.runtimeConfig;
+            if (runtimeConfig) {
+              void runtimeConfig.refresh();
+            }
+          },
+        });
       }
     });
   }
@@ -787,6 +806,7 @@ class OpenClawShell extends OpenClawLightDomElement {
     this.sessionKeyClient = null;
     this.runtimeConfigClient = null;
     this.runtimeConfigSource = null;
+    this.previousGatewayPhase = null;
     this.disposeSidebarWorkboard();
     if (this.agentRosterRefreshTimer !== null) {
       globalThis.clearTimeout(this.agentRosterRefreshTimer);
@@ -1426,9 +1446,14 @@ class OpenClawShell extends OpenClawLightDomElement {
   }
 
   private synchronizeGateway(snapshot: ApplicationContext["gateway"]["snapshot"]) {
+    const previousPhase = this.previousGatewayPhase;
+    this.previousGatewayPhase = snapshot.phase;
     this.updateGatewaySessionKey(snapshot);
     this.ensureAgentsList(snapshot);
     this.ensureRuntimeConfig(snapshot);
+    if (previousPhase !== "connected" && snapshot.phase === "connected") {
+      i18n.retryPendingLocale();
+    }
     this.syncSidebarWorkboard();
     // Chunks are usually served by the gateway, so a failed idle load of the
     // outbox module recovers on reconnect, not only on a browser online event.
@@ -1536,6 +1561,14 @@ class OpenClawShell extends OpenClawLightDomElement {
     }
     this.runtimeConfigClient = snapshot.client;
     this.runtimeConfigSource = runtimeConfig;
+    flushServerUiPrefs(snapshot.client, {
+      afterCommit: () => {
+        const currentRuntimeConfig = this.context?.runtimeConfig;
+        if (currentRuntimeConfig) {
+          void currentRuntimeConfig.refresh();
+        }
+      },
+    });
     void runtimeConfig.ensureLoaded();
   }
 
