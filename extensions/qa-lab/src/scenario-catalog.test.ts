@@ -896,14 +896,12 @@ describe("qa scenario catalog", () => {
     }
   });
 
-  it("keeps portable thread relation flows free of a channel requirement", () => {
+  it("keeps portable thread relation flows on channels with native thread semantics", () => {
     for (const scenarioId of ["thread-follow-up", "thread-isolation"]) {
-      const scenario = readQaScenarioById(scenarioId);
+      const scenario = requireFlowScenario(readQaScenarioById(scenarioId));
 
       expect(scenario.execution.channel, scenarioId).toBeUndefined();
-      expect(Object.keys(scenario.execution.profiles ?? {}), scenarioId).toEqual(
-        expect.arrayContaining(["matrix:adapter", "slack:adapter"]),
-      );
+      expect(scenario.execution.channels, scenarioId).toEqual(["qa-channel", "slack", "matrix"]);
     }
   });
 
