@@ -1757,6 +1757,7 @@ Do not edit it by hand; run `pnpm docs:map:gen`.
   - H2: memory promote-explain
   - H2: memory rem-harness
   - H2: memory rem-backfill
+  - H2: memory session-backfill
   - H2: Dreaming
   - H2: SecretRef gateway dependency
   - H2: Related
@@ -1875,7 +1876,7 @@ Do not edit it by hand; run `pnpm docs:map:gen`.
   - H2: Examples
   - H2: Operations and approval
   - H3: Change history
-  - H3: Switching to masked channel setup
+  - H3: Switching to a masked terminal wizard
   - H2: Setup bootstrap
   - H2: AI conversation
   - H3: CLI harness trust model
@@ -9966,6 +9967,7 @@ Do not edit it by hand; run `pnpm docs:map:gen`.
   - H2: Automatic per-model activation
   - H3: The compat.codeMode catalog flag
   - H3: Shipped preferred models
+  - H3: Models shipped by more than one provider
   - H3: Choosing when to enable
   - H2: Activation
   - H2: Model-visible tools
