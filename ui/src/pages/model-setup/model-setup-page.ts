@@ -568,6 +568,7 @@ export class ModelSetupPage extends OpenClawLightDomElement {
       manualApiKey: this.manualApiKey,
       manualError: this.manualError,
       moreSignInOpen: this.moreSignInOpen,
+      firstRun: this.routeData?.firstRun === true,
       iconUrls: this.iconUrls,
       onDetect: () => void this.detect(),
       onVerify: () => void this.verifyConnection(),
@@ -595,6 +596,10 @@ export class ModelSetupPage extends OpenClawLightDomElement {
           return;
         }
         this.context.navigate("chat");
+      },
+      onSuccessClose: () => {
+        this.activationState = { phase: "idle" };
+        void this.detect();
       },
       onWizardValueChange: (value) => (this.wizardValue = value),
       onWizardAnswer: (value, includeValue) => void this.wizard.answer(value, includeValue),
