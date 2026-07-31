@@ -4871,8 +4871,8 @@ describe("chat welcome", () => {
       canSend: false,
       disabledBanner: {
         kind: "composer-replacement",
-        text: "OpenClaw couldn't find a provider and model configured for this agent. Add one before starting a conversation.",
-        actionLabel: "Configure a provider",
+        text: "We couldn't find a provider and model configured for this agent. Choose a supported connection; OpenClaw will test it before enabling chat.",
+        actionLabel: "Connect an AI provider",
         onAction: () => undefined,
       },
       modelSetupRequired: true,
