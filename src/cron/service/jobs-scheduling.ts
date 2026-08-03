@@ -535,6 +535,7 @@ function recomputeJobNextRunAtMs(params: {
   job: CronJob;
   nowMs: number;
   deferredNotifications?: DeferredCronNotifications;
+  skipScheduleErrorHandling?: boolean;
 }) {
   let changed = false;
   try {
@@ -562,6 +563,9 @@ function recomputeJobNextRunAtMs(params: {
       changed = true;
     }
   } catch (err) {
+    if (params.skipScheduleErrorHandling) {
+      return false;
+    }
     if (
       recordScheduleComputeError({
         state: params.state,
@@ -611,6 +615,7 @@ export function recomputeNextRunsForMaintenance(
     repairFutureCronNextRunAtMs?: boolean;
     preserveExpiredPacedNextRunJobId?: string;
     deferredNotifications?: DeferredCronNotifications;
+    skipScheduleErrorHandling?: boolean;
   },
 ): boolean {
   const recomputeExpired = opts?.recomputeExpired ?? false;
@@ -621,6 +626,7 @@ export function recomputeNextRunsForMaintenance(
       job,
       nowMs,
       deferredNotifications: opts?.deferredNotifications,
+      skipScheduleErrorHandling: opts?.skipScheduleErrorHandling,
     });
   return walkSchedulableJobs(
     state,
