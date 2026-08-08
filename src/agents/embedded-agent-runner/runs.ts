@@ -11,9 +11,7 @@ import {
   isReplyRunEvidenceStaleBySessionId,
   isReplyRunActiveForSessionId,
   isReplyRunAbortableForCompaction,
-  isReplyRunStreamingForSessionId,
   listActiveReplyRunSessionIds,
-  queueReplyRunMessage,
   resolveActiveReplyOperationForSessionId,
   resolveActiveReplyRunSessionId,
   resolveReplyBackendQueueMessageMismatch,
@@ -109,7 +107,7 @@ type PreparedEmbeddedAgentQueueMessage =
     }
   | {
       kind: "embedded_run";
-      handle: EmbeddedAgentQueueHandle;
+      queueMessage: EmbeddedAgentQueueHandle["queueMessage"];
     };
 
 function createQueueFailureOutcome(
@@ -340,18 +338,16 @@ export function queueEmbeddedAgentMessageWithOutcome(
   text: string,
   options?: EmbeddedAgentQueueMessageOptions,
 ): EmbeddedAgentQueueMessageOutcome {
-  const prepared = prepareEmbeddedAgentQueueMessage(sessionId, text, options);
+  const prepared = prepareEmbeddedAgentQueueMessage(sessionId, options);
   if (prepared.kind === "complete") {
     return prepared.outcome;
   }
   logActiveRunMessageAccepted(sessionId);
-  void prepared.handle
-    .queueMessage(text, options ?? { steeringMode: "all" })
-    .catch((err: unknown) => {
-      diag.debug(
-        `queue message rejected after enqueue: sessionId=${sessionId} err=${formatErrorMessage(err)}`,
-      );
-    });
+  void prepared.queueMessage(text, options ?? { steeringMode: "all" }).catch((err: unknown) => {
+    diag.debug(
+      `queue message rejected after enqueue: sessionId=${sessionId} err=${formatErrorMessage(err)}`,
+    );
+  });
   return {
     queued: true,
     sessionId,
@@ -373,17 +369,26 @@ function logActiveRunMessageAccepted(sessionId: string): void {
   );
 }
 
-function isEmbeddedQueueHandleMessageInjectable(
+function resolveEmbeddedQueueMessage(
   sessionId: string,
   handle: EmbeddedAgentQueueHandle,
-): boolean {
+): EmbeddedAgentQueueHandle["queueMessage"] | undefined {
   try {
-    return handle.isStopped === undefined ? handle.isStreaming() : !handle.isStopped();
+    const injection = handle.messageInjection;
+    if (injection) {
+      return injection.isAvailable()
+        ? (text, options) => injection.queueMessage(text, options)
+        : undefined;
+    }
+    // Legacy handles predate explicit injection capability. Preserve their
+    // shipped eligibility probe while modern backends use messageInjection.
+    const isAvailable = handle.isStopped ? !handle.isStopped() : handle.isStreaming();
+    return isAvailable ? (text, options) => handle.queueMessage(text, options) : undefined;
   } catch (err) {
     diag.warn(
       `queue message failed: sessionId=${sessionId} reason=injectable_check_failed err=${String(err)}`,
     );
-    return false;
+    return undefined;
   }
 }
 
@@ -447,16 +452,13 @@ export async function queueEmbeddedAgentMessageWithOutcomeAsync(
   text: string,
   options?: EmbeddedAgentQueueMessageOptions,
 ): Promise<EmbeddedAgentQueueMessageOutcome> {
-  const prepared = prepareEmbeddedAgentQueueMessage(sessionId, text, options);
+  const prepared = prepareEmbeddedAgentQueueMessage(sessionId, options);
   if (prepared.kind === "complete") {
     return prepared.outcome;
   }
   const enqueuedAtMs = Date.now();
   try {
-    const queueResult = await prepared.handle.queueMessage(
-      text,
-      options ?? { steeringMode: "all" },
-    );
+    const queueResult = await prepared.queueMessage(text, options ?? { steeringMode: "all" });
     if (queueResult?.transcriptCommit === "unconfirmed") {
       diag.warn(
         `queue message accepted without transcript confirmation: sessionId=${sessionId} err=${queueResult.errorMessage}`,
@@ -491,7 +493,6 @@ export async function queueEmbeddedAgentMessageWithOutcomeAsync(
 
 function prepareEmbeddedAgentQueueMessage(
   sessionId: string,
-  text: string,
   options?: EmbeddedAgentQueueMessageOptions,
 ): PreparedEmbeddedAgentQueueMessage {
   const handle = ACTIVE_EMBEDDED_RUNS.get(sessionId);
@@ -512,24 +513,10 @@ function prepareEmbeddedAgentQueueMessage(
         outcome: createQueueFailureOutcome(sessionId, "transcript_commit_wait_unsupported"),
       };
     }
-    const queuedReplyRunMessage = queueReplyRunMessage(sessionId, text, options);
-    if (queuedReplyRunMessage) {
-      logActiveRunMessageAccepted(sessionId);
-      return {
-        kind: "complete",
-        outcome: {
-          queued: true,
-          sessionId,
-          target: "reply_run",
-          gatewayHealth: "live",
-          enqueuedAtMs: Date.now(),
-        },
-      };
-    }
-    diag.debug(`queue message failed: sessionId=${sessionId} reason=no_active_run`);
     return { kind: "complete", outcome: createQueueFailureOutcome(sessionId, "no_active_run") };
   }
-  if (!isEmbeddedQueueHandleMessageInjectable(sessionId, handle)) {
+  const queueMessage = resolveEmbeddedQueueMessage(sessionId, handle);
+  if (!queueMessage) {
     diag.debug(`queue message failed: sessionId=${sessionId} reason=not_streaming`);
     return { kind: "complete", outcome: createQueueFailureOutcome(sessionId, "not_streaming") };
   }
@@ -562,7 +549,7 @@ function prepareEmbeddedAgentQueueMessage(
       outcome: createQueueFailureOutcome(sessionId, deliveryModeMismatch),
     };
   }
-  return { kind: "embedded_run", handle };
+  return { kind: "embedded_run", queueMessage };
 }
 
 /**
@@ -726,10 +713,7 @@ export function isEmbeddedAgentRunAbortableForCompaction(sessionId: string): boo
 
 export function isEmbeddedAgentRunStreaming(sessionId: string): boolean {
   const handle = ACTIVE_EMBEDDED_RUNS.get(sessionId);
-  if (!handle) {
-    return isReplyRunStreamingForSessionId(sessionId);
-  }
-  return handle.isStreaming();
+  return handle?.isStreaming() ?? false;
 }
 
 export function resolveActiveEmbeddedRunHandleSessionId(sessionKey: string): string | undefined {

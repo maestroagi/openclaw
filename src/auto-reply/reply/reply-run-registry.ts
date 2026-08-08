@@ -60,16 +60,29 @@ export type ReplyBackendQueueMessageResult = {
   errorMessage: string;
 };
 
+export type ReplyBackendMessageInjection = {
+  /** Runtime-owned admission state; independent from token streaming. */
+  isAvailable(): boolean;
+  queueMessage(
+    text: string,
+    options?: ReplyBackendQueueMessageOptions,
+  ): Promise<void | ReplyBackendQueueMessageResult>;
+};
+
 export type ReplyBackendHandle = {
   readonly kind: ReplyBackendKind;
+  readonly runId?: string;
   readonly sourceReplyDeliveryMode?: SourceReplyDeliveryMode;
   readonly taskSuggestionDeliveryMode?: TaskSuggestionDeliveryMode;
   /** True only when queueMessage preserves images supplied in its options. */
   readonly supportsQueueMessageImages?: boolean;
   cancel(reason?: ReplyBackendCancelReason): void;
-  isStreaming(): boolean;
+  readonly messageInjection?: ReplyBackendMessageInjection;
+  /** @deprecated Compatibility for shipped embedded handles. Use messageInjection. */
+  isStreaming?: () => boolean;
   isStopped?: () => boolean;
   isAbortable?: () => boolean;
+  /** @deprecated Compatibility for shipped embedded handles. Use messageInjection. */
   queueMessage?: (
     text: string,
     options?: ReplyBackendQueueMessageOptions,
@@ -79,6 +92,38 @@ export type ReplyBackendHandle = {
    * find embedded runs that are compacting during the main run phase.
    */
   isCompacting?: () => boolean;
+};
+
+const replyMessageInjectionTargetOperation = Symbol("replyMessageInjectionTargetOperation");
+export type ReplyMessageInjectionTarget = {
+  readonly [replyMessageInjectionTargetOperation]: ReplyOperation;
+  /** Legacy targets stay leaf-bound even when their backend exposes a run id. */
+  readonly identity: "leaf" | "run";
+  readonly runId?: string;
+  readonly originatingLeafEntryId: string | null | undefined;
+};
+
+type ReplyMessageInjectionRejectionReason =
+  | "no_active_run"
+  | "not_running"
+  | "stale_run"
+  | "leaf_mismatch"
+  | "run_mismatch"
+  | "injection_unavailable"
+  | ReplyBackendQueueMessageMismatch
+  | "runtime_rejected";
+
+export type ReplyMessageInjectionOutcome =
+  | { status: "accepted"; result?: ReplyBackendQueueMessageResult }
+  | { status: "rejected"; reason: ReplyMessageInjectionRejectionReason; errorMessage?: string };
+
+export type ReplyMessageInjectionAttempt = {
+  /** Native run identity captured with the opaque operation target. */
+  targetRunId: string | undefined;
+  /** Leaf-bound compatibility must reject before ACK instead of falling through. */
+  rejectBeforeAck?: true;
+  /** Settles after the backend confirms or rejects this exact injection. */
+  outcome: Promise<ReplyMessageInjectionOutcome>;
 };
 
 type ReplyBackendQueueMessageMismatch =
@@ -242,11 +287,11 @@ type ReplyRunRegistry = {
   }): ReplyOperation;
   get(sessionKey: string): ReplyOperation | undefined;
   isActive(sessionKey: string): boolean;
-  isStreaming(sessionKey: string): boolean;
-  isMessageInjectableFromOriginatingLeaf(
-    sessionKey: string,
-    originatingLeafEntryId: string | null,
-  ): boolean;
+  resolveMessageInjectionTarget(params: {
+    sessionKey: string;
+    originatingLeafEntryId: string | null | undefined;
+    expectedRunId?: string;
+  }): ReplyMessageInjectionTarget | undefined;
   abort(sessionKey: string): boolean;
   waitForIdle(
     sessionKey: string,
@@ -428,21 +473,72 @@ export function retainReplyOperationUntilComplete(operation: ReplyOperation): vo
   retainStateUntilCompleteOperations.add(operation);
 }
 
-function isReplyBackendMessageInjectable(backend: ReplyBackendHandle): boolean {
-  try {
-    return backend.isStopped === undefined ? backend.isStreaming() : !backend.isStopped();
-  } catch {
-    return false;
+/** Queue-first compatibility adapter for shipped Plugin SDK/embedded handles. */
+function resolveReplyBackendMessageInjection(
+  backend: ReplyBackendHandle,
+): ReplyBackendMessageInjection | undefined {
+  if (backend.messageInjection) {
+    return backend.messageInjection;
   }
+  if (!backend.queueMessage) {
+    return undefined;
+  }
+  return {
+    isAvailable: () => {
+      if (backend.isStopped) {
+        return !backend.isStopped();
+      }
+      // Legacy handles already expose the only capability that matters here:
+      // queueMessage. Let the runtime accept or reject instead of guessing from
+      // unrelated token-stream state.
+      return true;
+    },
+    queueMessage: (text, options) =>
+      options ? backend.queueMessage!(text, options) : backend.queueMessage!(text),
+  };
 }
 
-function isReplyOperationMessageInjectable(
-  operation: ReplyOperation,
-  backend: ReplyBackendHandle,
-): boolean {
-  // Admission and delivery must share freshness or a stale owner can waive the
-  // transcript-leaf fence and then reject the same steer during injection.
-  return !isReplyRunEvidenceStale(operation) && isReplyBackendMessageInjectable(backend);
+function resolveReplyMessageInjectionRejection(params: {
+  operation: ReplyOperation | undefined;
+  originatingLeafEntryId: string | null | undefined;
+  expectedRunId?: string;
+  options?: ReplyBackendQueueMessageOptions;
+}):
+  | { reason: ReplyMessageInjectionRejectionReason; errorMessage?: string }
+  | { backend: ReplyBackendHandle; injection: ReplyBackendMessageInjection } {
+  const { operation } = params;
+  if (!operation || replyRunState.activeRunsByKey.get(operation.key) !== operation) {
+    return { reason: "no_active_run" };
+  }
+  if (operation.result || operation.phase !== "running") {
+    return { reason: "not_running" };
+  }
+  const expectedRunId = normalizeOptionalString(params.expectedRunId);
+  // Exact run identity supersedes the operation's immutable origin leaf. The
+  // same run advances its transcript leaf during ordinary tool/output progress.
+  if (!expectedRunId && operation.originatingLeafEntryId !== params.originatingLeafEntryId) {
+    return { reason: "leaf_mismatch" };
+  }
+  if (isReplyRunEvidenceStale(operation)) {
+    return { reason: "stale_run" };
+  }
+  const backend = getAttachedBackend(operation);
+  const injection = backend ? resolveReplyBackendMessageInjection(backend) : undefined;
+  if (!backend || !injection) {
+    return { reason: "injection_unavailable" };
+  }
+  if (expectedRunId && normalizeOptionalString(backend.runId) !== expectedRunId) {
+    return { reason: "run_mismatch" };
+  }
+  try {
+    if (!injection.isAvailable()) {
+      return { reason: "injection_unavailable" };
+    }
+  } catch (error) {
+    return { reason: "injection_unavailable", errorMessage: String(error) };
+  }
+  const mismatch = resolveReplyBackendQueueMessageMismatch(backend, params.options);
+  return mismatch ? { reason: mismatch } : { backend, injection };
 }
 
 /** Run work after an operation no longer owns its session lane. */
@@ -1283,24 +1379,23 @@ export const replyRunRegistry: ReplyRunRegistry = {
     }
     return replyRunState.activeRunsByKey.has(normalizedSessionKey);
   },
-  isStreaming(sessionKey) {
+  resolveMessageInjectionTarget({ sessionKey, originatingLeafEntryId, expectedRunId }) {
     const operation = this.get(sessionKey);
-    if (!operation || operation.phase !== "running") {
-      return false;
+    const resolved = resolveReplyMessageInjectionRejection({
+      operation,
+      originatingLeafEntryId,
+      expectedRunId,
+    });
+    if (!("injection" in resolved)) {
+      return undefined;
     }
-    return getAttachedBackend(operation)?.isStreaming() ?? false;
-  },
-  isMessageInjectableFromOriginatingLeaf(sessionKey, originatingLeafEntryId) {
-    const operation = this.get(sessionKey);
-    if (
-      !operation ||
-      operation.phase !== "running" ||
-      operation.originatingLeafEntryId !== originatingLeafEntryId
-    ) {
-      return false;
-    }
-    const backend = getAttachedBackend(operation);
-    return backend ? isReplyOperationMessageInjectable(operation, backend) : false;
+    const target: ReplyMessageInjectionTarget = {
+      [replyMessageInjectionTargetOperation]: operation!,
+      identity: normalizeOptionalString(expectedRunId) ? "run" : "leaf",
+      ...(resolved.backend.runId ? { runId: resolved.backend.runId } : {}),
+      originatingLeafEntryId,
+    };
+    return target;
   },
   abort(sessionKey) {
     const operation = this.get(sessionKey);
@@ -1391,37 +1486,74 @@ export function isReplyRunAbortableForCompaction(sessionId: string): boolean {
   return Boolean(operation && !isReplyOperationPreBackendPhase(operation.phase));
 }
 
-export function isReplyRunStreamingForSessionId(sessionId: string): boolean {
-  const operation = resolveReplyRunForCurrentSessionId(sessionId);
-  if (!operation || operation.phase !== "running") {
-    return false;
-  }
-  return getAttachedBackend(operation)?.isStreaming() ?? false;
-}
-
-export function queueReplyRunMessage(
-  sessionId: string,
+export function beginReplyMessageInjectionTarget(
+  target: ReplyMessageInjectionTarget,
   text: string,
   options?: ReplyBackendQueueMessageOptions,
-): boolean {
-  const operation = resolveReplyRunForCurrentSessionId(sessionId);
-  const backend = operation ? getAttachedBackend(operation) : undefined;
-  if (!operation || operation.phase !== "running" || !backend?.queueMessage) {
-    return false;
-  }
-  if (!isReplyOperationMessageInjectable(operation, backend)) {
-    return false;
-  }
-  if (resolveReplyBackendQueueMessageMismatch(backend, options)) {
-    return false;
+): ReplyMessageInjectionAttempt {
+  const resolved = resolveReplyMessageInjectionRejection({
+    operation: target[replyMessageInjectionTargetOperation],
+    originatingLeafEntryId: target.originatingLeafEntryId,
+    expectedRunId: target.identity === "run" ? target.runId : undefined,
+    options,
+  });
+  if (!("injection" in resolved)) {
+    const immediateRejection = { status: "rejected" as const, ...resolved };
+    return {
+      targetRunId: target.runId,
+      ...(target.identity === "leaf" ? { rejectBeforeAck: true as const } : {}),
+      outcome: Promise.resolve(immediateRejection),
+    };
   }
   // Injection is user input, not run evidence: stamping activity here would let
   // sub-10-minute user messages re-arm a wedged run's staleness window forever.
-  const queued = options ? backend.queueMessage(text, options) : backend.queueMessage(text);
-  queued.catch((error: unknown) => {
-    diag.debug(`queued reply run message rejected: sessionId=${sessionId} error=${String(error)}`);
-  });
-  return true;
+  // Invoke before the first await. The capability owns the final synchronous
+  // admission check, matching Codex's active-turn lock boundary.
+  let queued: Promise<void | ReplyBackendQueueMessageResult>;
+  try {
+    queued = options
+      ? resolved.injection.queueMessage(text, options)
+      : resolved.injection.queueMessage(text);
+  } catch (error) {
+    const immediateRejection = {
+      status: "rejected" as const,
+      reason: "runtime_rejected" as const,
+      errorMessage: String(error),
+    };
+    return {
+      targetRunId: target.runId,
+      outcome: Promise.resolve(immediateRejection),
+    };
+  }
+  return {
+    targetRunId: target.runId,
+    outcome: queued.then(
+      (result): ReplyMessageInjectionOutcome =>
+        result ? { status: "accepted", result } : { status: "accepted" },
+      (error: unknown): ReplyMessageInjectionOutcome => ({
+        status: "rejected",
+        reason: "runtime_rejected",
+        errorMessage: String(error),
+      }),
+    ),
+  };
+}
+
+/** Abort only the operation captured by this target; never a same-key successor. */
+export function abortReplyMessageInjectionTarget(target: ReplyMessageInjectionTarget): boolean {
+  return target[replyMessageInjectionTargetOperation].abortByUser();
+}
+
+/** Record accepted input on the exact operation without rediscovering its session slot. */
+export function recordAcceptedReplyMessageInjectionTarget(
+  target: ReplyMessageInjectionTarget,
+  options?: { inboundAudio?: boolean },
+): void {
+  const operation = target[replyMessageInjectionTargetOperation];
+  operation.recordActivity();
+  if (options?.inboundAudio === true) {
+    operation.markAcceptedSteeredInboundAudio();
+  }
 }
 
 export function abortReplyRunBySessionId(sessionId: string): boolean {

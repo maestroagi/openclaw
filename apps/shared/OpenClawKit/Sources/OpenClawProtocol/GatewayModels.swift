@@ -17435,6 +17435,7 @@ public struct ChatSendParams: Codable, Sendable {
     public let systemprovenancereceipt: String?
     public let suppresscommandinterpretation: Bool?
     public let expectedleafentryid: AnyCodable?
+    public let expectedrunid: String?
     public let expectedsessionroutingcontract: String?
     public let idempotencykey: String
 
@@ -17460,6 +17461,7 @@ public struct ChatSendParams: Codable, Sendable {
         systemprovenancereceipt: String? = nil,
         suppresscommandinterpretation: Bool? = nil,
         expectedleafentryid: AnyCodable? = nil,
+        expectedrunid: String? = nil,
         expectedsessionroutingcontract: String? = nil,
         idempotencykey: String)
     {
@@ -17484,6 +17486,7 @@ public struct ChatSendParams: Codable, Sendable {
         self.systemprovenancereceipt = systemprovenancereceipt
         self.suppresscommandinterpretation = suppresscommandinterpretation
         self.expectedleafentryid = expectedleafentryid
+        self.expectedrunid = expectedrunid
         self.expectedsessionroutingcontract = expectedsessionroutingcontract
         self.idempotencykey = idempotencykey
     }
@@ -17509,6 +17512,7 @@ public struct ChatSendParams: Codable, Sendable {
         systemprovenancereceipt: String? = nil,
         suppresscommandinterpretation: Bool? = nil,
         expectedleafentryid: AnyCodable? = nil,
+        expectedrunid: String? = nil,
         expectedsessionroutingcontract: String? = nil,
         idempotencykey: String)
     {
@@ -17534,6 +17538,7 @@ public struct ChatSendParams: Codable, Sendable {
             systemprovenancereceipt: systemprovenancereceipt,
             suppresscommandinterpretation: suppresscommandinterpretation,
             expectedleafentryid: expectedleafentryid,
+            expectedrunid: expectedrunid,
             expectedsessionroutingcontract: expectedsessionroutingcontract,
             idempotencykey: idempotencykey)
     }
@@ -17560,6 +17565,7 @@ public struct ChatSendParams: Codable, Sendable {
         case systemprovenancereceipt = "systemProvenanceReceipt"
         case suppresscommandinterpretation = "suppressCommandInterpretation"
         case expectedleafentryid = "expectedLeafEntryId"
+        case expectedrunid = "expectedRunId"
         case expectedsessionroutingcontract = "expectedSessionRoutingContract"
         case idempotencykey = "idempotencyKey"
     }
