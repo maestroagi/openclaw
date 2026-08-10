@@ -507,7 +507,7 @@ jobs:
             done
 
             if [[ "$qa_filter_seen" == "true" ]]; then
-              repo_live_suite_filter="$(IFS=,; printf '%s' "${repo_filter_tokens[*]:-}")"
+              repo_live_suite_filter="$(IFS=,; printf '%s' "${repo_filter_tokens[*]-}")"
             fi
 
             if [[ "${#disabled_required_lanes[@]}" -gt 0 ]]; then
@@ -1983,6 +1983,12 @@ jobs:
           workflow="openclaw-release-telegram-qa.yml"
           run_id=""
           run_name=""
+          telegram_target_ref="$TARGET_REF"
+          case "$telegram_target_ref" in
+            validation/target-* | refs/heads/validation/target-*)
+              telegram_target_ref="$TARGET_SHA"
+              ;;
+          esac
 
           find_child_runs() {
             RUN_NAME="$run_name" gh api -X GET \
@@ -2035,7 +2041,7 @@ jobs:
               --ref main \
               -f dispatch_id="$dispatch_id" \
               -f expected_trusted_workflow_sha="$expected_trusted_workflow_sha" \
-              -f target_ref="$TARGET_REF" \
+              -f target_ref="$telegram_target_ref" \
               -f target_sha="$TARGET_SHA"
 
             for _ in $(seq 1 60); do

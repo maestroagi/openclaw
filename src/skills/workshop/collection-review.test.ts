@@ -12,10 +12,7 @@ import {
   isSkillCollectionReviewDue,
   recordSkillCollectionReviewSuccess,
 } from "./collection-review-state.js";
-import {
-  runScheduledSkillCollectionReviews,
-  runSkillCollectionReview,
-} from "./collection-review.js";
+import { runScheduledSkillCollectionReviews } from "./collection-review.js";
 
 const runEmbeddedAgent = vi.hoisted(() => vi.fn());
 const authStoresByAgentDir = vi.hoisted(() => new Map<string, unknown>());
@@ -55,6 +52,7 @@ describe("skill collection review", () => {
     await writeWorkspaceSkills(workspaceDir, [
       { name: "useful", description: "Useful reusable procedure" },
     ]);
+    let reviewResult: unknown;
     runEmbeddedAgent.mockImplementation(async (params) => {
       const tool = createSkillWorkshopTool({
         workspaceDir: params.workspaceDir,
@@ -65,26 +63,34 @@ describe("skill collection review", () => {
         collectionReconcile: params.skillWorkshopCollectionReconcile,
       });
       await tool.execute("read", { action: "read", skill_name: "useful" });
-      await tool.execute("reconcile", {
+      const reconciliation = await tool.execute("reconcile", {
         action: "reconcile",
         collection: [{ action: "keep", name: "useful" }],
       });
+      reviewResult = reconciliation.details;
       return {};
     });
+    const onError = vi.fn();
 
-    await expect(
-      runSkillCollectionReview({
-        agentId: "main",
-        config: {
-          agents: {
-            list: [{ id: "main", default: true, model: "openai/gpt-5.6-sol@openai:work" }],
-          },
-          skills: { workshop: { autonomous: { mode: "auto" } } },
+    await runScheduledSkillCollectionReviews({
+      config: {
+        agents: {
+          list: [
+            {
+              id: "main",
+              default: true,
+              model: "openai/gpt-5.6-sol@openai:work",
+              workspace: workspaceDir,
+            },
+          ],
         },
-        workspaceDir,
-        env: testState.env,
-      }),
-    ).resolves.toMatchObject({ kept: ["useful"], written: [], dropped: [] });
+        skills: { workshop: { autonomous: { mode: "auto" } } },
+      },
+      env: testState.env,
+      onError,
+    });
+    expect(onError).not.toHaveBeenCalled();
+    expect(reviewResult).toMatchObject({ kept: ["useful"], written: [], dropped: [] });
     expect(runEmbeddedAgent).toHaveBeenCalledWith(
       expect.objectContaining({
         trigger: "cron",
@@ -130,13 +136,17 @@ describe("skill collection review", () => {
       });
       return {};
     });
+    const onError = vi.fn();
 
-    await runSkillCollectionReview({
-      agentId: "main",
-      config: { skills: { workshop: { autonomous: { mode: "auto" } } } },
-      workspaceDir,
+    await runScheduledSkillCollectionReviews({
+      config: {
+        agents: { list: [{ id: "main", default: true, workspace: workspaceDir }] },
+        skills: { workshop: { autonomous: { mode: "auto" } } },
+      },
       env: testState.env,
+      onError,
     });
+    expect(onError).not.toHaveBeenCalled();
   });
 
   it("persists the daily boundary per workspace", async () => {
@@ -188,19 +198,22 @@ describe("skill collection review", () => {
       });
       return {};
     });
+    const onError = vi.fn();
 
-    await runSkillCollectionReview({
-      agentId: "main",
+    await runScheduledSkillCollectionReviews({
       config: {
-        agents: { list: [{ id: "main", skills: ["enabled", "disabled"] }] },
+        agents: {
+          list: [{ id: "main", workspace: workspaceDir, skills: ["enabled", "disabled"] }],
+        },
         skills: {
           entries: { disabled: { enabled: false } },
           workshop: { autonomous: { mode: "auto" } },
         },
       },
-      workspaceDir,
       env: testState.env,
+      onError,
     });
+    expect(onError).not.toHaveBeenCalled();
 
     expect((await fs.readdir(path.join(workspaceDir, "skills"))).toSorted()).toEqual([
       "agent-filtered",
@@ -367,6 +380,7 @@ describe("skill collection review", () => {
 
   it("groups symlink aliases before comparing shared-workspace identities", async () => {
     const workspaceDir = await tempDirs.make("openclaw-collection-review-real-workspace-");
+    const canonicalWorkspaceDir = await fs.realpath(workspaceDir);
     const aliasParent = await tempDirs.make("openclaw-collection-review-alias-parent-");
     const workspaceAlias = path.join(aliasParent, "workspace-alias");
     await fs.symlink(
@@ -400,7 +414,7 @@ describe("skill collection review", () => {
       onError,
     });
 
-    expect(onError).toHaveBeenCalledWith(expect.any(Error), workspaceDir);
+    expect(onError).toHaveBeenCalledWith(expect.any(Error), canonicalWorkspaceDir);
     expect(runWithGatewayIndependentRootWorkAdmission).not.toHaveBeenCalled();
     expect(runEmbeddedAgent).not.toHaveBeenCalled();
   });
@@ -450,6 +464,7 @@ describe("skill collection review", () => {
 
   it("admits and reports each workspace independently", async () => {
     const oversizedWorkspace = await tempDirs.make("openclaw-collection-review-failed-");
+    const canonicalOversizedWorkspace = await fs.realpath(oversizedWorkspace);
     const healthyWorkspace = await tempDirs.make("openclaw-collection-review-healthy-");
     await writeWorkspaceSkills(oversizedWorkspace, [
       { name: "oversized", description: "Oversized", body: "x".repeat(240_001) },
@@ -489,7 +504,7 @@ describe("skill collection review", () => {
     });
 
     expect(runWithGatewayIndependentRootWorkAdmission).toHaveBeenCalledTimes(2);
-    expect(onError).toHaveBeenCalledWith(expect.any(Error), oversizedWorkspace);
+    expect(onError).toHaveBeenCalledWith(expect.any(Error), canonicalOversizedWorkspace);
     expect(runEmbeddedAgent).toHaveBeenCalledTimes(1);
   });
 
@@ -503,14 +518,20 @@ describe("skill collection review", () => {
       },
     ]);
 
-    await expect(
-      runSkillCollectionReview({
-        agentId: "main",
-        config: { skills: { workshop: { autonomous: { mode: "auto" } } } },
-        workspaceDir,
-        env: testState.env,
-      }),
-    ).rejects.toThrow("review limit");
+    const onError = vi.fn();
+    await runScheduledSkillCollectionReviews({
+      config: {
+        agents: { list: [{ id: "main", default: true, workspace: workspaceDir }] },
+        skills: { workshop: { autonomous: { mode: "auto" } } },
+      },
+      env: testState.env,
+      onError,
+    });
+
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining("review limit") }),
+      await fs.realpath(workspaceDir),
+    );
     expect(runEmbeddedAgent).not.toHaveBeenCalled();
   });
 });
