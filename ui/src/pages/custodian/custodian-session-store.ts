@@ -1,4 +1,5 @@
 import {
+  GATEWAY_SERVER_CAPS,
   readSystemAgentInferenceUnavailableErrorDetails,
   type SystemAgentChatParams,
   type SystemAgentChatResult,
@@ -8,7 +9,11 @@ import type { WizardStep } from "../../api/types.ts";
 import { selectApplicationSession } from "../../app/agent-selection.ts";
 import type { ApplicationContext } from "../../app/context.ts";
 import { t } from "../../i18n/index.ts";
-import { canCallGatewayMethod, isGatewayMethodAdvertised } from "../../lib/gateway-methods.ts";
+import {
+  canCallGatewayMethod,
+  isGatewayCapabilityAdvertised,
+  isGatewayMethodAdvertised,
+} from "../../lib/gateway-methods.ts";
 import { buildAgentMainSessionKey, normalizeAgentId } from "../../lib/sessions/session-key.ts";
 import { pathForCustodianAgentHandoff } from "./custodian-navigation.ts";
 import { custodianWizardSubmission, initialCustodianWizardValue } from "./custodian-wizard-step.ts";
@@ -33,7 +38,11 @@ const SYSTEM_AGENT_CHAT_TIMEOUT_MS = 190_000;
 const SILENT_REPLY_PATTERN = /^\s*NO_REPLY\s*$/;
 
 function hasCustodianUserInput(params: SystemAgentChatParams): boolean {
-  return params.message !== undefined || params.wizardAnswer !== undefined;
+  return (
+    params.message !== undefined ||
+    params.wizardAnswer !== undefined ||
+    params.wizardCancel !== undefined
+  );
 }
 
 type StoreListener = () => void;
@@ -161,6 +170,15 @@ export class CustodianSessionStore {
 
   get setupRequired(): boolean {
     return this.setupIssue !== null;
+  }
+
+  get wizardCancelAvailable(): boolean {
+    return (
+      isGatewayCapabilityAdvertised(
+        this.context?.gateway.snapshot ?? {},
+        GATEWAY_SERVER_CAPS.SYSTEM_AGENT_WIZARD_CANCEL,
+      ) ?? false
+    );
   }
 
   retry(): void {
@@ -317,6 +335,29 @@ export class CustodianSessionStore {
     );
   }
 
+  cancelWizardStep(message: CustodianMessage): void {
+    const step = message.step;
+    const client = this.activeClient;
+    if (
+      !step ||
+      !this.wizardInputPending ||
+      !client ||
+      !this.chatAvailable ||
+      !this.wizardCancelAvailable ||
+      this.sending ||
+      this.setupRequired
+    ) {
+      this.emit();
+      return;
+    }
+    void this.sendUserTurn(
+      client,
+      { sessionId: this.sessionId, wizardCancel: { stepId: step.id } },
+      t("custodian.cancel"),
+      true,
+    );
+  }
+
   exitSetup(): void {
     // Leaving setup revokes navigation authority from every in-flight reply.
     // The destination surface separately decides whether to retain or rotate context.
@@ -376,7 +417,7 @@ export class CustodianSessionStore {
   }
 
   private abandonPendingUserTurn(pendingParams: SystemAgentChatParams | null): void {
-    if (pendingParams?.message === undefined) {
+    if (!pendingParams || !hasCustodianUserInput(pendingParams)) {
       return;
     }
     this.retryParams = null;
