@@ -28,6 +28,14 @@ import { makeAttemptResult } from "./run.overflow-compaction.fixture.js";
 import type { buildEmbeddedRunPayloads } from "./run/payloads.js";
 import type { EmbeddedRunAttemptResult } from "./run/types.js";
 
+type ProductionRunEmbeddedAgent = typeof import("./run.js").runEmbeddedAgent;
+export type TestRunEmbeddedAgent = (
+  params: Omit<
+    Parameters<ProductionRunEmbeddedAgent>[0],
+    "admittedRunContext" | "preparedRunAdmission"
+  >,
+) => ReturnType<ProductionRunEmbeddedAgent>;
+
 // Shared Vitest harness for overflow, compaction, failover, and hook tests.
 // Tests import these mocks directly so each scenario can override one seam.
 type MockCompactionResult =
@@ -741,7 +749,7 @@ export function resetSharedRunIntegrationHarnessMocks(): void {
 
 /** Install module mocks, import the runner, and return the mocked entrypoint. */
 export async function loadRunOverflowCompactionHarness(): Promise<{
-  runEmbeddedAgent: typeof import("./run.js").runEmbeddedAgent;
+  runEmbeddedAgent: TestRunEmbeddedAgent;
 }> {
   resetRunOverflowCompactionHarnessMocks();
   vi.resetModules();
@@ -1108,16 +1116,41 @@ export async function loadRunOverflowCompactionHarness(): Promise<{
     };
   });
 
+  const { createOperationalRunInstanceRef, prepareAgentRunAdmission } =
+    await import("../admitted-run-context.js");
   const { runEmbeddedAgent } = await import("./run.js");
   return {
-    runEmbeddedAgent: (params) =>
-      runEmbeddedAgent({ ...params, agentId: params.agentId ?? "main" }),
+    runEmbeddedAgent: async (params) => {
+      const agentId = params.agentId ?? "main";
+      const preparedRunAdmission = prepareAgentRunAdmission({
+        cfg: params.config ?? {},
+        operationalRunInstance: createOperationalRunInstanceRef(params.runId),
+        facts: {
+          runId: params.runId,
+          agentId,
+          ingress: {
+            kind: "system",
+            boundary: "run-overflow-compaction-harness",
+            state: "present",
+          },
+        },
+      });
+      try {
+        return await runEmbeddedAgent({
+          ...params,
+          preparedRunAdmission,
+          agentId,
+        });
+      } finally {
+        preparedRunAdmission.close();
+      }
+    },
   };
 }
 
 /** Move one-time runner compilation out of individual behavior timings. */
 export async function warmRunOverflowCompactionHarness(
-  runEmbeddedAgent: typeof import("./run.js").runEmbeddedAgent,
+  runEmbeddedAgent: TestRunEmbeddedAgent,
   params?: Partial<Parameters<typeof runEmbeddedAgent>[0]>,
 ): Promise<void> {
   resetRunOverflowCompactionHarnessMocks();
