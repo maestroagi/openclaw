@@ -385,11 +385,8 @@ src/agents/embedded-agent-runner/tool-result-truncation.test.ts
 src/agents/embedded-agent-runner/tool-result-truncation.ts
 src/agents/embedded-agent-runner/transcript-file-state.test.ts
 src/agents/embedded-agent-subscribe.handlers.lifecycle.test.ts
-src/agents/embedded-agent-subscribe.handlers.messages.test.ts
-src/agents/embedded-agent-subscribe.handlers.messages.ts
 src/agents/embedded-agent-subscribe.handlers.tools.test.ts
 src/agents/embedded-agent-subscribe.subscribe-embedded-agent-session.subscribeembeddedagentsession.test.ts
-src/agents/embedded-agent-subscribe.tools.ts
 src/agents/embedded-agent-subscribe.ts
 src/agents/failover-error.test.ts
 src/agents/failover-error.ts
