@@ -976,6 +976,110 @@ describe("subagent registry lifecycle hardening", () => {
     }
   });
 
+  it("retries a detached cleanup failure and completes on the next attempt", async () => {
+    vi.useFakeTimers();
+    const entry = createRunEntry({
+      endedAt: 4_000,
+      expectsCompletionMessage: false,
+      retainAttachmentsOnKeep: false,
+    });
+    helperMocks.safeRemoveAttachmentsDir.mockRejectedValueOnce(new Error("cleanup failed"));
+    const resumeSubagentRun = vi.fn((runId: string) => {
+      controller.startSubagentAnnounceCleanupFlow(runId, entry);
+    });
+    const controller = createLifecycleController({ entry, resumeSubagentRun });
+
+    try {
+      expect(controller.startSubagentAnnounceCleanupFlow(entry.runId, entry)).toBe(true);
+      await waitForLifecycleState(() => expect(entry.cleanupHandled).toBe(false));
+      expect(entry.cleanupCompletedAt).toBeUndefined();
+      expect(vi.getTimerCount()).toBe(1);
+
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      expect(resumeSubagentRun).toHaveBeenCalledExactlyOnceWith(entry.runId);
+      await waitForLifecycleState(() => expect(entry.cleanupCompletedAt).toBeTypeOf("number"));
+    } finally {
+      helperMocks.safeRemoveAttachmentsDir.mockReset().mockResolvedValue(undefined);
+      controller.clearScheduledResumeTimers();
+      vi.useRealTimers();
+    }
+  });
+
+  it("drops a failed-cleanup retry after a newer cleanup generation starts", async () => {
+    vi.useFakeTimers();
+    const entry = createRunEntry({
+      endedAt: 4_000,
+      expectsCompletionMessage: false,
+      retainAttachmentsOnKeep: false,
+    });
+    let releaseNewCleanup: (() => void) | undefined;
+    helperMocks.safeRemoveAttachmentsDir
+      .mockRejectedValueOnce(new Error("cleanup failed"))
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            releaseNewCleanup = resolve;
+          }),
+      );
+    const resumeSubagentRun = vi.fn();
+    const controller = createLifecycleController({ entry, resumeSubagentRun });
+
+    try {
+      expect(controller.startSubagentAnnounceCleanupFlow(entry.runId, entry)).toBe(true);
+      await waitForLifecycleState(() => expect(entry.cleanupHandled).toBe(false));
+      expect(vi.getTimerCount()).toBe(1);
+
+      expect(controller.startSubagentAnnounceCleanupFlow(entry.runId, entry)).toBe(true);
+      await waitForLifecycleState(() => expect(releaseNewCleanup).toBeTypeOf("function"));
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      expect(resumeSubagentRun).not.toHaveBeenCalled();
+      releaseNewCleanup?.();
+      await waitForLifecycleState(() => expect(entry.cleanupCompletedAt).toBeTypeOf("number"));
+    } finally {
+      releaseNewCleanup?.();
+      controller.clearScheduledResumeTimers();
+      vi.useRealTimers();
+    }
+  });
+
+  it("stops retrying detached cleanup failures and leaves the run durably unlocked", async () => {
+    vi.useFakeTimers();
+    const entry = createRunEntry({
+      endedAt: 4_000,
+      expectsCompletionMessage: false,
+      retainAttachmentsOnKeep: false,
+    });
+    const persist = vi.fn();
+    helperMocks.safeRemoveAttachmentsDir.mockRejectedValue(new Error("cleanup failed"));
+    const resumeSubagentRun = vi.fn((runId: string) => {
+      controller.startSubagentAnnounceCleanupFlow(runId, entry);
+    });
+    const controller = createLifecycleController({ entry, persist, resumeSubagentRun });
+
+    try {
+      expect(controller.startSubagentAnnounceCleanupFlow(entry.runId, entry)).toBe(true);
+      await waitForLifecycleState(() => expect(entry.cleanupHandled).toBe(false));
+      expect(vi.getTimerCount()).toBe(1);
+
+      for (let attempts = 0; attempts < 10 && vi.getTimerCount() > 0; attempts += 1) {
+        await vi.runOnlyPendingTimersAsync();
+      }
+
+      expect(helperMocks.safeRemoveAttachmentsDir.mock.calls.length).toBeGreaterThan(1);
+      expect(helperMocks.safeRemoveAttachmentsDir.mock.calls.length).toBeLessThan(10);
+      expect(entry.cleanupHandled).toBe(false);
+      expect(entry.cleanupCompletedAt).toBeUndefined();
+      expect(persist).toHaveBeenLastCalledWith(entry.runId);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      helperMocks.safeRemoveAttachmentsDir.mockReset().mockResolvedValue(undefined);
+      controller.clearScheduledResumeTimers();
+      vi.useRealTimers();
+    }
+  });
+
   it("does not reject completion when task finalization throws", async () => {
     const persist = vi.fn();
     const persistOrThrow = vi.fn();
@@ -4560,12 +4664,70 @@ describe("requester settle wake trigger", () => {
       });
       await vi.advanceTimersByTimeAsync(0);
       expect(settleWake).toHaveBeenCalledTimes(1);
+      controller.resumeRequesterSettleWake(entry.runId, entry);
+      controller.resumeRequesterSettleWake(entry.runId, entry);
+      expect(vi.getTimerCount()).toBe(1);
 
       await vi.advanceTimersByTimeAsync(29_999);
       expect(settleWake).toHaveBeenCalledTimes(1);
       await vi.advanceTimersByTimeAsync(1);
       expect(settleWake).toHaveBeenCalledTimes(2);
       expect(entry.requesterSettleWake).toBeUndefined();
+    } finally {
+      controller.clearScheduledResumeTimers();
+      vi.useRealTimers();
+    }
+  });
+
+  it("lets a fresh yield wake preempt a stale retry timer", async () => {
+    const entry = createRunEntry({
+      endedAt: 4_000,
+      expectsCompletionMessage: true,
+      delivery: { status: "delivered" },
+      requesterSettleWake: {
+        status: "pending",
+        attemptCount: 1,
+        nextAttemptAt: 120_000,
+        rearmGeneration: 1,
+      },
+    });
+    const settleWake = vi.fn(
+      async (
+        params: Parameters<
+          LifecycleControllerParams["maybeWakeRequesterAfterAllChildrenSettled"]
+        >[0],
+      ) => {
+        params.completeBatch([entry.runId], entry.requesterSettleWake?.rearmGeneration);
+        return true;
+      },
+    );
+    const controller = createLifecycleController({
+      entry,
+      maybeWakeRequesterAfterAllChildrenSettled: settleWake,
+    });
+
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    try {
+      controller.resumeRequesterSettleWake(entry.runId, entry);
+      expect(vi.getTimerCount()).toBe(1);
+
+      entry.requesterTurnRunId = "run-requester";
+      entry.requesterTurnYielded = true;
+      expect(
+        controller.settleRequesterTurnAfterSessionSpawns({
+          requesterSessionKey: entry.requesterSessionKey,
+          requesterTurnRunId: "run-requester",
+          requesterYielded: true,
+          acceptedSessionSpawns: [{ runId: entry.runId, childSessionKey: entry.childSessionKey }],
+        }),
+      ).toBe(true);
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(settleWake).toHaveBeenCalledOnce();
+      expect(vi.getTimerCount()).toBe(0);
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(settleWake).toHaveBeenCalledOnce();
     } finally {
       controller.clearScheduledResumeTimers();
       vi.useRealTimers();
