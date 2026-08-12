@@ -869,13 +869,11 @@ vi.mock("openclaw/plugin-sdk/security-runtime", () => ({
 }));
 
 vi.mock("openclaw/plugin-sdk/string-coerce-runtime", async (importOriginal) => {
-  const { asOptionalRecord, isRecord } =
-    await importOriginal<typeof import("openclaw/plugin-sdk/string-coerce-runtime")>();
+  const actual = await importOriginal<typeof import("openclaw/plugin-sdk/string-coerce-runtime")>();
   const normalizeMockLowercaseString = (value?: string) => value?.toLowerCase();
   const readMockOptionalString = (value?: string) => value;
   return {
-    asOptionalRecord,
-    isRecord,
+    ...actual,
     normalizeOptionalLowercaseString: normalizeMockLowercaseString,
     normalizeOptionalString: readMockOptionalString,
   };
