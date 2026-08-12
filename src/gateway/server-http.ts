@@ -44,6 +44,7 @@ import {
   isControlUiPluginManagerRequest,
 } from "./control-ui-routing.js";
 import type { ControlUiRootState } from "./control-ui.js";
+import type { DesktopSessionRegistry } from "./desktop/session-registry.js";
 import {
   classifyGatewayProbePath,
   classifyMcpAppStandalonePath,
@@ -79,7 +80,6 @@ import {
 } from "./server/ws-types.js";
 import { isTerminalConfigEnabled } from "./terminal/enabled.js";
 import { canonicalizeUserProfileAvatarPath } from "./user-profiles-http-path.js";
-import type { WorkerDesktopTunnels } from "./worker-environments/desktop-tunnel.js";
 
 type PluginGatewayDispatchContext = {
   gatewayAuthSatisfied?: boolean;
@@ -906,7 +906,7 @@ export function attachGatewayUpgradeHandler(opts: {
   rateLimiter?: AuthRateLimiter;
   /** Optional logger for error diagnostics. */
   log?: { warn: (msg: string) => void };
-  workerDesktopTunnels?: WorkerDesktopTunnels;
+  desktopSessionRegistry?: DesktopSessionRegistry;
 }) {
   const {
     httpServer,
@@ -1006,8 +1006,8 @@ export function attachGatewayUpgradeHandler(opts: {
           return;
         }
       }
-      if (requestPath === "/worker-desktop/observe") {
-        if (!opts.workerDesktopTunnels) {
+      if (requestPath === "/desktop/observe") {
+        if (!opts.desktopSessionRegistry) {
           writeGatewayUpgradeServiceUnavailable(socket, "desktop observe unavailable");
           socket.destroy();
           return;
@@ -1020,10 +1020,9 @@ export function attachGatewayUpgradeHandler(opts: {
           socket.destroy();
           return;
         }
-        const { handleWorkerDesktopUpgrade } =
-          await import("./worker-environments/desktop-observe.js");
-        handleWorkerDesktopUpgrade(req, socket, head, {
-          tunnels: opts.workerDesktopTunnels,
+        const { handleDesktopObserveUpgrade } = await import("./desktop/observe-bridge.js");
+        handleDesktopObserveUpgrade(req, socket, head, {
+          registry: opts.desktopSessionRegistry,
         });
         return;
       }
