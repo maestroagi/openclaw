@@ -5953,6 +5953,7 @@ public struct SessionRow: Codable, Sendable {
     public let lastinteractionat: Double?
     public let status: AnyCodable?
     public let lastrunerror: String?
+    public let restartrecoverystatus: String?
     public let activeleafentryid: AnyCodable?
     public let spawnedby: String?
     public let parentsessionkey: String?
@@ -6015,6 +6016,7 @@ public struct SessionRow: Codable, Sendable {
         lastinteractionat: Double? = nil,
         status: AnyCodable? = nil,
         lastrunerror: String? = nil,
+        restartrecoverystatus: String? = nil,
         activeleafentryid: AnyCodable? = nil,
         spawnedby: String? = nil,
         parentsessionkey: String? = nil,
@@ -6076,6 +6078,7 @@ public struct SessionRow: Codable, Sendable {
         self.lastinteractionat = lastinteractionat
         self.status = status
         self.lastrunerror = lastrunerror
+        self.restartrecoverystatus = restartrecoverystatus
         self.activeleafentryid = activeleafentryid
         self.spawnedby = spawnedby
         self.parentsessionkey = parentsessionkey
@@ -6139,6 +6142,7 @@ public struct SessionRow: Codable, Sendable {
         case lastinteractionat = "lastInteractionAt"
         case status
         case lastrunerror = "lastRunError"
+        case restartrecoverystatus = "restartRecoveryStatus"
         case activeleafentryid = "activeLeafEntryId"
         case spawnedby = "spawnedBy"
         case parentsessionkey = "parentSessionKey"
@@ -8444,6 +8448,50 @@ public struct SessionsCreateResult: Codable, Sendable {
         case messageseq = "messageSeq"
         case runerror = "runError"
         case worktree
+    }
+}
+
+public struct SessionsRecoverParams: Codable, Sendable {
+    public let key: String
+    public let agentid: String?
+
+    public init(
+        key: String,
+        agentid: String? = nil)
+    {
+        self.key = key
+        self.agentid = agentid
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case key
+        case agentid = "agentId"
+    }
+}
+
+public struct SessionsRecoverResult: Codable, Sendable {
+    public let ok: Bool
+    public let key: String
+    public let sessionid: String
+    public let continuation: AnyCodable
+
+    public init(
+        ok: Bool,
+        key: String,
+        sessionid: String,
+        continuation: AnyCodable)
+    {
+        self.ok = ok
+        self.key = key
+        self.sessionid = sessionid
+        self.continuation = continuation
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case ok
+        case key
+        case sessionid = "sessionId"
+        case continuation
     }
 }
 
