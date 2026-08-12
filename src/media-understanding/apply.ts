@@ -61,6 +61,7 @@ export type ApplyMediaUnderstandingResult = {
   appliedAudio: boolean;
   appliedVideo: boolean;
   appliedFile: boolean;
+  enableLocalPathSelfServe?: (...contexts: MsgContext[]) => void;
 };
 
 const CAPABILITY_ORDER: MediaUnderstandingCapability[] = ["image", "audio", "video"];
@@ -113,6 +114,7 @@ type ClassifiedFileAttachment = {
 };
 
 type AttachmentContextBlock = { text: string; consumesMarkerBudget: boolean };
+type LocalPathSelfServeUpgrade = { fallback: string; selfServe: string };
 
 // URL attachments may carry signed query credentials; only the pathname
 // basename is safe to surface as a model-visible display name.
@@ -175,14 +177,33 @@ async function classifyFileAttachment(params: {
   // which would mislabel binary bytes inside a text-named file as a text format.
   // Both candidates pass strict token validation so raw header text never
   // reaches model context; undefined drops the mime from block and marker.
-  const binaryMime =
-    sanitizeMimeType(normalizeMimeType(attachment.mime)) ?? sanitizeMimeType(classification.mime);
+  const classifiedMime = sanitizeMimeType(classification.mime);
+  const binaryMime = sanitizeMimeType(normalizeMimeType(attachment.mime)) ?? classifiedMime;
+  // Preserve only the cache's root-approved local read. Rendering still waits
+  // for the reply runtime's final filesystem capability (#122411).
+  const selfServeLocalPath = bufferResult.localPath;
   if (
     classification.class !== "text" &&
     !(classification.class === "document" && classification.mime === "application/pdf")
   ) {
+    // An operator-pinned allowlist that excludes this type is a policy "no";
+    // it must win before any self-serve directive can name the file.
+    if (
+      limits.allowedMimesConfigured &&
+      !(classifiedMime && limits.allowedMimes.has(classifiedMime))
+    ) {
+      return {
+        outcome: { kind: "policy-rejected", mime: classifiedMime ?? binaryMime },
+        filename,
+        mimeType: classifiedMime ?? binaryMime,
+      };
+    }
     return {
-      outcome: { kind: "unsupported-format", mime: binaryMime },
+      outcome: {
+        kind: "unsupported-format",
+        mime: binaryMime,
+        ...(selfServeLocalPath ? { localPath: selfServeLocalPath } : {}),
+      },
       filename,
       mimeType: binaryMime,
     };
@@ -218,7 +239,11 @@ async function classifyFileAttachment(params: {
     // claims support the active configuration disables.
     const outcome: FileAttachmentOutcome = limits.allowedMimesConfigured
       ? { kind: "policy-rejected", mime: mimeType }
-      : { kind: "unsupported-format", mime: mimeType };
+      : {
+          kind: "unsupported-format",
+          mime: mimeType,
+          ...(selfServeLocalPath ? { localPath: selfServeLocalPath } : {}),
+        };
     return { outcome, filename, mimeType };
   }
   let extracted: Awaited<ReturnType<typeof extractFileContentFromSource>>;
@@ -258,13 +283,15 @@ async function extractFileContext(params: {
   cfg: OpenClawConfig;
   limits: FileExtractionLimits;
   skipAttachmentIndexes?: Set<number>;
+  selfServePathsEnabled: boolean;
 }) {
   const { attachments, cache, cfg, limits, skipAttachmentIndexes } = params;
   if (!attachments || attachments.length === 0) {
-    return { blocks: [], images: [] };
+    return { blocks: [], images: [], localPathSelfServeUpgrades: [] };
   }
   const blocks: AttachmentContextBlock[] = [];
   const images: ExtractedFileImage[] = [];
+  const localPathSelfServeUpgrades: LocalPathSelfServeUpgrade[] = [];
   for (const attachment of attachments) {
     if (!attachment) {
       continue;
@@ -284,21 +311,54 @@ async function extractFileContext(params: {
         })),
       );
     }
-    const blockText = renderFileAttachmentOutcome(outcome);
+    const blockText = renderFileAttachmentOutcome(outcome, {
+      selfServeLocalPaths: params.selfServePathsEnabled,
+    });
     if (blockText === null) {
       continue;
     }
-    blocks.push({
-      text: renderFileContextBlock({
+    const renderBlock = (content: string) =>
+      renderFileContextBlock({
         filename,
         fallbackName: `file-${attachment.index + 1}`,
         mimeType,
-        content: blockText,
-      }),
+        content,
+      });
+    const text = renderBlock(blockText);
+    blocks.push({
+      text,
       consumesMarkerBudget: isSkippedFileOutcome(outcome),
     });
+    if (outcome.kind === "unsupported-format" && outcome.localPath) {
+      const fallback = renderFileAttachmentOutcome(outcome, { selfServeLocalPaths: false });
+      const selfServe = renderFileAttachmentOutcome(outcome, { selfServeLocalPaths: true });
+      if (fallback && selfServe) {
+        localPathSelfServeUpgrades.push({
+          fallback: renderBlock(fallback),
+          selfServe: renderBlock(selfServe),
+        });
+      }
+    }
   }
-  return { blocks, images };
+  return { blocks, images, localPathSelfServeUpgrades };
+}
+
+const SELF_SERVE_CONTEXT_FIELDS = ["Body", "BodyForAgent", "agentText"] as const;
+
+function enableLocalPathSelfServe(
+  upgrades: LocalPathSelfServeUpgrade[],
+  contexts: MsgContext[],
+): void {
+  for (const context of contexts) {
+    for (const upgrade of upgrades) {
+      for (const field of SELF_SERVE_CONTEXT_FIELDS) {
+        const value = context[field];
+        if (typeof value === "string") {
+          context[field] = value.replace(upgrade.fallback, upgrade.selfServe);
+        }
+      }
+    }
+  }
 }
 
 function renderMediaAttachmentMarkers(params: {
@@ -366,6 +426,8 @@ export async function applyMediaUnderstanding(params: {
   activeModel?: ActiveMediaModel;
   /** Preserve native-harness ownership of image, video, and file inputs while applying STT. */
   processingMode?: "audio-only";
+  /** Render local paths immediately only when the caller owns the final tool surface. */
+  selfServeLocalPaths?: boolean;
   /** Attachment indexes the caller (ACP) has already resolved into native turn attachments. */
   deliveredImageIndexes?: ReadonlySet<number>;
 }): Promise<ApplyMediaUnderstandingResult> {
@@ -514,7 +576,7 @@ export async function applyMediaUnderstanding(params: {
     );
     const fileContext =
       params.processingMode === "audio-only"
-        ? { blocks: [], images: [] }
+        ? { blocks: [], images: [], localPathSelfServeUpgrades: [] }
         : await extractFileContext({
             attachments,
             cache,
@@ -522,6 +584,9 @@ export async function applyMediaUnderstanding(params: {
             limits: resolveFileExtractionLimits(cfg),
             skipAttachmentIndexes:
               audioAttachmentIndexes.size > 0 ? audioAttachmentIndexes : undefined,
+            // Placement is the caller's fact. Absent an authoritative host-readable
+            // placement, suppress — a wrong path is worse than the plain marker (#122411).
+            selfServePathsEnabled: params.selfServeLocalPaths === true,
           });
     const mediaMarkers =
       params.processingMode === "audio-only"
@@ -551,6 +616,12 @@ export async function applyMediaUnderstanding(params: {
       appliedAudio: outputs.some((output) => output.kind === "audio.transcription"),
       appliedVideo: outputs.some((output) => output.kind === "video.description"),
       appliedFile: fileContext.blocks.length > 0,
+      ...(fileContext.localPathSelfServeUpgrades.length > 0
+        ? {
+            enableLocalPathSelfServe: (...contexts: MsgContext[]) =>
+              enableLocalPathSelfServe(fileContext.localPathSelfServeUpgrades, contexts),
+          }
+        : {}),
     };
   } finally {
     await cache.cleanup();
