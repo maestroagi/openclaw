@@ -12,6 +12,7 @@ export const FIRST_USE_STATE_TABLES = [
   "cron_job_runtime_authorities",
   "execution_identity_contexts",
   "mcp_oauth_pending_authorizations",
+  "node_worker_launches",
   "operator_approval_execution_identities",
   "execution_decision_facts",
 ] as const;
@@ -24,6 +25,7 @@ export const FIRST_USE_STATE_INDEXES = [
 // lazy ensures run; fold them into the next natural schema-version bump.
 export const LAZY_ADDITIVE_STATE_TABLES = [
   ...FIRST_USE_STATE_TABLES,
+  "cron_store_epochs",
   "model_catalog_remote",
   "secret_store_entries",
   "projects",
