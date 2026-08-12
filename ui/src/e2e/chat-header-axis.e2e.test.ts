@@ -72,8 +72,19 @@ suite.define(() => {
           };
         });
 
-        for (const center of Object.values(centers)) {
-          expect(Math.abs(center - centers.nav), JSON.stringify(centers)).toBeLessThanOrEqual(0.1);
+        expect(Math.abs(centers.search - centers.nav), JSON.stringify(centers)).toBeLessThanOrEqual(
+          0.1,
+        );
+        for (const center of [
+          centers.projectIcon,
+          centers.projectText,
+          centers.separator,
+          centers.sessionText,
+        ]) {
+          // Text and artwork carry more visible weight below their geometric
+          // boxes than Lucide actions, so the identity trail needs a 1px
+          // optical lift to share the topbar's perceived horizontal axis.
+          expect(centers.nav - center, JSON.stringify(centers)).toBeCloseTo(1, 1);
         }
         expect(await header.locator(".chat-pane__crumb-sep").count()).toBe(2);
         const parent = header.locator(".chat-pane__parent-session");
