@@ -4846,6 +4846,10 @@ export const en: TranslationMap = {
     },
     codeBlock: {
       jsonLines: "JSON · {count} lines",
+      jsonBadge: "JSON",
+      jsonArrayItem: "Array ({count} item)",
+      jsonArrayItems: "Array ({count} items)",
+      jsonObjectKeys: "Object ({count} keys)",
     },
     workspaceConflict: {
       titleOne: "1 cloud workspace conflict",
@@ -5092,6 +5096,7 @@ export const en: TranslationMap = {
       showLess: "Show less",
       showMore: "Show more",
       unknownDate: "Unknown date",
+      toolSender: "Tool",
       voiceNote: "Voice note",
       duplicatesCollapsed: "{count} consecutive identical messages collapsed",
       contextFor: "Message context for {timestamp}",
@@ -5389,6 +5394,7 @@ export const en: TranslationMap = {
     },
     attachments: {
       attachedFile: "Attached file",
+      readFailed: "Could not attach: {names}{more}",
       showInTextField: "Show in text field",
       outsideAllowedFolders: "Outside allowed folders",
       unavailable: "Unavailable",
