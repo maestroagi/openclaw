@@ -42,6 +42,7 @@ export type NodeTestShard = {
   groups?: NodeTestShardGroup[];
   timeoutMinutes?: number;
   planConcurrency?: number;
+  predictedSeconds?: number;
   saveVitestFsCache?: boolean;
 };
 
@@ -166,13 +167,15 @@ const MAX_BUNDLED_NODE_TEST_PATTERNS = 64;
 // Keep runner classes and subprocess isolation intact while bounding each combined job.
 // The group hints below are loaded-fleet CI walls. Three-way striping plus a
 // Blacksmith keeps the proven 200s/276s admission caps and 28-worker ceiling.
-// Standard 4-core GitHub runners need smaller bins: observed hosted medians were
-// 366s for 200-hint large bins and 344s for 276-hint small bins. Roughly 60%
-// caps target four-minute walls while staying below the hosted 48-worker cap.
+// Standard 4-core GitHub runners use direct hosted wall hints below. The
+// 160-second wall budget is the hosted-hint equivalent of tightening the old
+// 120/166 admission caps to 80/110, leaving setup inside a ~3.5-minute lane.
 const COMPACT_LARGE_NODE_TEST_JOB_SECONDS = 200;
 const COMPACT_SMALL_NODE_TEST_JOB_SECONDS = 276;
-const COMPACT_GITHUB_LARGE_NODE_TEST_JOB_SECONDS = 120;
-const COMPACT_GITHUB_SMALL_NODE_TEST_JOB_SECONDS = 166;
+const COMPACT_GITHUB_LARGE_NODE_TEST_JOB_SECONDS = 160;
+const COMPACT_GITHUB_SMALL_NODE_TEST_JOB_SECONDS = 160;
+const COMPACT_GITHUB_GROUP_SECONDS_SCALE = 1.6;
+const COMPACT_GITHUB_MAX_PREDICTED_SECONDS = 210;
 const COMPACT_NODE_TEST_JOB_GROUPS = 10;
 const COMPACT_TOOLING_NODE_TEST_GROUPS = 4;
 const COMPACT_WHOLE_NODE_TEST_TIMEOUT_MINUTES = 120;
@@ -370,6 +373,132 @@ const COMPACT_LARGE_GROUP_STRIPE_SECONDS_HINTS = new Map<string, number>([
   ["core-unit-src-security-support", 12],
 ]);
 
+// Rounded medians from standard 4-core GitHub-hosted runs 31737316152,
+// 31742781948, 31749838728, and 31754493208. The last run exercised compact
+// bins; the earlier full-plan runs isolate the named groups. Exclude failed
+// samples and reject media-ui-3's 444s compact retry sample because its log
+// records a 300s no-output timeout; its three healthy samples are 52-63s.
+// Unmeasured groups use the scale above.
+const COMPACT_GITHUB_GROUP_SECONDS_HINTS = new Map<string, number>([
+  ["agentic-agents-core-auth", 50],
+  ["agentic-agents-core-isolated", 23],
+  ["agentic-agents-core-models", 72],
+  ["agentic-agents-core-runner-cli-1", 16],
+  ["agentic-agents-core-runner-cli-2", 25],
+  ["agentic-agents-core-runner-cli-3", 23],
+  ["agentic-agents-core-runner-commands", 55],
+  ["agentic-agents-core-runner-embedded", 30],
+  ["agentic-agents-core-runner-sessions", 23],
+  ["agentic-agents-core-runtime", 185],
+  ["agentic-agents-core-subagents", 29],
+  ["agentic-agents-core-tools", 83],
+  ["agentic-agents-embedded", 234],
+  ["agentic-agents-embedded-base", 139],
+  ["agentic-agents-embedded-incomplete-turn", 3],
+  ["agentic-agents-embedded-overflow-compaction", 31],
+  ["agentic-agents-embedded-run", 62],
+  ["agentic-agents-support", 253],
+  ["agentic-agents-tools", 124],
+  ["agentic-cli", 209],
+  ["agentic-command-support", 67],
+  ["agentic-commands-agent-channel", 121],
+  ["agentic-commands-doctor", 33],
+  ["agentic-commands-doctor-auth", 32],
+  ["agentic-commands-doctor-config-state", 124],
+  ["agentic-commands-doctor-device", 5],
+  ["agentic-commands-doctor-gateway", 8],
+  ["agentic-commands-doctor-platform", 7],
+  ["agentic-commands-doctor-plugins-tools", 21],
+  ["agentic-commands-doctor-sessions-cron", 60],
+  ["agentic-commands-doctor-shared", 61],
+  ["agentic-commands-doctor-whatsapp", 2],
+  ["agentic-commands-doctor-workspace", 3],
+  ["agentic-commands-models", 64],
+  ["agentic-commands-onboard-config", 76],
+  ["agentic-commands-status-tools", 57],
+  ["agentic-control-plane-agent-chat", 232],
+  ["agentic-control-plane-auth-node", 254],
+  ["agentic-control-plane-http-models", 59],
+  ["agentic-control-plane-http-plugin-ws", 86],
+  ["agentic-control-plane-runtime", 31],
+  ["agentic-control-plane-runtime-config", 31],
+  ["agentic-control-plane-runtime-cron", 52],
+  ["agentic-control-plane-runtime-network", 2],
+  ["agentic-control-plane-runtime-server", 54],
+  ["agentic-control-plane-runtime-shared-token", 28],
+  ["agentic-control-plane-runtime-state", 55],
+  ["agentic-control-plane-runtime-ui-tools", 31],
+  ["agentic-control-plane-startup-config", 15],
+  ["agentic-control-plane-startup-core", 51],
+  ["agentic-control-plane-startup-health-runtime", 31],
+  ["agentic-control-plane-startup-restart-close", 28],
+  ["agentic-gateway-core-1", 128],
+  ["agentic-gateway-core-2", 149],
+  ["agentic-gateway-core-3", 141],
+  ["agentic-gateway-methods", 169],
+  ["agentic-plugin-sdk", 70],
+  ["auto-reply-core-top-level", 43],
+  ["auto-reply-reply-agent-runner", 114],
+  ["auto-reply-reply-commands-1", 53],
+  ["auto-reply-reply-commands-2", 26],
+  ["auto-reply-reply-commands-3", 48],
+  ["auto-reply-reply-dispatch", 138],
+  ["auto-reply-reply-session", 79],
+  ["auto-reply-reply-state-routing", 34],
+  ["core-runtime-cron-core", 44],
+  ["core-runtime-cron-isolated-agent", 154],
+  ["core-runtime-cron-service", 131],
+  ["core-runtime-hooks", 31],
+  ["core-runtime-infra-approval-exec", 45],
+  ["core-runtime-infra-channel-plugin", 30],
+  ["core-runtime-infra-cli-ui", 3],
+  ["core-runtime-infra-core-utils", 7],
+  ["core-runtime-infra-device", 13],
+  ["core-runtime-infra-diagnostics-state", 34],
+  ["core-runtime-infra-env-auth", 10],
+  ["core-runtime-infra-events-runtime", 11],
+  ["core-runtime-infra-file-safety", 4],
+  ["core-runtime-infra-files-commands", 7],
+  ["core-runtime-infra-gateway-lock-argv", 3],
+  ["core-runtime-infra-gateway-processes", 1],
+  ["core-runtime-infra-gateway-watch", 1],
+  ["core-runtime-infra-heartbeat-core", 10],
+  ["core-runtime-infra-heartbeat-runner", 106],
+  ["core-runtime-infra-misc", 33],
+  ["core-runtime-infra-misc-dedupe-disk", 1],
+  ["core-runtime-infra-misc-os", 1],
+  ["core-runtime-infra-misc-values", 2],
+  ["core-runtime-infra-net-install", 17],
+  ["core-runtime-infra-network-node", 5],
+  ["core-runtime-infra-network-platform", 8],
+  ["core-runtime-infra-outbound-actions", 53],
+  ["core-runtime-infra-outbound-core", 112],
+  ["core-runtime-infra-process", 181],
+  ["core-runtime-infra-provider-push", 29],
+  ["core-runtime-infra-repo-tooling", 6],
+  ["core-runtime-infra-storage-state", 175],
+  ["core-runtime-infra-system-runtime", 69],
+  ["core-runtime-media-ui-1", 97],
+  ["core-runtime-media-ui-2", 78],
+  ["core-runtime-media-ui-3", 54],
+  ["core-runtime-media-ui-support", 101],
+  ["core-runtime-secrets", 73],
+  ["core-runtime-shared", 92],
+  ["core-tooling-1", 210],
+  ["core-tooling-2", 181],
+  ["core-tooling-3", 335],
+  ["core-tooling-4", 183],
+  ["core-tooling-isolated", 41],
+  ["core-unit-fast-1", 85],
+  ["core-unit-fast-2", 84],
+  ["core-unit-fast-isolated", 183],
+  ["core-unit-src-security-1", 132],
+  ["core-unit-src-security-2", 131],
+  ["core-unit-src-security-3", 132],
+  ["core-unit-src-security-support", 20],
+  ["core-unit-support", 32],
+]);
+
 // Advisory per-file wall-clock hints (seconds) for stripe balancing, measured
 // from single-file local runs (M4 Max) and static import-graph size. Packing
 // only: a stale entry skews stripe balance but never correctness. Unlisted
@@ -429,7 +558,8 @@ const COMPACT_PUSH_EXCLUDED_SHARDS = new Set([
 // Spawn/signal-timing suites (process-group waits, PTY smoke) flake when a
 // concurrent sibling Vitest run competes for the 4 vCPU runner. Pack them
 // into bins the shard runner executes at concurrency 1.
-const EXCLUSIVE_COMPACT_GROUP_RE = /^core-tooling(?:-\d+|-isolated)$|^core-runtime-tui-pty$/u;
+const EXCLUSIVE_COMPACT_GROUP_RE =
+  /^core-tooling(?:-\d+(?:-hosted-\d+)?|-isolated)$|^core-runtime-tui-pty$/u;
 // Exclusive bins run serially, so their packed estimate is their wall clock.
 const COMPACT_EXCLUSIVE_JOB_SECONDS = 150;
 
@@ -442,7 +572,7 @@ function isExclusiveCompactGroup(group: NodeTestShardGroup): boolean {
 // scales with the runner class. infra-process spawns child processes per test
 // and hit worker-startup timeouts under contention before serialization.
 const PINNED_WORKER_COMPACT_GROUP_RE =
-  /^core-tooling(?:-\d+|-isolated)$|^core-runtime-tui-pty$|^core-runtime-infra-process$|^core-runtime-media-ui-(?:\d+|support)$|^agentic-cli$|^agentic-gateway-(?:core-\d+|methods)$/u;
+  /^core-tooling(?:-\d+(?:-hosted-\d+)?|-isolated)$|^core-runtime-tui-pty$|^core-runtime-infra-process$|^core-runtime-media-ui-(?:\d+|support)$|^agentic-cli$|^agentic-gateway-(?:core-\d+|methods)$/u;
 const PINNED_COMPACT_GROUP_ENV = { OPENCLAW_VITEST_MAX_WORKERS: "2" };
 
 function applyCompactGroupWorkerPins(group: NodeTestShardGroup): NodeTestShardGroup {
@@ -452,7 +582,7 @@ function applyCompactGroupWorkerPins(group: NodeTestShardGroup): NodeTestShardGr
   return { ...group, env: { ...group.env, ...PINNED_COMPACT_GROUP_ENV } };
 }
 
-function estimateCompactGroupSeconds(group: NodeTestShardGroup): number {
+function estimateDefaultCompactGroupSeconds(group: NodeTestShardGroup): number {
   const hint = COMPACT_GROUP_SECONDS_HINTS.get(group.shard_name);
   if (hint !== undefined) {
     return hint;
@@ -463,10 +593,30 @@ function estimateCompactGroupSeconds(group: NodeTestShardGroup): number {
   return DEFAULT_WHOLE_GROUP_SECONDS;
 }
 
-function estimateCompactStripeSeconds(group: NodeTestShardGroup): number {
+function estimateCompactGroupSeconds(
+  group: NodeTestShardGroup,
+  runnerBackend: string | undefined,
+): number {
+  const defaultSeconds = estimateDefaultCompactGroupSeconds(group);
+  if (runnerBackend !== "github") {
+    return defaultSeconds;
+  }
+  return (
+    COMPACT_GITHUB_GROUP_SECONDS_HINTS.get(group.shard_name) ??
+    Math.round(defaultSeconds * COMPACT_GITHUB_GROUP_SECONDS_SCALE)
+  );
+}
+
+function estimateCompactStripeSeconds(
+  group: NodeTestShardGroup,
+  runnerBackend: string | undefined,
+): number {
+  if (runnerBackend === "github") {
+    return estimateCompactGroupSeconds(group, runnerBackend);
+  }
   return (
     COMPACT_LARGE_GROUP_STRIPE_SECONDS_HINTS.get(group.shard_name) ??
-    estimateCompactGroupSeconds(group)
+    estimateDefaultCompactGroupSeconds(group)
   );
 }
 
@@ -1878,6 +2028,50 @@ export function assignVitestFsCacheWriter<T extends Pick<NodeTestShard, "shardNa
   }));
 }
 
+function listAgentSupportTestFiles(): string[] {
+  const owner = agentVitestProjectOwners.support;
+  return listTestFiles(owner.root).filter(
+    (file) =>
+      owner.include.some((pattern) => matchesGlob(file, pattern)) &&
+      !owner.exclude.some((pattern) => matchesGlob(file, pattern)),
+  );
+}
+
+function splitOversizedGithubCompactGroup(
+  group: NodeTestShardGroup,
+): Array<{ group: NodeTestShardGroup; seconds: number }> {
+  const seconds = estimateCompactGroupSeconds(group, "github");
+  if (seconds <= COMPACT_GITHUB_MAX_PREDICTED_SECONDS) {
+    return [{ group, seconds }];
+  }
+
+  const includePatterns =
+    group.includePatterns ??
+    (group.shard_name === "agentic-agents-support" ? listAgentSupportTestFiles() : undefined);
+  if (!includePatterns || includePatterns.length === 0) {
+    return [{ group, seconds }];
+  }
+
+  // Hosted proof showed the old four-way tooling stripe remained imbalanced
+  // after a two-way split (126s versus 246s). Give that measured outlier a
+  // third stripe; the generic ceiling remains sufficient for other groups.
+  const stripeCount =
+    group.shard_name === "core-tooling-3"
+      ? 3
+      : Math.ceil(seconds / COMPACT_GITHUB_MAX_PREDICTED_SECONDS);
+  const splitSeconds = Math.ceil(seconds / stripeCount);
+  return createStripedBatches(includePatterns, stripeCount, stripeFileWeight).map(
+    (patterns, index) => ({
+      group: {
+        ...group,
+        includePatterns: patterns,
+        shard_name: `${group.shard_name}-hosted-${index + 1}`,
+      },
+      seconds: splitSeconds,
+    }),
+  );
+}
+
 function createCompactNodeTestShardBundles(
   options: NodeTestPlanOptions,
   compactMode: CompactNodeTestPlanMode,
@@ -1886,35 +2080,51 @@ function createCompactNodeTestShardBundles(
     (shard) => compactMode !== "push" || !COMPACT_PUSH_EXCLUDED_SHARDS.has(shard.shardName),
   );
   const groupsByRunner = new Map<string, NodeTestShardGroup[]>();
+  const hostedSplitSeconds = new Map<string, number>();
 
   for (const shard of shards) {
     const runner = resolveCiNodeTestRunner(shard);
     const key = JSON.stringify([runner, shard.requiresDist]);
     const groups = groupsByRunner.get(key) ?? [];
-    const group = {
+    const group = applyCompactGroupWorkerPins({
       configs: shard.configs,
       ...(shard.env ? { env: shard.env } : {}),
       ...(shard.includePatterns ? { includePatterns: shard.includePatterns } : {}),
       requiresDist: shard.requiresDist,
       runner,
       shard_name: shard.shardName,
-    };
-    groups.push(applyCompactGroupWorkerPins(group));
+    });
+    const plannedGroups =
+      options.runnerBackend === "github"
+        ? splitOversizedGithubCompactGroup(group)
+        : [{ group, seconds: estimateCompactGroupSeconds(group, options.runnerBackend) }];
+    for (const planned of plannedGroups) {
+      groups.push(planned.group);
+      if (options.runnerBackend === "github") {
+        hostedSplitSeconds.set(planned.group.shard_name, planned.seconds);
+      }
+    }
     groupsByRunner.set(key, groups);
   }
 
   const compactJobs: CompactNodeTestShard[] = [];
+  const estimateGroupSeconds = (group: NodeTestShardGroup) =>
+    hostedSplitSeconds.get(group.shard_name) ??
+    estimateCompactGroupSeconds(group, options.runnerBackend);
+  const estimateStripeSeconds = (group: NodeTestShardGroup) =>
+    hostedSplitSeconds.get(group.shard_name) ??
+    estimateCompactStripeSeconds(group, options.runnerBackend);
   for (const groups of groupsByRunner.values()) {
     // First-fit decreasing sets the existing registration count from the
     // composite groups and their runtime cap.
     const bins: CompactBin[] = [];
     const sortedGroups = groups.toSorted(
       (a, b) =>
-        estimateCompactGroupSeconds(b) - estimateCompactGroupSeconds(a) ||
+        estimateGroupSeconds(b) - estimateGroupSeconds(a) ||
         a.shard_name.localeCompare(b.shard_name),
     );
     for (const group of sortedGroups) {
-      const weight = estimateCompactGroupSeconds(group);
+      const weight = estimateGroupSeconds(group);
       const exclusive = isExclusiveCompactGroup(group);
       const secondsCap = exclusive
         ? COMPACT_EXCLUSIVE_JOB_SECONDS
@@ -1955,7 +2165,7 @@ function createCompactNodeTestShardBundles(
     const regularBatches = createStripedBatches(
       regularGroups,
       regularBinCount,
-      estimateCompactStripeSeconds,
+      estimateStripeSeconds,
       compactGiantStripeFamily,
     );
     if (regularBatches.some((batch) => batch.length > COMPACT_NODE_TEST_JOB_GROUPS)) {
@@ -1965,7 +2175,7 @@ function createCompactNodeTestShardBundles(
       exclusive: false,
       groups: batch,
       hasWholeConfigGroup: batch.some((group) => !group.includePatterns),
-      weight: batch.reduce((sum, group) => sum + estimateCompactStripeSeconds(group), 0),
+      weight: batch.reduce((sum, group) => sum + estimateStripeSeconds(group), 0),
     }));
     const exclusiveBins = bins.filter((bin) => bin.exclusive);
     bins.splice(0, bins.length, ...regularBins, ...exclusiveBins);
@@ -2000,6 +2210,7 @@ function createCompactNodeTestShardBundles(
         // lock-timing flakes on 8 vCPU), and the packed weights are
         // contention-inflated so serializing is roughly wall-neutral.
         planConcurrency: 1,
+        predictedSeconds: bin.weight,
       });
     }
   }
