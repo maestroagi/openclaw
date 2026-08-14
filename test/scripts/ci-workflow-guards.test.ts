@@ -5588,7 +5588,9 @@ printf '%s\n' "\${CURL_SUCCESS_IP:-203.0.113.7}"
     expect(checkShardRun).toContain('if [ "$RUNNER_BACKEND" = "github" ]; then');
     expect(checkShardRun).toContain("lint_args=(--only=extensions --only=scripts --threads=1)");
     expect(checkShardRun).toContain('elif [ "$(nproc)" -lt 8 ]; then');
-    expect(checkShardRun).toContain("lint_args=(--split-core --threads=1)");
+    expect(checkShardRun).toContain("lint_args=(--threads=1)");
+    expect(checkShardRun).not.toContain("lint_args=(--split-core --threads=1)");
+    expect(checkShardRun.match(/export GOMAXPROCS=2/gu)).toHaveLength(2);
     expect(checkShardRun).toContain('pnpm lint "${lint_args[@]}"');
     expect(checkShardRun).toContain(
       'node --import tsx scripts/run-oxlint-shards.mts "${lint_args[@]}"',
@@ -5600,6 +5602,10 @@ printf '%s\n' "\${CURL_SUCCESS_IP:-203.0.113.7}"
       "max-parallel": 5,
       matrix: { stripe: [1, 2, 3, 4, 5] },
     });
+    expect(
+      hostedCoreLint.steps.find((step: WorkflowStep) => step.name === "Run hosted core lint stripe")
+        .env.GOMAXPROCS,
+    ).toBe("2");
     expect(
       hostedCoreLint.steps.find((step: WorkflowStep) => step.name === "Run hosted core lint stripe")
         .run,
@@ -5708,7 +5714,7 @@ printf '%s\n' "\${CURL_SUCCESS_IP:-203.0.113.7}"
       'if [[ "${RATCHET_RELEASE_MERGE_TREE:-}" == "true" ]]; then',
     );
     expect(checksFastRun.run).toContain(
-      "node --import tsx scripts/run-oxlint-shards.mts --only=core --only=extensions --split-core --threads=1",
+      "node --import tsx scripts/run-oxlint-shards.mts --only=core --only=extensions --threads=1",
     );
     expect(checksFastRun.run).not.toContain(
       "node scripts/run-oxlint.mjs src ui/src packages extensions",
@@ -6488,12 +6494,31 @@ printf '%s\n' "\${CURL_SUCCESS_IP:-203.0.113.7}"
     );
     expect(scenario.if).toBe("matrix.task == 'control-ui'");
     expect(scenario.env).toEqual({
+      OPENCLAW_UI_E2E_DIAGNOSTIC_DIR:
+        ".artifacts/control-ui-e2e-timeouts/shard-${{ matrix.shard }}-attempt-${{ github.run_attempt }}",
       SHARD_INDEX: "${{ matrix.shard }}",
       VITEST_SHARD_COUNT: "${{ matrix.vitest_shard_count }}",
     });
     expect(scenario.run).toBe(
       'node scripts/run-vitest.mjs run --config test/vitest/vitest.ui-e2e.config.ts --configLoader runner --shard "$SHARD_INDEX/$VITEST_SHARD_COUNT"',
     );
+    const timeoutDiagnostics = expectDefined(
+      uiE2e.steps.find(
+        (step: WorkflowStep) => step.name === "Upload Control UI E2E timeout diagnostics",
+      ),
+      "Control UI E2E timeout diagnostic upload",
+    );
+    expect(timeoutDiagnostics).toEqual({
+      name: "Upload Control UI E2E timeout diagnostics",
+      if: "failure() && matrix.task == 'control-ui'",
+      uses: UPLOAD_ARTIFACT_V7,
+      with: {
+        name: "control-ui-e2e-timeout-${{ matrix.shard }}-${{ github.run_attempt }}",
+        path: ".artifacts/control-ui-e2e-timeouts/shard-${{ matrix.shard }}-attempt-${{ github.run_attempt }}",
+        "if-no-files-found": "ignore",
+        "retention-days": 7,
+      },
+    });
     const browserExtension = expectDefined(
       uiE2e.steps.find(
         (step: WorkflowStep) => step.name === "Test browser extension bootstrap end-to-end",
