@@ -860,7 +860,12 @@ jobs:
             run_checks_windows: runWindows,
             checks_windows_matrix: createMatrix(
               runWindows
-                ? usesGithubRunnerProfile
+                ? // Blacksmith's Windows runner class admits ~2 concurrent jobs, so a
+                  // 3-part split queues its tail behind a finished part there. Split
+                  // only where every part actually lands hosted: github mode and
+                  // dispatches (dispatch runs-on forces hosted in every mode).
+                  process.env.OPENCLAW_CI_RUNNER_BACKEND === "github" ||
+                  eventName === "workflow_dispatch"
                   ? [1, 2, 3].map((part) => ({
                       check_name: `checks-windows-node-test-${part}`,
                       runtime: "node",
