@@ -605,7 +605,7 @@ jobs:
           const usesGithubRunnerProfile =
             process.env.OPENCLAW_CI_RUNNER_BACKEND === "github" ||
             process.env.OPENCLAW_CI_RUNNER_BACKEND === "hybrid";
-          const uiE2eShardCount = usesGithubRunnerProfile ? 8 : 4;
+          const uiE2eShardCount = usesGithubRunnerProfile ? 10 : 4;
           const qaSmokeCiPartCount = usesGithubRunnerProfile ? 6 : 4;
           const supportsNativeI18n =
             hasPackageScript("native:i18n:check") &&
@@ -1649,7 +1649,7 @@ jobs:
       OPENCLAW_UI_E2E_SKIP_REAL_GATEWAY: "1"
     strategy:
       fail-fast: false
-      max-parallel: ${{ (vars.OPENCLAW_CI_RUNNER_BACKEND == 'github' || vars.OPENCLAW_CI_RUNNER_BACKEND == 'hybrid') && 8 || 4 }}
+      max-parallel: ${{ (vars.OPENCLAW_CI_RUNNER_BACKEND == 'github' || vars.OPENCLAW_CI_RUNNER_BACKEND == 'hybrid') && 10 || 4 }}
       matrix: ${{ fromJson(needs.preflight.outputs.ui_e2e_matrix) }}
     steps:
       - *linux_node_checkout_step
@@ -2678,9 +2678,10 @@ jobs:
           --only=core --split-core --core-stripe=${{ matrix.stripe }}/5 --threads=1
 
   # The github/hybrid planner profile stripes the 14 serial core test-type
-  # graphs (~256-500s on one 4-core runner, load-dependent) across three
-  # hosted jobs; the check-test-types row keeps the extensions/root/scripts
-  # tail. All-Blacksmith mode keeps the single 16-vCPU test-types job.
+  # graphs (~34-42s per graph on either runner class; tsgo saturates a machine
+  # per graph) across four jobs; the check-test-types row keeps the
+  # extensions/root/scripts tail. All-Blacksmith mode keeps the single
+  # 16-vCPU test-types job.
   check-test-types-hosted-core-shard:
     permissions:
       contents: read
@@ -2693,9 +2694,9 @@ jobs:
     timeout-minutes: 15
     strategy:
       fail-fast: false
-      max-parallel: 3
+      max-parallel: 4
       matrix:
-        stripe: [1, 2, 3]
+        stripe: [1, 2, 3, 4]
     steps:
       - *linux_node_checkout_step
       - name: Setup Node environment
@@ -2715,7 +2716,7 @@ jobs:
             echo "[skip] target does not support core test-type stripes"
             exit 0
           fi
-          node scripts/run-tsgo-core-test-shards.mjs --stripe "${{ matrix.stripe }}/3"
+          node scripts/run-tsgo-core-test-shards.mjs --stripe "${{ matrix.stripe }}/4" --concurrency 2
 
   check-additional-shard:
     permissions:
@@ -2758,7 +2759,9 @@ jobs:
             runner: blacksmith-4vcpu-ubuntu-2404
           - check_name: report-plugin-sdk-api-diff
             group: plugin-sdk-api-diff
-            runner: blacksmith-4vcpu-ubuntu-2404
+            # Measured 209s hosted and 246s on 4 vCPU; diff generation is
+            # CPU-bound and the 8 vCPU class keeps it off the critical path.
+            runner: blacksmith-8vcpu-ubuntu-2404
           - check_name: check-additional-extension-package-boundary
             group: extension-package-boundary
             # Light-run critical-path pole: cold runs spend ~100s in nine
