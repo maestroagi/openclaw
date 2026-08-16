@@ -989,6 +989,13 @@ export const en: TranslationMap = {
     renameSessionPrompt: "Rename session",
     renameSessionMenu: "Rename…",
     setIconMenu: "Set icon",
+    iconEmojiSection: "Emoji",
+    iconGlyphSection: "Icons",
+    customEmojiCell: "Custom emoji…",
+    customEmojiTitle: "Custom emoji",
+    customEmojiSet: "Set",
+    customEmojiHint: "Any emoji works. Press {shortcut} for the system emoji picker.",
+    customEmojiHintNoShortcut: "Any emoji works.",
     removeIcon: "Remove icon",
     pinSession: "Pin session",
     unpinSession: "Unpin session",
@@ -3850,6 +3857,7 @@ export const en: TranslationMap = {
   palette: {
     placeholder: "Search chats and commands…",
     noResults: "No results",
+    searchFailed: "Chat search failed — check the gateway logs and retry",
     categories: {
       search: "Search",
       navigation: "Navigation",
