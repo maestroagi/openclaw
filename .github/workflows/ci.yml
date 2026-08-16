@@ -858,27 +858,17 @@ jobs:
             run_native_i18n: runNativeI18n,
             run_skills_python_job: runSkillsPython,
             run_checks_windows: runWindows,
+            // Blacksmith's Windows runner class admits exactly 2 concurrent jobs
+            // (measured on run 31865243804), so the split width is pinned to 2 on
+            // every backend. A 3rd part queues behind a finished one there, and a
+            // single lane serializes the whole 226s body onto the wall.
             checks_windows_matrix: createMatrix(
               runWindows
-                ? // Blacksmith's Windows runner class admits ~2 concurrent jobs, so a
-                  // 3-part split queues its tail behind a finished part there. Split
-                  // only where every part actually lands hosted: github mode and
-                  // dispatches (dispatch runs-on forces hosted in every mode).
-                  process.env.OPENCLAW_CI_RUNNER_BACKEND === "github" ||
-                  eventName === "workflow_dispatch"
-                  ? [1, 2, 3].map((part) => ({
-                      check_name: `checks-windows-node-test-${part}`,
-                      runtime: "node",
-                      task: `test-${part}`,
-                    }))
-                  : [
-                      {
-                        check_name: "checks-windows-node-test",
-                        runtime: "node",
-                        task: "test",
-                        runner: "blacksmith-8vcpu-windows-2025",
-                      },
-                    ]
+                ? [1, 2].map((part) => ({
+                    check_name: `checks-windows-node-test-${part}`,
+                    runtime: "node",
+                    task: `test-${part}`,
+                  }))
                 : [],
             ),
             run_macos_node: runMacos,
@@ -3269,7 +3259,7 @@ jobs:
     name: ${{ matrix.check_name }}
     needs: [preflight]
     if: needs.preflight.outputs.run_checks_windows == 'true'
-    runs-on: ${{ vars.OPENCLAW_CI_RUNNER_BACKEND == 'github' && 'windows-2025' || (vars.OPENCLAW_CI_RUNNER_BACKEND == 'hybrid' && github.run_attempt > 1) && 'windows-2025' || github.event_name == 'workflow_dispatch' && 'windows-2025' || (vars.OPENCLAW_CI_RUNNER_BACKEND == 'hybrid' && github.repository == 'openclaw/openclaw' && (github.event_name != 'pull_request' || contains(fromJSON('["OWNER","MEMBER","COLLABORATOR","CONTRIBUTOR"]'), github.event.pull_request.author_association)) && 'blacksmith-8vcpu-windows-2025' || (github.repository == 'openclaw/openclaw' && (github.event_name != 'pull_request' || contains(fromJSON('["OWNER","MEMBER","COLLABORATOR","CONTRIBUTOR"]'), github.event.pull_request.author_association)) && (matrix.runner || 'blacksmith-8vcpu-windows-2025') || 'windows-2025')) }}
+    runs-on: ${{ vars.OPENCLAW_CI_RUNNER_BACKEND == 'github' && 'windows-2025' || (vars.OPENCLAW_CI_RUNNER_BACKEND == 'hybrid' && github.run_attempt > 1) && 'windows-2025' || github.event_name == 'workflow_dispatch' && 'windows-2025' || (github.repository == 'openclaw/openclaw' && (github.event_name != 'pull_request' || contains(fromJSON('["OWNER","MEMBER","COLLABORATOR","CONTRIBUTOR"]'), github.event.pull_request.author_association)) && 'blacksmith-8vcpu-windows-2025' || 'windows-2025') }}
     timeout-minutes: 60
     env:
       NODE_OPTIONS: --max-old-space-size=8192
@@ -3281,7 +3271,9 @@ jobs:
         shell: bash
     strategy:
       fail-fast: false
-      max-parallel: 3
+      # Both parts must run concurrently or the split gains nothing; Blacksmith's
+      # Windows class admits exactly 2, so this is the width, not a cap.
+      max-parallel: 2
       matrix: ${{ fromJson(needs.preflight.outputs.checks_windows_matrix) }}
     steps:
       - &platform_checkout_step
@@ -3398,19 +3390,13 @@ jobs:
         run: |
           set -euo pipefail
           case "$TASK" in
-            test)
-              # Linux owns the full repo test suite. Keep the Windows runner focused on
-              # Windows-native process/path wrappers so platform regressions fail fast.
-              pnpm test:windows:ci
-              ;;
+            # Linux owns the full repo test suite. Keep the Windows runner focused on
+            # Windows-native process/path wrappers so platform regressions fail fast.
             test-1)
               pnpm test:windows:ci:1
               ;;
             test-2)
               pnpm test:windows:ci:2
-              ;;
-            test-3)
-              pnpm test:windows:ci:3
               ;;
             *)
               echo "Unsupported Windows checks task: $TASK" >&2
