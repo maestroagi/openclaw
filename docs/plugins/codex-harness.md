@@ -218,6 +218,7 @@ rules, paired-node limits, metadata exposure, and troubleshooting.
 | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------- |
 | Enable the harness                                  | `plugins.entries.codex.enabled: true`                                                                     | OpenClaw config                    |
 | Hide native Codex session discovery                 | `plugins.entries.codex.config.sessionCatalog.enabled: false`                                              | Codex plugin config                |
+| Include additional local Codex stores (stdio only)  | `plugins.entries.codex.config.sessionCatalog.homes`                                                       | Codex plugin config                |
 | Keep an allowlisted plugin install                  | Include `codex` in `plugins.allow`                                                                        | OpenClaw config                    |
 | Allow eligible OpenAI turns to use Codex implicitly | Exact official HTTPS Responses/ChatGPT route, no authored provider request override, runtime unset/`auto` | OpenAI provider/model config       |
 | Sign in with ChatGPT/Codex OAuth                    | `openclaw models auth login --provider openai`                                                            | CLI auth profile                   |
