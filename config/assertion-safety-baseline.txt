@@ -1453,7 +1453,7 @@ extensions/workboard/src/store-core.ts	5
 extensions/workboard/src/store-normalizers.ts	33
 extensions/workboard/src/store-workflow.ts	2
 extensions/workboard/src/store.ts	5
-extensions/workboard/src/tools.ts	25
+extensions/workboard/src/tools.ts	11
 extensions/workboard/src/workspace-access.ts	1
 extensions/xai/code-execution.ts	2
 extensions/xai/image-generation-provider.ts	1
@@ -2281,7 +2281,6 @@ src/auto-reply/reply/queue/drain.ts	2
 src/auto-reply/reply/queue/enqueue.ts	1
 src/auto-reply/reply/queue/settings.ts	1
 src/auto-reply/reply/reply-config-runtime-mode.ts	2
-src/auto-reply/reply/reply-directives.ts	1
 src/auto-reply/reply/reply-operation-run-state.ts	1
 src/auto-reply/reply/reply-payload-sending-hook.ts	1
 src/auto-reply/reply/reply-run-registry.registry.ts	1
