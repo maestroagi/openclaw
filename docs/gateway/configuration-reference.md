@@ -815,16 +815,18 @@ Gateway or node host and check `openclaw nodes pending` again.
   `tailscale.mode = "serve"`, OpenClaw checks `tailscale funnel status` before
   re-applying Serve at startup. If that status cannot be inspected, startup
   fails before the ordinary Gateway listener opens. An external Funnel that
-  still targets the ordinary Gateway port cannot provide request provenance.
-  OpenClaw leaves the
-  external route unchanged and warns; plugin-authenticated webhooks retain
-  their own authentication, while Gateway-authenticated routes reject that
-  ingress. First configure `gateway.auth.password` (prefer a SecretRef) or
+  still targets the ordinary Gateway port does not receive managed-ingress
+  provenance. OpenClaw leaves the external route unchanged and warns. The
+  route can use generic proxy attribution only through an explicitly configured
+  `gateway.trustedProxies` source with a valid forwarded client address;
+  Gateway-protected routes then require configured auth, while aggregate probes
+  and plugin-authenticated webhooks retain their own response and authentication
+  policies. First configure `gateway.auth.password` (prefer a SecretRef) or
   `OPENCLAW_GATEWAY_PASSWORD`, and set `gateway.auth.mode` to `password`. Then
   run `openclaw config set gateway.tailscale.mode funnel`, followed by
   `openclaw config unset gateway.tailscale.preserveFunnel`. Default `false`.
 - `controlUi.allowedOrigins`: explicit browser-origin allowlist for Gateway WebSocket connects. Required for public non-loopback browser origins. Private same-origin LAN/Tailnet UI loads from loopback, RFC1918/link-local, `.local`, `.ts.net`, or Tailscale CGNAT hosts are accepted without enabling Host-header fallback.
-- `controlUi.github.token`: optional SecretRef-backed service credential for Control UI GitHub previews and project discovery. Prefer this explicit setting when the Gateway should own GitHub service access independently of its shared process environment. When omitted, the shipped `GH_TOKEN` then `GITHUB_TOKEN` process-environment fallback remains active. An explicitly configured but unavailable credential fails closed instead of using that fallback. SecretRef ownership does not create an OS-user security boundary.
+- `controlUi.github.token`: optional SecretRef-backed service credential for Control UI GitHub previews and project discovery. Prefer this explicit setting when the Gateway should own GitHub service access independently of its shared process environment. When omitted, the shipped `GH_TOKEN` then `GITHUB_TOKEN` process-environment fallback remains active. An explicitly configured but unavailable credential fails closed instead of using that fallback. Its exact environment or store name is excluded from agent execution; a custom name does not clear unrelated native `GH_TOKEN` or `GITHUB_TOKEN` values. This credential is separate from `tools.github` agent identities and does not create an OS-user security boundary.
 - `controlUi.toolTitles`: opt in to AI-generated purpose titles for tool calls in Control UI chat. Default: `false` (tool rendering stays fully deterministic with no background model calls). When enabled, the `chat.toolTitles` method labels complex calls through standard utility-model routing — the agent's `utilityModel` (an operator decision that may send bounded tool arguments to the chosen provider, like every utility task), or the session provider's declared small-model default (OpenAI → `gpt-5.6-luna`, Anthropic → `claude-haiku-4-5`) — and caches results in the per-agent state database so repeat views never re-bill. `utilityModel: \"\"` disables titles like every other utility task; titles never fall back to the primary model.
 - `controlUi.dangerouslyAllowHostHeaderOriginFallback`: dangerous mode that enables Host-header origin fallback for deployments that intentionally rely on Host-header origin policy.
 - `cliAgents.enabled`: opt in to the experimental **CLI agents** group in the Control UI new-session model picker. Default: `false`. The group appears only when the Gateway advertises `sessions.catalog.list`, and it includes only catalog providers that support creating sessions. Selecting one opens the same catalog-target new-session flow used by the sidebar catalog action.
