@@ -51,6 +51,7 @@ import {
   planSessionStateAfterEntryRemoval,
   readReferencedSessionIdsAfterTargetMutation,
 } from "./session-accessor.sqlite-lifecycle-state.js";
+import { deleteSessionDeliveryArtifacts } from "./session-accessor.sqlite-node-artifacts.js";
 import { loadTranscriptEventsFromDatabase } from "./session-accessor.sqlite-read.js";
 import {
   cloneSessionEntry,
@@ -495,6 +496,12 @@ async function deleteSqliteSessionEntryLifecycleLocked(
         ]),
       );
       deleteLifecycleTargetRows(transactionDb, params.target);
+      if (params.deleteDeliveryArtifacts === true) {
+        deleteSessionDeliveryArtifacts(transactionDb, params.target.canonicalKey, [
+          ...params.target.storeKeys,
+          ...transactionSnapshot.rows.map((row) => row.sessionKey),
+        ]);
+      }
       deleteSessionBoardRows(transactionDb, [
         params.target.canonicalKey,
         ...params.target.storeKeys,

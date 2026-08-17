@@ -945,6 +945,8 @@ export async function performGatewaySessionReset(params: {
   key: string;
   agentId?: string;
   spawnedCwd?: string;
+  sessionRoot?: string;
+  permissionMode?: SessionEntry["permissionMode"];
   /** Prepares session-owned resources while the target lifecycle fence is held. */
   prepareLifecycle?: PrepareGatewaySessionLifecycle;
   onLifecycleCleanupError?: (error: unknown) => void;
@@ -1391,6 +1393,7 @@ export async function performGatewaySessionReset(params: {
         const deleted = await deleteSessionEntryLifecycle({
           agentId: target.agentId,
           archiveTranscript: false,
+          deleteDeliveryArtifacts: true,
           deleteTranscriptWithoutArchive: true,
           expectedEntry: entry,
           expectedSessionId: entry.sessionId,
@@ -1560,6 +1563,12 @@ export async function performGatewaySessionReset(params: {
             spawnedCwd: params.clearSpawnedCwd
               ? undefined
               : (preparedLifecycle?.spawnedCwd ?? params.spawnedCwd ?? currentEntry?.spawnedCwd),
+            sessionRoot: params.clearSpawnedCwd
+              ? undefined
+              : (preparedLifecycle?.sessionRoot ?? params.sessionRoot ?? currentEntry?.sessionRoot),
+            permissionMode: params.clearSpawnedCwd
+              ? undefined
+              : (params.permissionMode ?? currentEntry?.permissionMode),
             worktree: params.clearSpawnedCwd
               ? undefined
               : (preparedLifecycle?.worktree ?? currentEntry?.worktree),
