@@ -27,6 +27,7 @@ import { createEmptyPluginRegistry } from "../plugins/registry-empty.js";
 import { setActivePluginRegistry } from "../plugins/runtime.js";
 import { isSessionLifecycleMutationActive } from "../sessions/session-lifecycle-admission.js";
 import { listSessionStateEventsSince } from "../sessions/session-state-events.js";
+import { createDeferredCore } from "../shared/deferred.js";
 import {
   closeOpenClawAgentDatabasesForTest,
   listOpenIncognitoAgentDatabases,
@@ -66,6 +67,8 @@ import {
 
 type EnsureSessionDiffBaseline =
   (typeof import("../sessions/session-diff-baseline.js"))["ensureSessionDiffBaseline"];
+type CaptureSessionDiffBaseline =
+  (typeof import("../sessions/session-diff.js"))["captureSessionDiffBaseline"];
 type GenerateConversationLabelWithFallback =
   (typeof import("../auto-reply/reply/conversation-label-generator.js"))["generateConversationLabelWithFallback"];
 type ScheduleChatDashboardSessionTitle =
@@ -74,6 +77,9 @@ type ReadSessionMessageCountAsync =
   (typeof import("./session-transcript-readers.js"))["readSessionMessageCountAsync"];
 
 const sessionDiffBaselineMocks = vi.hoisted(() => ({
+  captureGate: undefined as Promise<void> | undefined,
+  captureStarted: undefined as (() => void) | undefined,
+  capture: vi.fn<CaptureSessionDiffBaseline>(),
   ensure: vi.fn<EnsureSessionDiffBaseline>(),
   useReal: false,
 }));
@@ -92,13 +98,25 @@ const sessionTranscriptReaderMocks = vi.hoisted(() => ({
   readCount: vi.fn<ReadSessionMessageCountAsync>(),
 }));
 
+vi.mock("../sessions/session-diff.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../sessions/session-diff.js")>();
+  sessionDiffBaselineMocks.capture.mockImplementation(async (params) => {
+    sessionDiffBaselineMocks.captureStarted?.();
+    if (sessionDiffBaselineMocks.captureGate) {
+      await sessionDiffBaselineMocks.captureGate;
+    }
+    return await actual.captureSessionDiffBaseline(params);
+  });
+  return { ...actual, captureSessionDiffBaseline: sessionDiffBaselineMocks.capture };
+});
+
 vi.mock("../sessions/session-diff-baseline.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../sessions/session-diff-baseline.js")>();
-  sessionDiffBaselineMocks.ensure.mockImplementation(async (params) =>
-    sessionDiffBaselineMocks.useReal
+  sessionDiffBaselineMocks.ensure.mockImplementation(async (params) => {
+    return sessionDiffBaselineMocks.useReal
       ? await actual.ensureSessionDiffBaseline(params)
-      : params.entry,
-  );
+      : params.entry;
+  });
   return { ...actual, ensureSessionDiffBaseline: sessionDiffBaselineMocks.ensure };
 });
 
@@ -145,6 +163,9 @@ afterAll(async () => {
 });
 
 beforeEach(() => {
+  sessionDiffBaselineMocks.captureGate = undefined;
+  sessionDiffBaselineMocks.captureStarted = undefined;
+  sessionDiffBaselineMocks.capture.mockClear();
   sessionDiffBaselineMocks.ensure.mockClear();
   // Baseline capture has dedicated owner coverage and one authenticated integration below.
   sessionDiffBaselineMocks.useReal = false;
@@ -942,7 +963,7 @@ function managedWorktreeFixture(params: {
   };
 }
 
-test("sessions.create captures and persists the initial workspace diff baseline", async () => {
+test("sessions.create atomically arms a private workspace diff claim", async () => {
   const root = tempDirs.make("openclaw-session-diff-baseline-");
   const workspace = await initializeGitWorkspace(root);
   await fs.appendFile(path.join(workspace, "README.md"), "dirty at session start\n");
@@ -958,32 +979,112 @@ test("sessions.create captures and persists the initial workspace diff baseline"
     },
   });
   try {
-    const created = await rpcReq<{ key?: string; sessionId?: string }>(ws, "sessions.create", {
-      agentId: "main",
-      cwd: workspace,
-    });
+    const created = await rpcReq<{
+      entry?: Record<string, unknown>;
+      key?: string;
+      sessionId?: string;
+    }>(ws, "sessions.create", { agentId: "main", cwd: workspace });
     expect(created.ok, JSON.stringify(created.error)).toBe(true);
-    expect(sessionDiffBaselineMocks.ensure).toHaveBeenCalledTimes(1);
     const sessionKey = requireNonEmptyString(created.payload?.key, "baseline session key");
     const sessionId = requireNonEmptyString(created.payload?.sessionId, "baseline session id");
+    expect(created.payload?.entry).not.toHaveProperty("sessionDiffBaselineCapture");
     expect(loadSessionEntry({ sessionKey, storePath })).toMatchObject({
       sessionId,
       spawnedCwd: workspace,
-      sessionDiffBaseline: {
+      sessionDiffBaselineCapture: {
         version: 1,
-        sessionId,
-        root: workspace,
-        files: [
-          {
-            path: "README.md",
-            fingerprint: expect.any(String),
-          },
-        ],
+        captureId: expect.any(String),
+        status: "pending",
       },
     });
+    expect(sessionDiffBaselineMocks.ensure).not.toHaveBeenCalled();
+    expect(sessionDiffBaselineMocks.capture).not.toHaveBeenCalled();
   } finally {
     sessionDiffBaselineMocks.useReal = false;
     ws.close();
+  }
+});
+
+test("sessions.create fences the first workspace write behind its diff baseline", async () => {
+  const root = tempDirs.make("openclaw-session-diff-first-write-");
+  const workspace = await initializeGitWorkspace(root);
+  await fs.appendFile(path.join(workspace, "README.md"), "dirty before session\n");
+  const { storePath } = await createSessionStoreDir();
+  const sessionKey = "agent:main:dashboard:diff-first-write";
+  const captureStarted = createDeferredCore();
+  const releaseCapture = createDeferredCore();
+  sessionDiffBaselineMocks.captureStarted = captureStarted.resolve;
+  sessionDiffBaselineMocks.captureGate = releaseCapture.promise;
+  sessionDiffBaselineMocks.useReal = true;
+
+  const { ensureSessionDiffBaseline } = await import("../sessions/session-diff-baseline.js");
+  const { chatHandlers } = await import("./server-methods/chat.js");
+  let firstTurn: Promise<void> | undefined;
+  const chatSend = vi.spyOn(chatHandlers, "chat.send").mockImplementation(async ({ respond }) => {
+    respond(true, { runId: "diff-first-write-run", status: "started" });
+    firstTurn = (async () => {
+      const entry = loadSessionEntry({ agentId: "main", sessionKey, storePath });
+      if (!entry) {
+        throw new Error("expected the precreated session entry");
+      }
+      await ensureSessionDiffBaseline({
+        cwd: workspace,
+        entry,
+        isNewSession: false,
+        sessionKey,
+        storePath,
+      });
+      await fs.writeFile(path.join(workspace, "first-turn.txt"), "written by first turn\n");
+    })();
+  });
+  const client = {
+    client: {
+      connect: {
+        scopes: ["operator.admin", "operator.write"],
+        client: {
+          id: GATEWAY_CLIENT_NAMES.CONTROL_UI,
+          version: "dev",
+          platform: "web",
+          mode: GATEWAY_CLIENT_MODES.WEBCHAT,
+        },
+      },
+    } as never,
+  };
+
+  try {
+    const created = await directSessionReq<{ runStarted?: boolean; sessionId?: string }>(
+      "sessions.create",
+      {
+        agentId: "main",
+        cwd: workspace,
+        key: sessionKey,
+        message: "write a file",
+      },
+      client,
+    );
+    expect(created).toMatchObject({
+      ok: true,
+      payload: { runStarted: true, sessionId: expect.any(String) },
+    });
+    await captureStarted.promise;
+    await expect(fs.stat(path.join(workspace, "first-turn.txt"))).rejects.toThrow();
+
+    releaseCapture.resolve();
+    await firstTurn;
+    const diff = await directSessionReq<{ files?: Array<{ path: string }> }>(
+      "sessions.diff",
+      { sessionKey },
+      client,
+    );
+    expect(diff.ok, JSON.stringify(diff.error)).toBe(true);
+    expect(diff.payload?.files?.map((file) => file.path)).toEqual(["first-turn.txt"]);
+  } finally {
+    releaseCapture.resolve();
+    await firstTurn?.catch(() => undefined);
+    sessionDiffBaselineMocks.captureGate = undefined;
+    sessionDiffBaselineMocks.captureStarted = undefined;
+    sessionDiffBaselineMocks.useReal = false;
+    chatSend.mockRestore();
   }
 });
 
@@ -1798,8 +1899,9 @@ test("sessions.create maps an admin-selected worktree cwd and rejects repository
 });
 
 test("sessions.create accepts a node-host cwd without provisioning a Gateway worktree", async () => {
-  await createSessionStoreDir();
+  const { storePath } = await createSessionStoreDir();
   const created = await directSessionReq<{
+    key: string;
     entry: { execHost?: string; execNode?: string; execCwd?: string; spawnedCwd?: string };
   }>(
     "sessions.create",
@@ -1814,6 +1916,10 @@ test("sessions.create accepts a node-host cwd without provisioning a Gateway wor
     execCwd: "/Users/peter/Projects/openclaw",
   });
   expect(created.payload?.entry.spawnedCwd).toBeUndefined();
+  const sessionKey = requireNonEmptyString(created.payload?.key, "node session key");
+  expect(loadSessionEntry({ agentId: "main", sessionKey, storePath })).not.toHaveProperty(
+    "sessionDiffBaselineCapture",
+  );
 });
 
 test("sessions.create accepts a Windows node-host cwd from a non-Windows Gateway", async () => {
