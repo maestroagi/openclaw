@@ -338,7 +338,7 @@ Mechanics only; policy lives above.
 - `pnpm-lock.yaml` is the product dependency security review surface; `.github/release/clawhub-cli/package-lock.json` separately pins trusted release tooling. Published packages bundle runtime dependencies where configured and never ship lockfiles; other npm-format locks exist only transiently during checks and publish staging.
 - Releases/publish/version bumps need explicit approval. `$release-openclaw-maintainer` owns the full flow: two-SHA (Code/Release) identities, `YYYY.M.PATCH` versioning and train selection, backports, scope lock, changelog generation, publish, and verification. Nightlies: `$release-openclaw-nightly`; release CI: `$release-openclaw-ci`.
 - During an active release, freeze the operator-selected cut SHA and release identity through publish and verification; touch `main` only for the smallest critical main-owned blocker or on operator request, then return to the release branch.
-- GHSA/advisories: `$openclaw-ghsa-maintainer` / `$security-triage`. Secret scanning: `$openclaw-secret-scanning-maintainer`.
+- GHSA/advisories: never create, open, draft, update, publish, or otherwise mutate a GitHub Security Advisory, GHSA temporary fork, private security-review repository, or security-only review artifact unless the user explicitly asks for that exact advisory/security workflow action. Terms such as "security-sensitive", "hardening", "private review", "unshipped", or "unreleased" grant no advisory authority; unshipped hardening uses the normal code/PR workflow. Routes: `$openclaw-ghsa-maintainer` / `$security-triage`. Secret scanning: `$openclaw-secret-scanning-maintainer`.
 
 ## Platform / Ops
 
