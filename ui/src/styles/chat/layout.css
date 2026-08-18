@@ -1706,7 +1706,11 @@ button.chat-reply-preview--message:disabled {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 0 16px 8px;
+  box-sizing: border-box;
+  width: calc(100% - 36px);
+  max-width: var(--chat-thread-max-width, 48rem);
+  margin-inline: auto;
+  padding: 0 0 8px;
 }
 
 .session-suggestion {
@@ -5324,6 +5328,10 @@ button.chat-pr__diff {
     width: calc(100% - 8px);
     margin: 6px 4px calc(14px + var(--safe-area-bottom));
     gap: 6px;
+  }
+
+  .session-suggestions {
+    width: calc(100% - 8px);
   }
 
   .chat-run-error {
