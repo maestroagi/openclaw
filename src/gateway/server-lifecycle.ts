@@ -563,7 +563,6 @@ export async function prepareGatewayLifecycle(params: {
       closeProviderTransportDispatcherPool: shutdownRuntime.closeProviderTransportDispatcherPool,
     })(optsValue);
   };
-  let clearFallbackGatewayContextForServer = () => {};
   const closeOnStartupFailure = async () => {
     await runGatewayShutdownSteps({
       steps: [
@@ -576,7 +575,6 @@ export async function prepareGatewayLifecycle(params: {
           name: "gateway close",
           run: () => createCloseHandler()({ reason: "gateway startup failed" }),
         },
-        { name: "fallback gateway context", run: clearFallbackGatewayContextForServer },
       ],
       onError: (message) => log.error(message),
     });
@@ -653,12 +651,6 @@ export async function prepareGatewayLifecycle(params: {
     registerGatewayLifetimeSidecars: gatewayLifetimeSidecarStopOwner.publish,
     sealAndJoinRegisteredSidecarStops,
     createCloseHandler,
-    clearFallbackGatewayContextForServer: {
-      get: () => clearFallbackGatewayContextForServer,
-      set: (cleanup: () => void) => {
-        clearFallbackGatewayContextForServer = cleanup;
-      },
-    },
     closeOnStartupFailure,
   };
 }
