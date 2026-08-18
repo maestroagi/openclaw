@@ -149,6 +149,10 @@ describe("Markdown table interactions", () => {
     expect(writeText).toHaveBeenCalledWith("Name\tValue\nAlpha\tOne");
     await vi.advanceTimersByTimeAsync(0);
     expect(copy.getAttribute("aria-label")).toBe("Copied!");
+    expect(copy.querySelector("svg path")?.getAttribute("d")).toBe("M20 6 9 17l-5-5");
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(copy.getAttribute("aria-label")).toBe("Copy table");
+    expect(copy.querySelector("svg rect")).not.toBeNull();
 
     const expand = owner.querySelector<HTMLButtonElement>(".markdown-table__expand")!;
     expand.focus();
@@ -157,7 +161,25 @@ describe("Markdown table interactions", () => {
     expect(dialog.hasAttribute("open")).toBe(true);
     expect(dialog.querySelector("table")?.textContent).toContain("Alpha");
 
-    dialog.querySelector<HTMLButtonElement>(".markdown-table-dialog__close")!.click();
+    vi.spyOn(dialog, "getBoundingClientRect").mockReturnValue({
+      bottom: 500,
+      height: 400,
+      left: 100,
+      right: 500,
+      top: 100,
+      width: 400,
+      x: 100,
+      y: 100,
+      toJSON: () => ({}),
+    });
+    dialog.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: 50, clientY: 50 }));
+    expect(document.querySelector(".markdown-table-dialog")).toBeNull();
+    expect(document.activeElement).toBe(expand);
+
+    expand.click();
+    const reopenedDialog = document.querySelector<HTMLDialogElement>(".markdown-table-dialog")!;
+
+    reopenedDialog.querySelector<HTMLButtonElement>(".markdown-table-dialog__close")!.click();
     expect(document.querySelector(".markdown-table-dialog")).toBeNull();
     expect(document.activeElement).toBe(expand);
   });
