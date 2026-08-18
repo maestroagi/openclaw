@@ -67,7 +67,7 @@ extensions/browser/src/browser/chrome-mcp-tabs.ts	1
 extensions/browser/src/browser/chrome.diagnostics.ts	2
 extensions/browser/src/browser/chrome.executables.ts	1
 extensions/browser/src/browser/chrome.profile-decoration.ts	1
-extensions/browser/src/browser/chrome.ts	5
+extensions/browser/src/browser/chrome.ts	4
 extensions/browser/src/browser/client-fetch.ts	2
 extensions/browser/src/browser/config-mutations.ts	1
 extensions/browser/src/browser/config.ts	1
@@ -3868,7 +3868,7 @@ src/state/openclaw-state-lease.ts	1
 src/state/openclaw-state-ownership.ts	1
 src/state/openclaw-state-snapshot-sanitizer.ts	1
 src/state/user-profiles-tailscale-avatar.ts	2
-src/state/user-profiles.ts	3
+src/state/user-profiles.ts	1
 src/status/link-channel.ts	1
 src/status/status-message.ts	3
 src/status/status-text.ts	3
