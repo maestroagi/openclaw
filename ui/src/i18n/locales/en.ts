@@ -814,6 +814,7 @@ export const en: TranslationMap = {
     cloudWorkerProvider: "Cloud worker provider: {provider}",
     cloudRequiresWorktree: "Cloud needs a Git checkout",
     cloudRuntimeUnsupported: "The {runtime} runtime does not support cloud workers.",
+    deviceRuntimeUnsupported: "Needs the embedded runtime",
     cloudRecoveryUnavailable:
       "Cloud workers are unavailable because this connection does not support task recovery. Reconnect or update the Gateway.",
     cloudStartFailed: "The session was created locally, but cloud startup failed: {error}",
@@ -4082,6 +4083,10 @@ export const en: TranslationMap = {
     reconnecting: "Reconnecting…",
     retryNow: "Retry now",
     actionsUnavailable: "Actions are unavailable while the Gateway reconnects.",
+    sessionOperationCompletedPreviousConnection:
+      "The session operation completed on the previous connection. Check the current session list before continuing.",
+    sessionOperationCompletedPreviousConnectionWithRefreshError:
+      "The session operation completed on the previous connection, but refreshing the current session list failed: {error}",
     scopeUpgrade: {
       limited: "This browser has limited access.",
       guidance:
