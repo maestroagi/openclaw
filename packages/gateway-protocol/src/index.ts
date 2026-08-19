@@ -662,7 +662,6 @@ export {
   UpdateRunParamsSchema,
   TickEventSchema,
   ShutdownEventSchema,
-  ProjectRecordSchema,
   ProjectRecentSchema,
   ProjectsListParamsSchema,
   ProjectsListResultSchema,
