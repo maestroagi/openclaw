@@ -4,6 +4,11 @@ import {
   appendTranscriptMessage,
   upsertSessionEntryCore,
 } from "../config/sessions/session-accessor.js";
+// Force the mocked module to load here: the factory below captures the real reader as a
+// side effect, and beforeEach needs that capture. Without this import the factory only ran
+// if some other module in the graph pulled it in first, which is not guaranteed once a
+// shard shares a worker (--isolate=false).
+import "../config/sessions/session-accessor.sqlite-read.js";
 import { rpcReq } from "./test-helpers.js";
 import {
   sessionStoreEntry,
