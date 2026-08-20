@@ -11,7 +11,7 @@ extensions/acpx/src/service.ts	2
 extensions/acpx/src/state.ts	1
 extensions/active-memory/config.ts	4
 extensions/active-memory/doctor-contract-api.ts	3
-extensions/active-memory/index.ts	7
+extensions/active-memory/index.ts	6
 extensions/active-memory/query.ts	2
 extensions/active-memory/session.ts	4
 extensions/active-memory/transcript-result.ts	2
@@ -2481,7 +2481,7 @@ src/cli/program/register.configure.ts	1
 src/cli/program/register.migrate.ts	12
 src/cli/program/register.onboard.ts	37
 src/cli/program/register.setup.ts	10
-src/cli/program/register.status-health-sessions.ts	41
+src/cli/program/register.status-health-sessions.ts	29
 src/cli/program/route-specs.ts	1
 src/cli/run-main.ts	1
 src/cli/sandbox-cli.ts	4
