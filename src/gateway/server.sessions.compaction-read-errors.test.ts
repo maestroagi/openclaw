@@ -19,30 +19,31 @@ type LoadTranscriptEvents =
   (typeof import("../config/sessions/session-accessor.sqlite-read.js"))["loadTranscriptEvents"];
 
 const transcriptReads = vi.hoisted(() => ({
-  actual: undefined as LoadTranscriptEvents | undefined,
   load: vi.fn<LoadTranscriptEvents>(),
 }));
 
 vi.mock("../config/sessions/session-accessor.sqlite-read.js", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("../config/sessions/session-accessor.sqlite-read.js")>();
-  transcriptReads.actual = actual.loadTranscriptEvents;
-  transcriptReads.load.mockImplementation(actual.loadTranscriptEvents);
   return { ...actual, loadTranscriptEvents: transcriptReads.load };
 });
 
 const { createSessionStoreDir, openClient } = setupGatewaySessionsTestHarness();
 
-function requireTranscriptReader(): LoadTranscriptEvents {
-  if (!transcriptReads.actual) {
-    throw new Error("transcript reader mock was not initialized");
-  }
-  return transcriptReads.actual;
+// Read the real implementation back here rather than capturing it inside the mock
+// factory: Vitest runs that factory on first import of the mocked module, and this
+// project is `isolate: false`, so on a warm module graph the factory can still be
+// unrun when the first `beforeEach` fires.
+async function actualTranscriptReader(): Promise<LoadTranscriptEvents> {
+  const actual = await vi.importActual<
+    typeof import("../config/sessions/session-accessor.sqlite-read.js")
+  >("../config/sessions/session-accessor.sqlite-read.js");
+  return actual.loadTranscriptEvents;
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   transcriptReads.load.mockReset();
-  transcriptReads.load.mockImplementation(requireTranscriptReader());
+  transcriptReads.load.mockImplementation(await actualTranscriptReader());
 });
 
 async function seedCompactionSession(params: {
@@ -117,7 +118,7 @@ test("sessions.compact reports model compaction transcript re-read failures as u
     storePath,
     nativeHarness: true,
   });
-  const events = await requireTranscriptReader()(scope);
+  const events = await (await actualTranscriptReader())(scope);
   transcriptReads.load.mockResolvedValueOnce(events).mockRejectedValueOnce(transcriptReadError());
 
   const { ws } = await openClient();
