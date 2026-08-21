@@ -99,6 +99,31 @@ function validatePreflightOptions(opts: OnboardOptions, runtime: RuntimeEnv): bo
       "--gateway-password configures local gateway auth. Use --remote-password in remote mode.",
     );
   }
+  if (opts.nonInteractive && opts.secretInputMode === "ref") {
+    const gatewayCredentials = [
+      ["--gateway-password", opts.gatewayPassword, "OPENCLAW_GATEWAY_PASSWORD"],
+      ["--remote-token", opts.remoteToken, "OPENCLAW_GATEWAY_TOKEN"],
+      ["--remote-password", opts.remotePassword, "OPENCLAW_GATEWAY_PASSWORD"],
+    ] as const;
+    for (const [flag, value, envName] of gatewayCredentials) {
+      if (value === undefined) {
+        continue;
+      }
+      const envValue = process.env[envName]?.trim();
+      if (!envValue) {
+        return rejectOption(
+          runtime,
+          `${flag} requires ${envName} to be set when --secret-input-mode ref is used.`,
+        );
+      }
+      if (value.trim() !== envValue) {
+        return rejectOption(
+          runtime,
+          `${flag} does not match ${envName}. Set the environment variable to the same value or omit the flag.`,
+        );
+      }
+    }
+  }
   const choiceValidations: Array<readonly [string, string | undefined, readonly string[]]> = [
     ["--gateway-bind", opts.gatewayBind, ["loopback", "tailnet", "lan", "auto", "custom"]],
     ["--gateway-auth", opts.gatewayAuth, ["token", "password"]],
@@ -189,7 +214,9 @@ async function validateResetAuthChoice(params: {
   resetScope: ResetScope;
 }): Promise<boolean> {
   const inferredAuthChoice =
-    params.opts.authChoice || !params.opts.nonInteractive
+    params.opts.authChoice ||
+    params.opts.mode === "remote" ||
+    (!params.opts.nonInteractive && !wantsClassicInteractiveSetup(params.opts))
       ? undefined
       : inferAuthChoiceFromFlags(params.opts, {
           config: params.baseConfig,
@@ -200,11 +227,14 @@ async function validateResetAuthChoice(params: {
     return rejectOption(
       params.runtime,
       [
-        "Multiple API key flags were provided for non-interactive setup.",
+        `Multiple ${params.opts.nonInteractive ? "API key" : "provider credential"} flags were provided for ${params.opts.nonInteractive ? "non-interactive" : "interactive"} setup.`,
         "Use a single provider flag or pass --auth-choice explicitly.",
         `Flags: ${inferredAuthChoice.matches.map((match) => match.label).join(", ")}`,
       ].join("\n"),
     );
+  }
+  if (!params.opts.nonInteractive && inferredAuthChoice) {
+    return true;
   }
   const authChoice = params.opts.authChoice ?? inferredAuthChoice?.choice;
   if (!authChoice) {
