@@ -922,6 +922,83 @@ exit 1
     }
   });
 
+  it("exposes provider content facts through requests and terminal lane facts", async () => {
+    const harness = await setupHarness({ userOnlyEvents: true });
+    const contentFacts = [
+      {
+        type: "input_file",
+        filename: "proof.pdf",
+        mimeType: "application/pdf",
+        byteLength: 17,
+      },
+    ];
+    fs.writeFileSync(
+      harness.requestLog,
+      `${JSON.stringify({
+        seq: 1,
+        body: "credential=123456:secret-sut-token",
+        contentFacts,
+        path: "/v1/responses",
+      })}\n`,
+    );
+    try {
+      const requests = JSON.parse(
+        (await runLane(harness.env, ["requests", "--lane", "candidate"])).stdout,
+      );
+      expect(requests).toEqual({
+        count: 1,
+        requests: [
+          {
+            seq: 1,
+            body: "credential=[redacted]",
+            contentFacts,
+            path: "/v1/responses",
+          },
+        ],
+      });
+
+      // Tail window: a session with more records than the window must expose
+      // its newest requests — the ones under proof — with their absolute seq.
+      fs.writeFileSync(
+        harness.requestLog,
+        Array.from(
+          { length: 130 },
+          (_, i) => `${JSON.stringify({ seq: i + 1, body: `turn ${i + 1}` })}\n`,
+        ).join(""),
+      );
+      const tail = JSON.parse(
+        (await runLane(harness.env, ["requests", "--lane", "candidate"])).stdout,
+      );
+      expect(tail.count).toBe(128);
+      expect(tail.requests[0]).toEqual({ seq: 3, body: "turn 3" });
+      expect(tail.requests.at(-1)).toEqual({ seq: 130, body: "turn 130" });
+
+      // Restore the single-record log so terminal lane facts mirror the
+      // requests assertion above.
+      fs.writeFileSync(
+        harness.requestLog,
+        `${JSON.stringify({
+          seq: 1,
+          body: "credential=123456:secret-sut-token",
+          contentFacts,
+          path: "/v1/responses",
+        })}\n`,
+      );
+      await runLane(harness.env, ["send", "--lane", "candidate", "--text", "persist facts"]);
+      await runLane(harness.env, ["finish", "--lane", "candidate"]);
+      const facts = JSON.parse(
+        fs.readFileSync(
+          path.join(harness.outputRoot, "candidate", "mantis-lane-facts.json"),
+          "utf8",
+        ),
+      );
+      expect(facts.providerRequests).toEqual(requests.requests);
+      expect(JSON.stringify(facts.providerRequests)).not.toContain("secret-sut-token");
+    } finally {
+      await harness.close();
+    }
+  });
+
   it("finishes an expected-silence proof on the triggering user message", async () => {
     const harness = await setupHarness({ userOnlyEvents: true });
     try {
