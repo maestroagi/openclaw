@@ -632,11 +632,11 @@ export async function buildCompactAnnounceStatsLine(params: {
   let entry = subagentAnnounceOutputDeps.readSubagentSessionEntry(storePath, params.sessionKey);
   const tokenWaitAttempts = isFastTestMode() ? 1 : 3;
   for (let attempt = 0; attempt < tokenWaitAttempts; attempt += 1) {
-    const hasTokenData =
+    if (
       typeof entry?.inputTokens === "number" ||
       typeof entry?.outputTokens === "number" ||
-      resolveFreshSessionTotalTokens(entry) !== undefined;
-    if (hasTokenData) {
+      resolveFreshSessionTotalTokens(entry) !== undefined
+    ) {
       break;
     }
     if (!isFastTestMode()) {
@@ -647,9 +647,10 @@ export async function buildCompactAnnounceStatsLine(params: {
     entry = subagentAnnounceOutputDeps.readSubagentSessionEntry(storePath, params.sessionKey);
   }
 
-  const input = typeof entry?.inputTokens === "number" ? entry.inputTokens : 0;
-  const output = typeof entry?.outputTokens === "number" ? entry.outputTokens : 0;
-  const ioTotal = input + output;
+  const input = entry?.inputTokens;
+  const output = entry?.outputTokens;
+  const hasDirectionalUsage = typeof input === "number" || typeof output === "number";
+  const ioTotal = (input ?? 0) + (output ?? 0);
   const promptCache = resolveFreshSessionTotalTokens(entry);
   const runtimeMs =
     typeof params.startedAt === "number" && typeof params.endedAt === "number"
@@ -658,9 +659,13 @@ export async function buildCompactAnnounceStatsLine(params: {
 
   const parts = [
     `runtime ${formatDurationCompact(runtimeMs) ?? "n/a"}`,
-    `tokens ${formatTokenCount(ioTotal)} (in ${formatTokenCount(input)} / out ${formatTokenCount(output)})`,
+    hasDirectionalUsage
+      ? `tokens ${formatTokenCount(ioTotal)} (in ${formatTokenCount(input)} / out ${formatTokenCount(output)})`
+      : promptCache === undefined
+        ? "tokens unknown"
+        : `tokens ${formatTokenCount(promptCache)} prompt/cache`,
   ];
-  if (typeof promptCache === "number" && promptCache > ioTotal) {
+  if (hasDirectionalUsage && typeof promptCache === "number" && promptCache > ioTotal) {
     parts.push(`prompt/cache ${formatTokenCount(promptCache)}`);
   }
   return `Stats: ${parts.join(" • ")}`;
