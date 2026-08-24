@@ -475,6 +475,7 @@ export async function readChatHistoryPage(params: {
     const projected = incrementalTail
       ? incrementalTail.projected
       : projectChatDisplayMessages(recencyFilteredMessages, {
+          includeCommentaryFallbacks: true,
           maxChars: effectiveMaxChars,
           resolveCurrentUserProfileDisplay,
           turnBoundaryPending: isHeartbeatHistoryTurnBoundaryMessage(overreadContextMessage),
@@ -568,6 +569,7 @@ export async function readChatHistoryPage(params: {
       typeof entry?.sessionStartedAt === "number" ? entry.sessionStartedAt : undefined,
     );
     const displayMessages = projectChatDisplayMessages(mergedMessages, {
+      includeCommentaryFallbacks: true,
       maxChars: effectiveMaxChars,
       resolveCurrentUserProfileDisplay,
     });
@@ -587,6 +589,7 @@ export async function readChatHistoryPage(params: {
   // local messages; the filter is single-pass complete, so no second pass is needed.
   const recencyFilteredMessages = cliHistory.messages;
   const displayMessages = projectRecentChatDisplayMessages(recencyFilteredMessages, {
+    includeCommentaryFallbacks: true,
     maxChars: effectiveMaxChars,
     maxMessages: max,
     resolveCurrentUserProfileDisplay,

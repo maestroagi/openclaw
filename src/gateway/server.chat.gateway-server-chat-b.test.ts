@@ -6336,15 +6336,23 @@ describe("gateway server chat", () => {
       ]);
 
       const messages = await fetchHistoryMessages(ws);
-      const assistantMessage = messages[1] as {
+      const assistantMessage = messages[2] as {
         role?: string;
         content?: Array<{ type?: string; text?: string }>;
         timestamp?: number;
       };
       expect(assistantMessage.role).toBe("assistant");
+      expect(messages[1]).toMatchObject({
+        role: "assistant",
+        content: [{ type: "text", text: "I will clean that up now." }],
+        openclawStreamFallback: {
+          replacementText: "I will clean that up now.",
+          source: "segment",
+          itemId: "msg-progress",
+        },
+      });
       expect(assistantMessage.content).toEqual([
         { type: "thinking", thinking: "private reasoning" },
-        { type: "text", text: "I will clean that up now." },
         {
           type: "toolCall",
           id: "call-read",
