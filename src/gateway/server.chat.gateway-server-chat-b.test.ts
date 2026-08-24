@@ -5484,7 +5484,7 @@ describe("gateway server chat", () => {
     });
   });
 
-  test("chat.history offset pages overread context before filtering stale announce replies", async () => {
+  test("chat.history offset pages backfill after filtering stale announce replies", async () => {
     await withGatewayChatHarness(async ({ ws, createSessionDir }) => {
       await connectOk(ws);
       await createSessionDir();
@@ -5533,10 +5533,10 @@ describe("gateway server chat", () => {
         }),
       );
       expect(page.ok).toBe(true);
-      expect(page.payload?.messages).toEqual([]);
+      expect(JSON.stringify(page.payload?.messages)).toContain("older visible turn");
       expect(JSON.stringify(page.payload)).not.toContain("stale announce reply");
-      expect(page.payload?.nextOffset).toBe(2);
-      expect(page.payload?.hasMore).toBe(true);
+      expect(page.payload?.nextOffset).toBeUndefined();
+      expect(page.payload?.hasMore).toBe(false);
     });
   });
 
@@ -6795,6 +6795,56 @@ describe("gateway server chat", () => {
       expect(JSON.stringify(secondPage.payload?.messages)).not.toContain("visible boundary");
       expect(secondPage.payload?.hasMore).toBe(false);
       expect(secondPage.payload?.nextOffset).toBeUndefined();
+    });
+  });
+
+  test("chat.history backfills older offset pages across a dense silent gap", async () => {
+    await withGatewayChatHarness(async ({ ws, createSessionDir }) => {
+      await prepareMainHistoryHarness({ ws, createSessionDir });
+      const startedAt = Date.now();
+      await writeMainSessionTranscript([
+        createTextTranscriptEvent("user", "older visible question", { timestamp: startedAt }),
+        createTextTranscriptEvent("assistant", "older visible answer", {
+          timestamp: startedAt + 1,
+        }),
+        ...Array.from({ length: 80 }, (_, index) =>
+          createTextTranscriptEvent("assistant", "NO_REPLY", {
+            timestamp: startedAt + index + 2,
+          }),
+        ),
+        createTextTranscriptEvent("assistant", "latest visible answer", {
+          timestamp: startedAt + 82,
+        }),
+      ]);
+
+      type HistoryPage = {
+        messages?: Array<{ __openclaw?: { seq?: number } }>;
+        nextOffset?: number;
+        hasMore?: boolean;
+      };
+      const firstPage = await rpcReq<HistoryPage>(
+        ws,
+        "chat.history",
+        makeMainSessionParams({ limit: 1, offset: 0, maxChars: 100 }),
+      );
+      expect(firstPage.ok).toBe(true);
+      expect(JSON.stringify(firstPage.payload?.messages)).toContain("latest visible answer");
+      expect(firstPage.payload?.nextOffset).toBe(1);
+
+      const olderPage = await rpcReq<HistoryPage>(
+        ws,
+        "chat.history",
+        makeMainSessionParams({
+          limit: 2,
+          offset: firstPage.payload?.nextOffset,
+          maxChars: 100,
+        }),
+      );
+      expect(olderPage.ok).toBe(true);
+      expect(olderPage.payload?.messages?.map(readOpenClawSeq)).toEqual([1, 2]);
+      expect(JSON.stringify(olderPage.payload?.messages)).not.toContain("NO_REPLY");
+      expect(olderPage.payload?.hasMore).toBe(false);
+      expect(olderPage.payload?.nextOffset).toBeUndefined();
     });
   });
 

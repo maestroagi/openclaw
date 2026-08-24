@@ -1,13 +1,12 @@
 import { asOptionalRecord } from "@openclaw/normalization-core/record-coerce";
+import { normalizeLowercaseStringOrEmpty as normalizeErrorSignal } from "@openclaw/normalization-core/string-coerce";
+import { isContextOverflowError } from "../agents/failover/classify.js";
 import { STREAM_ERROR_FALLBACK_TEXT } from "../agents/stream-message-shared.js";
-import {
-  getAssistantErrorFallbackText,
-  isPureStreamError,
-} from "../sessions/transcript-display-classification.js";
 import {
   DEFAULT_CHAT_HISTORY_TEXT_MAX_CHARS,
   extractAssistantTextForSilentCheck,
   hasAssistantDisplayableNonTextContent,
+  hasAssistantNonTextContent,
   isAssistantTextContentType,
 } from "./chat-display-projection.helpers.js";
 import {
@@ -86,6 +85,31 @@ type ChatDisplayProjectionResult = {
   streamErrorFallbackRepaired: boolean;
 };
 
+const GATEWAY_ASSISTANT_ERROR_FALLBACK_TEXT = "The agent run failed before producing a reply.";
+const GATEWAY_ASSISTANT_CONTEXT_OVERFLOW_FALLBACK_TEXT =
+  "Context overflow: this conversation is too large for the model. Try /compact, use /new to start a fresh session, or retry the command with a tighter output limit.";
+
+function isContextOverflowErrorSignal(value: unknown): boolean {
+  if (typeof value !== "string") {
+    return false;
+  }
+  return normalizeErrorSignal(value) === "context_overflow" || isContextOverflowError(value);
+}
+
+function isContextOverflowAssistantError(message: Record<string, unknown>): boolean {
+  return (
+    isContextOverflowErrorSignal(message.errorCode) ||
+    isContextOverflowErrorSignal(message.errorType) ||
+    isContextOverflowErrorSignal(message.errorMessage)
+  );
+}
+
+function getAssistantErrorFallbackText(message: Record<string, unknown>): string {
+  return isContextOverflowAssistantError(message)
+    ? GATEWAY_ASSISTANT_CONTEXT_OVERFLOW_FALLBACK_TEXT
+    : GATEWAY_ASSISTANT_ERROR_FALLBACK_TEXT;
+}
+
 function sanitizeAssistantErrorDisplayMessage(
   message: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -138,8 +162,24 @@ function sanitizeAssistantErrorDisplayMessage(
   return next;
 }
 
+function isPureStreamErrorFallbackAssistantMessage(message: Record<string, unknown>): boolean {
+  if (message.role !== "assistant" || message.stopReason !== "error") {
+    return false;
+  }
+  const text = extractAssistantTextForSilentCheck(message);
+  return (
+    text !== undefined &&
+    text.trim() === STREAM_ERROR_FALLBACK_TEXT &&
+    !hasAssistantNonTextContent(message)
+  );
+}
+
 function hasVisibleAssistantDisplayContent(message: Record<string, unknown>): boolean {
-  if (message.role !== "assistant" || message.display === false || isPureStreamError(message)) {
+  if (
+    message.role !== "assistant" ||
+    message.display === false ||
+    isPureStreamErrorFallbackAssistantMessage(message)
+  ) {
     return false;
   }
   const sanitized = sanitizeChatHistoryMessage(message, Number.MAX_SAFE_INTEGER).message as Record<
@@ -179,7 +219,7 @@ function projectRepairedStreamErrorFallbackMessages(
       pendingIndexes = [];
       continue;
     }
-    if (isPureStreamError(message)) {
+    if (isPureStreamErrorFallbackAssistantMessage(message)) {
       pending = true;
       pendingIndexes.push(index);
       continue;
