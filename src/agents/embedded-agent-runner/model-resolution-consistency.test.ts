@@ -1,6 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createPluginMetadataSnapshot } from "../../config/plugin-auto-enable.test-helpers.js";
-import { withPluginMetadataSnapshotScope } from "../../plugins/current-plugin-metadata-snapshot.js";
 import {
   prepareModelRunCapabilities,
   resolvePreparedModelThinkingCompat,
@@ -140,11 +138,6 @@ vi.mock("../../plugins/provider-runtime.js", () => ({
   prepareProviderRuntimeAuth: vi.fn(async () => undefined),
 }));
 
-vi.mock("../../plugins/current-plugin-metadata-snapshot.js", () => ({
-  getCurrentPluginMetadataSnapshot: () => ({ plugins: [] }),
-  withPluginMetadataSnapshotScope: (_snapshot: unknown, run: () => unknown) => run(),
-}));
-
 vi.mock("../provider-secret-egress.js", () => ({
   protectPreparedProviderRuntimeAuth: (value: unknown) => value,
   unwrapSecretSentinelsForProviderEgress: (value: unknown) => value,
@@ -205,19 +198,11 @@ describe("embedded model resolution consistency", () => {
     };
 
     expect(
-      withPluginMetadataSnapshotScope(
-        createPluginMetadataSnapshot({
-          config,
-          manifestRegistry: { plugins: [], diagnostics: [] },
-        }),
-        () =>
-          resolveInitialEmbeddedRunModel({
-            config,
-            agentId: "worker",
-            model: "worker-haiku",
-          }),
-        { config },
-      ),
+      resolveInitialEmbeddedRunModel({
+        config,
+        agentId: "worker",
+        model: "worker-haiku",
+      }),
     ).toEqual({ provider: "anthropic", modelId: "claude-haiku-4-5" });
   });
 
