@@ -3,7 +3,7 @@
   "version": "2026.8.1",
   "openclaw": {
     "schemaVersions": {
-      "state": 10,
+      "state": 11,
       "agent": 17
     }
   },
@@ -74,6 +74,7 @@
     "!dist/plugin-sdk/channel-test-helpers.d.ts",
     "!dist/plugin-sdk/chat-channel-ids.d.ts",
     "!dist/plugin-sdk/cli-backend.d.ts",
+    "!dist/plugin-sdk/claude-model-runtime.d.ts",
     "!dist/plugin-sdk/cli-runtime.d.ts",
     "!dist/plugin-sdk/codex-mcp-projection.d.ts",
     "!dist/plugin-sdk/codex-session-transcript-runtime.d.ts",
@@ -784,6 +785,9 @@
     },
     "./plugin-sdk/cli-backend": {
       "default": "./dist/plugin-sdk/cli-backend.js"
+    },
+    "./plugin-sdk/claude-model-runtime": {
+      "default": "./dist/plugin-sdk/claude-model-runtime.js"
     },
     "./plugin-sdk/codex-mcp-projection": {
       "default": "./dist/plugin-sdk/codex-mcp-projection.js"
