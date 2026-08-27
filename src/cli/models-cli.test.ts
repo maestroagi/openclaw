@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   modelsStatusCommand: vi.fn().mockResolvedValue(undefined),
   modelsSetCommand: vi.fn().mockResolvedValue(undefined),
   modelsSetImageCommand: vi.fn().mockResolvedValue(undefined),
+  modelsRefreshCommand: vi.fn().mockResolvedValue(undefined),
   noopAsync: vi.fn(async () => undefined),
   modelsAliasesAddCommand: vi.fn().mockResolvedValue(undefined),
   modelsAliasesListCommand: vi.fn().mockResolvedValue(undefined),
@@ -42,6 +43,7 @@ const {
   modelsAuthPasteApiKeyCommand,
   modelsAuthPasteTokenCommand,
   modelsAuthSetupTokenCommand,
+  modelsRefreshCommand,
   modelsScanCommand,
   modelsSetCommand,
   modelsSetImageCommand,
@@ -77,17 +79,11 @@ vi.mock("../commands/models/aliases.js", () => ({
   modelsAliasesListCommand: mocks.modelsAliasesListCommand,
   modelsAliasesRemoveCommand: mocks.modelsAliasesRemoveCommand,
 }));
-vi.mock("../commands/models/fallbacks.js", () => ({
-  modelsFallbacksAddCommand: mocks.noopAsync,
-  modelsFallbacksClearCommand: mocks.noopAsync,
-  modelsFallbacksListCommand: mocks.noopAsync,
-  modelsFallbacksRemoveCommand: mocks.noopAsync,
-}));
-vi.mock("../commands/models/image-fallbacks.js", () => ({
-  modelsImageFallbacksAddCommand: mocks.noopAsync,
-  modelsImageFallbacksClearCommand: mocks.noopAsync,
-  modelsImageFallbacksListCommand: mocks.noopAsync,
-  modelsImageFallbacksRemoveCommand: mocks.noopAsync,
+vi.mock("../commands/models/fallbacks-shared.js", () => ({
+  addFallbackCommand: mocks.noopAsync,
+  clearFallbacksCommand: mocks.noopAsync,
+  listFallbacksCommand: mocks.noopAsync,
+  removeFallbackCommand: mocks.noopAsync,
 }));
 vi.mock("../commands/models/scan.js", () => ({
   modelsScanCommand: mocks.modelsScanCommand,
@@ -98,6 +94,9 @@ vi.mock("../commands/models/set.js", () => ({
 vi.mock("../commands/models/set-image.js", () => ({
   modelsSetImageCommand: mocks.modelsSetImageCommand,
 }));
+vi.mock("../commands/models/refresh.js", () => ({
+  modelsRefreshCommand: mocks.modelsRefreshCommand,
+}));
 
 describe("models cli", () => {
   beforeEach(() => {
@@ -105,6 +104,7 @@ describe("models cli", () => {
     modelsAliasesAddCommand.mockClear();
     modelsAliasesListCommand.mockClear();
     modelsAliasesRemoveCommand.mockClear();
+    modelsRefreshCommand.mockClear();
     modelsScanCommand.mockClear();
     modelsAuthAddCommand.mockClear();
     modelsAuthListCommand.mockClear();
@@ -582,6 +582,11 @@ describe("models cli", () => {
       args: ["models", "--agent", "poe", "scan", "--no-probe", "--no-input"],
       command: modelsScanCommand,
     },
+    {
+      label: "refresh",
+      args: ["models", "--agent", "poe", "refresh"],
+      command: modelsRefreshCommand,
+    },
   ])("rejects parent --agent for models $label", async ({ args, command }) => {
     await expect(runModelsCommand(args)).rejects.toThrow("does not support --agent");
 
@@ -598,6 +603,11 @@ describe("models cli", () => {
       label: "scan",
       args: ["models", "scan", "--no-probe", "--no-input"],
       command: modelsScanCommand,
+    },
+    {
+      label: "refresh",
+      args: ["models", "refresh"],
+      command: modelsRefreshCommand,
     },
   ])("still runs models $label without --agent", async ({ args, command }) => {
     await runModelsCommand(args);
