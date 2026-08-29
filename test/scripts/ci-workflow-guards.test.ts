@@ -4290,7 +4290,7 @@ NODE
     const install = step("Install dependencies");
     const installScript = expectDefined(install.run, "Install dependencies script");
     const cachePaths =
-      "node_modules\nui/node_modules\npackages/*/node_modules\nexamples/*/node_modules\n.cache/openclaw-pnpm-store\n";
+      "node_modules\nui/node_modules\npackages/*/node_modules\nextensions/*/node_modules\nexamples/*/node_modules\n.cache/openclaw-pnpm-store\n";
 
     expect(action.inputs["cache-mode"].default).toBe("off");
     expect(action.inputs["dependency-cache"].default).toBe("false");
@@ -4474,6 +4474,7 @@ NODE
     "preserves pnpm hard links and validates cached importers offline",
     async ({ onTestFinished, signal }) => {
       const fixtureDirs = createTempDirTracker();
+      // oxlint-disable-next-line prefer-const -- Failure cleanup can run before the registry is started.
       let stopRegistry: (() => Promise<void>) | undefined;
       let readyTimeout: NodeJS.Timeout | undefined;
       // Timeout does not join the test body. Keep close and deletion in one hook,
@@ -7067,7 +7068,7 @@ printf '%s\n' "\${CURL_SUCCESS_IP:-203.0.113.7}"
       "${{ github.event_name == 'pull_request' && needs.preflight.outputs.diff_base_revision || '' }}",
     );
     expect(checkShardStep.run).toContain(
-      'python3 -I -S "$RUNNER_TEMP/ci-git-owner.py" --git 120 fetch --no-tags --depth=1 origin "+${PR_BASE_SHA}:refs/remotes/origin/ci-base"',
+      'python3 -I -S "$RUNNER_TEMP/ci-git-owner.py" --checkout-git 120 fetch --no-tags --depth=1 origin "+${PR_BASE_SHA}:refs/remotes/origin/ci-base"',
     );
   });
 

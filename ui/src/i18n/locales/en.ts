@@ -1981,6 +1981,8 @@ export const en: TranslationMap = {
         "Optional CSS width for the centered transcript, such as 960px, 82%, or min(1280px, 82%).",
       messageWidthInvalid:
         "Enter a CSS width such as 960px, 82%, min(1280px, 82%), or calc(100% - 2rem).",
+      collapseTaskProgress: "Collapse task progress by default",
+      collapseTaskProgressHint: "Keep active task progress collapsed until you open it.",
     },
     sidebarPrefs: {
       title: "Sidebar",
@@ -4773,6 +4775,7 @@ export const en: TranslationMap = {
       pageNotFound: "No wiki page found for {lookup}.",
       previewTruncated: "Showing the first chunk of this page.",
       previewTruncatedWithTotal: "Showing the first chunk of this page ({count} total lines).",
+      boundedResults: "Showing the newest {returned} of {total} items.",
       importedClusterSummary: "Imported chats clustered around {label}.",
       withheldDigestOne: "{count} digest was withheld pending review.",
       withheldDigests: "{count} digests were withheld pending review.",
