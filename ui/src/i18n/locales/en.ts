@@ -2058,6 +2058,7 @@ export const en: TranslationMap = {
     expired: "expired",
     execApprovalNeeded: "Exec approval needed",
     pluginApprovalNeeded: "Plugin approval needed",
+    requestedBySession: "Approval requested by session {session}",
     pending: "{count} pending",
     otherPending: "Other pending requests",
     reviewRequest: "Review approval from {agent}: {command}",
@@ -2439,6 +2440,10 @@ export const en: TranslationMap = {
     uploadUnsupportedShell: "Cannot safely insert an uploaded path into unsupported shell: {shell}",
   },
   browser: {
+    profile: "Browser profile: {profile}",
+    navigationBlocked:
+      "The current browser navigation rules block this address. Select another tab or enter an allowed address.",
+    navigationCheckFailed: "OpenClaw couldn’t verify this tab’s address. Refresh to try again.",
     title: "Browser",
     open: "Open",
     openPanel: "Open browser panel",
@@ -2486,6 +2491,7 @@ export const en: TranslationMap = {
       canvasUnavailable: "Canvas 2D context unavailable.",
     },
     annotatePrompt: {
+      browserTarget: "Browser target: {target}",
       // introTitled/elementDetail (not intro/element): translated keys never
       // retranslate on source-wording changes, so the provenance-label rewrite
       // required fresh key names to propagate to all locales.
@@ -5808,7 +5814,6 @@ export const en: TranslationMap = {
       moreActions: "More queued message actions",
       cancelEdit: "Cancel editing and keep the queued message",
       states: {
-        queued: "Queued",
         applyingSettings: "Applying chat settings",
         runningCommand: "Running command",
         waitingForReconnect: "Waiting for reconnect",

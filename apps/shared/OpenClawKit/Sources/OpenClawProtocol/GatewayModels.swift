@@ -9343,6 +9343,7 @@ public struct SessionsCreateParams: Codable, Sendable {
     public let model: String?
     public let contextwindow: String?
     public let thinkinglevel: String?
+    public let fastmode: AnyCodable?
     public let permissionmode: SessionPermissionMode?
     public let tooloverrides: [String: AnyCodable]?
     public let incognito: Bool?
@@ -9374,6 +9375,7 @@ public struct SessionsCreateParams: Codable, Sendable {
         model: String? = nil,
         contextwindow: String? = nil,
         thinkinglevel: String? = nil,
+        fastmode: AnyCodable? = nil,
         permissionmode: SessionPermissionMode? = nil,
         tooloverrides: [String: AnyCodable]? = nil,
         incognito: Bool? = nil,
@@ -9404,6 +9406,7 @@ public struct SessionsCreateParams: Codable, Sendable {
         self.model = model
         self.contextwindow = contextwindow
         self.thinkinglevel = thinkinglevel
+        self.fastmode = fastmode
         self.permissionmode = permissionmode
         self.tooloverrides = tooloverrides
         self.incognito = incognito
@@ -9436,6 +9439,7 @@ public struct SessionsCreateParams: Codable, Sendable {
         case model
         case contextwindow = "contextWindow"
         case thinkinglevel = "thinkingLevel"
+        case fastmode = "fastMode"
         case permissionmode = "permissionMode"
         case tooloverrides = "toolOverrides"
         case incognito
@@ -14711,6 +14715,7 @@ public struct ModelChoice: Codable, Sendable {
     public let reasoning: Bool?
     public let thinkinglevels: [[String: AnyCodable]]?
     public let thinkingdefault: String?
+    public let effectivefastmode: AnyCodable?
     public let supportstools: Bool?
     public let agentruntime: [String: AnyCodable]?
     public let apikeysupported: Bool?
@@ -14731,6 +14736,7 @@ public struct ModelChoice: Codable, Sendable {
         reasoning: Bool? = nil,
         thinkinglevels: [[String: AnyCodable]]? = nil,
         thinkingdefault: String? = nil,
+        effectivefastmode: AnyCodable? = nil,
         supportstools: Bool? = nil,
         agentruntime: [String: AnyCodable]? = nil,
         apikeysupported: Bool? = nil,
@@ -14750,6 +14756,7 @@ public struct ModelChoice: Codable, Sendable {
         self.reasoning = reasoning
         self.thinkinglevels = thinkinglevels
         self.thinkingdefault = thinkingdefault
+        self.effectivefastmode = effectivefastmode
         self.supportstools = supportstools
         self.agentruntime = agentruntime
         self.apikeysupported = apikeysupported
@@ -14771,6 +14778,7 @@ public struct ModelChoice: Codable, Sendable {
         case reasoning
         case thinkinglevels = "thinkingLevels"
         case thinkingdefault = "thinkingDefault"
+        case effectivefastmode = "effectiveFastMode"
         case supportstools = "supportsTools"
         case agentruntime = "agentRuntime"
         case apikeysupported = "apiKeySupported"
@@ -18062,6 +18070,7 @@ public struct PendingApprovalSnapshot: Codable, Sendable {
     public let expiresatms: Int
     public let presentation: ApprovalPresentation
     public let status: String
+    public let sourcesessionkey: String?
 
     public init(
         id: String,
@@ -18069,7 +18078,8 @@ public struct PendingApprovalSnapshot: Codable, Sendable {
         createdatms: Int,
         expiresatms: Int,
         presentation: ApprovalPresentation,
-        status: String)
+        status: String,
+        sourcesessionkey: String? = nil)
     {
         self.id = id
         self.urlpath = urlpath
@@ -18077,6 +18087,7 @@ public struct PendingApprovalSnapshot: Codable, Sendable {
         self.expiresatms = expiresatms
         self.presentation = presentation
         self.status = status
+        self.sourcesessionkey = sourcesessionkey
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -18086,6 +18097,7 @@ public struct PendingApprovalSnapshot: Codable, Sendable {
         case expiresatms = "expiresAtMs"
         case presentation
         case status
+        case sourcesessionkey = "sourceSessionKey"
     }
 }
 

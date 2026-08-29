@@ -291,6 +291,7 @@ export async function dispatchEmbeddedRunAttempt(input: {
     githubPublicationAvailable: params.githubPublicationAvailable,
     chatType: params.chatType,
     agentAccountId: params.agentAccountId,
+    conversationRoutePeerId: params.conversationRoutePeerId,
     messageTo: params.messageTo,
     messageThreadId: params.messageThreadId,
     conversationToolPolicy: params.conversationToolPolicy,

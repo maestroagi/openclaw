@@ -54,7 +54,7 @@ extensions/browser/src/browser-tool-binding.ts	3
 extensions/browser/src/browser-tool-session-tabs.ts	3
 extensions/browser/src/browser-tool.actions.ts	14
 extensions/browser/src/browser-tool.snapshot.ts	2
-extensions/browser/src/browser-tool.ts	14
+extensions/browser/src/browser-tool.ts	6
 extensions/browser/src/browser/bridge-server.ts	3
 extensions/browser/src/browser/cdp-page-session.ts	3
 extensions/browser/src/browser/cdp-proxy-bypass.ts	1
@@ -430,7 +430,6 @@ extensions/discord/src/send.shared.ts	4
 extensions/discord/src/send.webhook.ts	1
 extensions/discord/src/setup-account-state.ts	1
 extensions/discord/src/setup-core.ts	1
-extensions/discord/src/shared.ts	1
 extensions/discord/src/status-issues.ts	1
 extensions/discord/src/target-parsing.ts	1
 extensions/discord/src/token.ts	2
@@ -610,8 +609,8 @@ extensions/kimi-coding/stream.ts	11
 extensions/line/src/accounts.ts	3
 extensions/line/src/actions.ts	4
 extensions/line/src/auto-reply-delivery.ts	1
-extensions/line/src/bot-handlers.ts	2
-extensions/line/src/bot-message-context.ts	3
+extensions/line/src/bot-handlers.ts	1
+extensions/line/src/bot-message-context.ts	1
 extensions/line/src/card-command.ts	3
 extensions/line/src/flex-templates/basic-cards.ts	19
 extensions/line/src/flex-templates/common.ts	2
@@ -626,7 +625,7 @@ extensions/line/src/outbound.ts	6
 extensions/line/src/rich-menu.ts	1
 extensions/line/src/send.ts	1
 extensions/line/src/setup-core.ts	1
-extensions/line/src/webhook-spool.ts	4
+extensions/line/src/webhook-spool.ts	2
 extensions/line/src/webhook-utils.ts	1
 extensions/line/src/webhook.ts	1
 extensions/litellm/onboard.ts	1
@@ -1053,7 +1052,6 @@ extensions/qa-lab/src/mantis/crabbox-runtime.ts	2
 extensions/qa-lab/src/mantis/discord-smoke.runtime.ts	3
 extensions/qa-lab/src/mantis/run.runtime.ts	3
 extensions/qa-lab/src/mantis/slack-desktop-smoke.runtime.ts	4
-extensions/qa-lab/src/mantis/telegram-desktop-builder.runtime.ts	2
 extensions/qa-lab/src/mantis/visual-task.runtime.ts	2
 extensions/qa-lab/src/manual-lane.runtime.ts	2
 extensions/qa-lab/src/model-catalog.runtime.ts	2
@@ -1208,7 +1206,6 @@ extensions/slack/src/security-audit.ts	6
 extensions/slack/src/send.ts	6
 extensions/slack/src/setup-core.ts	7
 extensions/slack/src/setup-surface.ts	1
-extensions/slack/src/shared.ts	1
 extensions/slack/src/streaming.ts	3
 extensions/slack/src/target-parsing.ts	1
 extensions/sms/src/accounts.ts	1
@@ -1785,7 +1782,7 @@ src/agents/embedded-agent-runner/empty-assistant-turn.ts	1
 src/agents/embedded-agent-runner/extensions.ts	1
 src/agents/embedded-agent-runner/extra-params.ts	12
 src/agents/embedded-agent-runner/google-prompt-cache.ts	6
-src/agents/embedded-agent-runner/history.ts	3
+src/agents/embedded-agent-runner/history.ts	2
 src/agents/embedded-agent-runner/message-visibility.ts	13
 src/agents/embedded-agent-runner/model-context-tokens.ts	1
 src/agents/embedded-agent-runner/model.compat.ts	1
@@ -3294,7 +3291,6 @@ src/infra/update-check-package-target.ts	3
 src/infra/update-doctor-result.ts	2
 src/infra/update-global.ts	3
 src/infra/update-package-manager.ts	1
-src/infra/update-runner-git-recovery.ts	1
 src/infra/update-runner-install-surface.ts	1
 src/infra/voicewake-routing.ts	4
 src/infra/warning-filter.ts	4
@@ -4122,7 +4118,6 @@ ui/src/pages/chat/realtime-talk-google-live.ts	2
 ui/src/pages/chat/realtime-talk-shared.ts	7
 ui/src/pages/chat/realtime-talk-webrtc.ts	3
 ui/src/pages/chat/realtime-talk.ts	7
-ui/src/pages/chat/route.ts	2
 ui/src/pages/chat/run-lifecycle.ts	1
 ui/src/pages/chat/scroll.ts	1
 ui/src/pages/chat/session-cache.ts	2
