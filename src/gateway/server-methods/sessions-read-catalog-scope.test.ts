@@ -84,7 +84,7 @@ async function seedSessions(): Promise<OpenClawConfig> {
     {
       sessionId: "main-active",
       updatedAt: 400,
-      createdActor: { type: "human", id: "owner@example.com" },
+      createdActor: { type: "human", source: "profile", id: "owner@example.com" },
       visibility: "shared",
     },
   );
@@ -93,7 +93,7 @@ async function seedSessions(): Promise<OpenClawConfig> {
     {
       sessionId: "work-active",
       updatedAt: 100,
-      createdActor: { type: "human", id: "viewer@example.com" },
+      createdActor: { type: "human", source: "profile", id: "viewer@example.com" },
       visibility: "shared",
     },
   );

@@ -676,7 +676,9 @@ export async function chooseDispatchRoute(state: PrepareDispatchOperationReadySt
     }
   }
 
-  const dispatchAcquisition = await state.ensureDispatchReplyOperation("dispatch");
+  const dispatchAcquisition = await state.ensureDispatchReplyOperation(
+    state.activeRunSafeCommandTurn ? "command_resolution" : "dispatch",
+  );
   if (dispatchAcquisition.status === "aborted") {
     return { status: "complete" as const, result: state.finishReplyOperationAbortedDispatch() };
   }

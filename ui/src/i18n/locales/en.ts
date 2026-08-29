@@ -6104,7 +6104,6 @@ export const en: TranslationMap = {
       searchPlaceholder: "Search messages...",
       closeSearch: "Close search",
       loading: "Loading chat",
-      earlierHistoryAvailable: "Earlier history available",
       showEarlier: "Show earlier",
       loadingEarlier: "Loading earlier history…",
       noMatches: "No matching messages",
@@ -6599,6 +6598,7 @@ export const en: TranslationMap = {
     partial: "{saved}/{total}: {error}",
     confirmDelete: "Delete {name}?",
     deleted: "Deleted {name}.",
+    deleteFailed: "The secret was not deleted. Reload the list and try again.",
   },
   cron: {
     adminRequired: "Browsing only. Automation changes require operator.admin access.",

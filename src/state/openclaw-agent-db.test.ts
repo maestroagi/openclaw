@@ -1352,7 +1352,7 @@ describe("openclaw agent database", () => {
   });
 
   it("opens a v13 database that already contains additive board storage", async () => {
-    expect(OPENCLAW_AGENT_SCHEMA_VERSION).toBe(18);
+    expect(OPENCLAW_AGENT_SCHEMA_VERSION).toBe(19);
     const stateDir = createTempStateDir();
     const env = { OPENCLAW_STATE_DIR: stateDir };
     const databasePath = materializeV13WorkerAgentDatabase(stateDir);
@@ -1578,7 +1578,7 @@ describe("openclaw agent database", () => {
   });
 
   it("keeps additive heartbeat repair while upgrading schema version 12", async () => {
-    expect(OPENCLAW_AGENT_SCHEMA_VERSION).toBe(18);
+    expect(OPENCLAW_AGENT_SCHEMA_VERSION).toBe(19);
     const stateDir = createTempStateDir();
     const env = { OPENCLAW_STATE_DIR: stateDir };
     const databasePath = materializeV13WorkerAgentDatabase(stateDir);
@@ -3737,12 +3737,12 @@ describe("openclaw agent database", () => {
       older.close();
     }
     const repaired = openOpenClawAgentDatabase({ agentId: "worker-1", env });
-    expect(readSqliteNumberPragma(repaired.db, "user_version")).toBe(18);
+    expect(readSqliteNumberPragma(repaired.db, "user_version")).toBe(OPENCLAW_AGENT_SCHEMA_VERSION);
     expect(
       repaired.db
         .prepare("SELECT schema_version FROM schema_meta WHERE meta_key = 'primary'")
         .get(),
-    ).toEqual({ schema_version: 18 });
+    ).toEqual({ schema_version: OPENCLAW_AGENT_SCHEMA_VERSION });
     expect(
       repaired.db
         .prepare("SELECT event_json FROM transcript_events WHERE session_id = 'eligibility'")

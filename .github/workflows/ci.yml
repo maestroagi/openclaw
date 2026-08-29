@@ -1252,6 +1252,18 @@ jobs:
                 requires_go:
                   shard.shardName.startsWith("core-tooling") ||
                   shard.groups?.some((group) => group.shard_name.startsWith("core-tooling")),
+                requires_ripgrep:
+                  shard.targets?.includes("src/agents/sessions/tools/index.test.ts") ||
+                  shard.includePatterns?.includes("src/agents/sessions/tools/index.test.ts") ||
+                  (shard.shardName === "agentic-agents-support" && !shard.includePatterns) ||
+                  shard.groups?.some(
+                    (group) =>
+                      group.includePatterns?.includes(
+                        "src/agents/sessions/tools/index.test.ts",
+                      ) ||
+                      (group.shard_name === "agentic-agents-support" &&
+                        !group.includePatterns),
+                  ),
               }));
           const nodeTestNonDistShards = nodeTestShards.filter((shard) => !shard.requires_dist);
           const nodeTestDistShards = nodeTestShards.filter((shard) => shard.requires_dist);
@@ -2902,6 +2914,16 @@ jobs:
           VITEST: "1"
         run: pnpm build:ci-artifacts
 
+      - name: Install ripgrep for native grep tests
+        if: matrix.requires_ripgrep == true && runner.os == 'Linux'
+        shell: bash
+        run: |
+          if command -v rg >/dev/null 2>&1; then
+            exit 0
+          fi
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ripgrep
+
       - name: Run Node test shard
         env:
           NODE_OPTIONS: --max-old-space-size=8192
@@ -3938,6 +3960,14 @@ jobs:
     steps:
       - *platform_checkout_step
 
+      - name: Setup Node.js for native test tooling
+        env:
+          REQUESTED_NODE_VERSION: ${{ env.NODE_VERSION }}
+        run: |
+          set -euo pipefail
+          source .ci-harness/.github/actions/setup-pnpm-store-cache/ensure-node.sh
+          openclaw_ensure_node "$REQUESTED_NODE_VERSION"
+
       - name: Install XcodeGen / SwiftLint / SwiftFormat
         run: |
           if [[ -x ./scripts/install-xcodegen.sh && -x ./scripts/install-swift-tools.sh ]]; then
@@ -4137,7 +4167,17 @@ jobs:
           else
             swift_test_args+=(--no-parallel)
           fi
-          swift test "${swift_test_args[@]}"
+          if [[ -f scripts/test-macos-native.mts ]]; then
+            node scripts/test-macos-native.mts default "${swift_test_args[@]}" --skip AppStateIsolationTests
+            node scripts/test-macos-native.mts named "${swift_test_args[@]}" --filter AppStateIsolationTests
+          elif [[ "$HISTORICAL_TARGET" == "true" ]]; then
+            # Frozen release targets predate the resource-owner script and its tests.
+            # Their original suite still runs only on this disposable macOS worker.
+            swift test "${swift_test_args[@]}"
+          else
+            echo "Current CI targets must provide scripts/test-macos-native.mts." >&2
+            exit 1
+          fi
 
       - name: Render isolated macOS health fixtures
         id: health-render
