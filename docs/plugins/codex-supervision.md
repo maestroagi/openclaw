@@ -124,6 +124,12 @@ honored for that stdio process. If the Mac config selects `"unix"`,
 capability or command, and a stale direct invocation fails instead of exposing
 the user Codex home or spawning a different local stdio App Server.
 
+The optional `agentId` in native Mac catalog list/read requests identifies the
+Gateway's OpenClaw route owner. It cannot select an agent-specific Codex home;
+the native catalog remains user-home stdio only. Headless node catalog requests
+still resolve `agentId` against that node's configured agents and use the selected
+agent's configured catalog source. This does not map agent IDs between computers.
+
 A newly advertised node command changes the node's approved command surface.
 Approve the update from the Gateway host:
 
@@ -271,6 +277,15 @@ when forking from OpenClaw.
 Keep supervision enabled for this Chat. If supervision is disabled or its
 stored connection binding becomes unavailable or inconsistent, the turn fails
 closed instead of moving to an ordinary agent-home session.
+
+A new adoption snapshots the native title as a trimmed display name, capped at
+500 UTF-16 code units without splitting surrogate pairs. Native titles can be
+duplicated or blank; they do not claim unique OpenClaw labels. An explicit local
+label takes priority over the stored display name. Reopening or recovering a Chat
+preserves its existing label and title snapshot, including older automatically
+assigned labels; renaming the native source does not resync either field.
+**Fork from here** does not inherit the native response's title as a display name
+or local label.
 
 Disabling or uninstalling the `codex` plugin does not release that ownership or
 make the Chat eligible for another model. The locked Chat remains preserved but
