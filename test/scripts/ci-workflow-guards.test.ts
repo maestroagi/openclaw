@@ -272,6 +272,7 @@ function runCiManifestFixture(options: {
   bundledPlanner: boolean;
   changedPlannerImportFails?: boolean;
   changedPaths?: string[] | null;
+  repository?: string;
   eventName?: "pull_request" | "push" | "workflow_dispatch";
   historicalCompatibility?: boolean;
   iosCapabilities?: boolean;
@@ -312,6 +313,7 @@ function runCiManifestFixture(options: {
           export const createNodeTestShardBundles = (options = {}) => [{
             checkName: "bundled-node-plan",
             configs: ["test/vitest/bundled.config.ts"],
+            includePatterns: options.changedPaths,
             env: {
               OPENCLAW_CI_TEST_COMPACT_MODE: options.compactMode ?? "full",
               OPENCLAW_CI_TEST_RUNNER_BACKEND: options.runnerBackend ?? "",
@@ -483,7 +485,7 @@ function runCiManifestFixture(options: {
           options.releaseCandidateCompatibility === true ? "true" : "false",
         OPENCLAW_CI_TARGET_CONTEXT_TARGET:
           options.targetContextCompatibility === true ? "true" : "false",
-        OPENCLAW_CI_REPOSITORY: "openclaw/openclaw",
+        OPENCLAW_CI_REPOSITORY: options.repository ?? "openclaw/openclaw",
         OPENCLAW_CI_RUN_ANDROID: "true",
         OPENCLAW_CI_RUN_CONTROL_UI_I18N: "true",
         OPENCLAW_CI_RUN_IOS_BUILD: "true",
@@ -5970,10 +5972,7 @@ server.listen(0, "127.0.0.1", () => {
   });
 
   it("retains fetch deadlines in other standalone workflows", () => {
-    const workflowPaths = [
-      [".github/workflows/workflow-sanity.yml", "30s"],
-      [".github/workflows/crabbox-hydrate.yml", "30s"],
-    ] as const;
+    const workflowPaths = [[".github/workflows/crabbox-hydrate.yml", "30s"]] as const;
 
     for (const [workflowPath, timeoutSeconds] of workflowPaths) {
       const workflow = readFileSync(workflowPath, "utf8");
@@ -6338,6 +6337,62 @@ server.listen(0, "127.0.0.1", () => {
         "persist-credentials": false,
       });
     }
+  });
+
+  it("pins workflow sanity's typed Git policy after Python setup", () => {
+    const steps: WorkflowStep[] = readWorkflowSanityWorkflow().jobs.actionlint.steps;
+    const python = expectDefined(
+      steps.find((step) => step.name === "Setup Python"),
+      "Python",
+    );
+    const owner = expectDefined(
+      steps.find((step) => step.name === "Prepare Git owner"),
+      "owner",
+    );
+    const policy = expectDefined(
+      steps.find((step) => step.name === "Prepare trusted workflow audit configs"),
+      "policy",
+    );
+    expect(python.with).toEqual({ "python-version": "3.12" });
+    expect(owner.uses).toBe(
+      "openclaw/openclaw/.github/actions/git-owner@dd4528b6393e7d00063067a080ca7241b48ce475",
+    );
+    expect(owner.with).toBeUndefined();
+    expect(steps.indexOf(python)).toBeLessThan(steps.indexOf(owner));
+    expect(steps.indexOf(owner)).toBeLessThan(steps.indexOf(policy));
+    expect(policy.if).toBe("github.event_name == 'pull_request'");
+    expect(policy.env).toEqual({
+      BASE_REF: "${{ github.event.pull_request.base.ref }}",
+      BASE_SHA: "${{ github.event.pull_request.base.sha }}",
+    });
+    expect(policy.run).toContain("exec python3 -I -S \"$CI_GIT_OWNER\" --policy - <<'PYTHON'");
+    expect(policy.run).not.toMatch(
+      /timeout --|fetch_status|fetch_base_ref|sleep 5|subprocess\.PIPE|except (?:Exception|BaseException|SystemExit|RuntimeError)/u,
+    );
+    expect(policy.run?.match(/timeout=\d+/gu)).toEqual(["timeout=30"]);
+    expect(policy.run).toContain("range(1, 4)");
+    expect(policy.run).toContain("backoff(5)");
+    for (const contract of [
+      "--no-tags",
+      "--depth=1",
+      "reclaim_locks=True",
+      "refs/remotes/origin/security-base",
+      "refs/heads/",
+      ".pre-commit-config.yaml",
+      ".github/zizmor.yml",
+      "pre-commit-base.yaml",
+      "zizmor-base.yml",
+      "PRE_COMMIT_CONFIG_PATH=",
+    ]) {
+      expect(policy.run).toContain(contract);
+    }
+    const audit = expectDefined(
+      steps.find((step) => step.name === "Audit all workflows with zizmor"),
+      "audit",
+    );
+    expect(audit.run).toContain(
+      'pre-commit run --config "${PRE_COMMIT_CONFIG_PATH:-.pre-commit-config.yaml}" zizmor',
+    );
   });
 
   it("prepares Testbox checkouts with one maintained owner and scoped history", () => {
@@ -7799,6 +7854,34 @@ printf '%s\n' "\${CURL_SUCCESS_IP:-203.0.113.7}"
       expect(
         JSON.parse(expectDefined(manifest.outputs.checks_windows_matrix, "Windows matrix")).include,
       ).toHaveLength(selectedJobs.includes("checks-windows") ? 2 : 0);
+    },
+  );
+
+  it.each([
+    ["pull_request", "openclaw/openclaw", true],
+    ["pull_request", "example/openclaw", false],
+    ["push", "openclaw/openclaw", false],
+    ["workflow_dispatch", "openclaw/openclaw", false],
+  ] as const)(
+    "forwards changed paths only to canonical PR fallback (%s, %s)",
+    (eventName, repository, forwardsChangedPaths) => {
+      const changedPaths = [
+        "src/plugins/manifest-tool-availability.ts",
+        "src/plugins/tools.optional.test.ts",
+      ];
+      const manifest = runCiManifestFixture({
+        bundledPlanner: true,
+        changedPaths,
+        eventName,
+        repository,
+      });
+      expect(manifest.status, manifest.output).toBe(0);
+      const rows = JSON.parse(
+        expectDefined(manifest.outputs.checks_node_core_nondist_matrix, "fallback matrix"),
+      ).include;
+      expect(rows).toHaveLength(1);
+      expect(rows[0].check_name).toBe("bundled-node-plan");
+      expect(rows[0].includePatterns).toEqual(forwardsChangedPaths ? changedPaths : undefined);
     },
   );
 

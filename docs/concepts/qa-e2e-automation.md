@@ -725,9 +725,19 @@ Slack YAML module scenarios (`qa/scenarios/channels/slack-*.yaml`):
 - `slack-restart-resume`
 - `slack-progress-commentary-true`, `slack-progress-commentary-false`,
   `slack-progress-commentary-omitted`, and
-  `slack-progress-commentary-verbose-dedupe` - opt-in real-Slack probes for
+  `slack-progress-commentary-verbose-dedupe` / `slack-progress-commentary-verbose-full` - opt-in real-Slack probes for
   independent commentary/tool-progress controls, the omitted-key legacy
-  default, and single-delivery behavior when durable verbose progress is on.
+  default, and single-delivery behavior for durable verbose progress. The `on`
+  probe requires a safe Exec summary without command text or output; the `full`
+  probe requires the exact stdout marker in a separate tool-output message.
+  Both use the same command and require one commentary identity separate from
+  the final answer. Full verbosity allows the runtime's command metadata and
+  one separate start summary, while requiring a unique completed-output identity.
+  Slack may strip command-summary headers during delivery, so the exact output
+  line, not a tool label, identifies completed output.
+  Failures retain bounded
+  presentation facts without raw Slack messages or platform identities,
+  including marker formatting and `sleep` summaries missing the command marker.
 - `slack-reaction-glyph-native` - opt-in live message-tool reaction scenario.
   Instructs the agent to pass the exact `✅` glyph and confirms Slack stored
   `white_check_mark` for the SUT bot on the target message.
@@ -1135,10 +1145,14 @@ requires adapters to use the two cleanup phases; it does not change broker TTLs
 or provide a durable guarantee after the QA parent or host is lost.
 
 Temporary runtime and staged-plugin directories are removed independently, and
-removal failures are reported with redacted diagnostics. A cleanup error can
+cleanup failures are reported with redacted diagnostics. Before removing the
+runtime, the QA parent closes that root's auth readers and agent databases,
+releases their leases while shared state is still open, then closes the shared
+database. Other QA roots remain untouched. A close failure retains the runtime
+for retry while staged-plugin removal is still attempted. A cleanup error can
 therefore leave isolated runtime or auth state on disk even when process
-termination is confirmed. Correct the filesystem problem and retry `stop()` on
-the retained lifecycle owner; confirmed termination still permits after-stop
+termination is confirmed. Correct the reported problem and retry `stop()` on the
+retained lifecycle owner; confirmed termination still permits after-stop
 credential cleanup.
 
 Payload shapes the broker validates on `admin/add`:
