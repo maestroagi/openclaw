@@ -2719,7 +2719,7 @@ describe("before_tool_call requireApproval handling", () => {
     );
   });
 
-  it("blocks on deny decision", async () => {
+  it("uses tool-neutral guidance for a denied plugin tool call", async () => {
     hookRunner.runBeforeToolCall.mockResolvedValue({
       requireApproval: {
         title: "Dangerous",
@@ -2731,14 +2731,22 @@ describe("before_tool_call requireApproval handling", () => {
     mockCallGateway.mockResolvedValueOnce({ id: "server-id-2", decision: "deny" });
 
     const result = await runBeforeToolCallHook({
-      toolName: "bash",
-      params: {},
+      toolName: "web_search",
+      params: { query: "OpenClaw" },
       ctx: { agentId: "main", sessionKey: "main" },
     });
 
     expect(result.blocked).toBe(true);
     expect(result).toHaveProperty("disposition", "blocked");
-    expect(result).toHaveProperty("reason", "Denied by user");
+    expect(result).toHaveProperty(
+      "reason",
+      [
+        "Denied by user. The tool call did not run.",
+        "This denial is final: the approval request is closed. Do not mention /approve or any other approval command to the user.",
+        "Do not run the tool call again or ask the user to approve it again.",
+        "If the user still wants the action, explain that a new tool call will trigger a fresh approval request.",
+      ].join("\n"),
+    );
   });
 
   it("keeps the generic plugin approval timeout reason unchanged", async () => {
