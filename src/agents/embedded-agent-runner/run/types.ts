@@ -104,6 +104,11 @@ export type EmbeddedRunAttemptTrajectoryRecorder = {
 
 export type EmbeddedRunAttemptParams = EmbeddedRunAttemptBase & {
   admittedRunContext: NonNullable<RunEmbeddedAgentParams["admittedRunContext"]>;
+  /** Host-private bounded recovery state for this exact attempt. */
+  codeModeRecovery?: Exclude<
+    import("./terminal-retry-state.js").CodeModeRecoveryState,
+    { kind: "idle" }
+  >;
   /**
    * Run-owned start timestamp captured by the embedded-run orchestrator before
    * admission. Flows onto the queue handle so recovery can project the active
@@ -288,10 +293,6 @@ export type EmbeddedRunAttemptResult = {
     readonly messages: readonly AgentMessage[];
   };
   beforeAgentFinalizeRevisionReason?: string;
-  /** A source-local revision requested that every retry after the rejected draft omit tools. */
-  beforeAgentFinalizeRevisionDisableTools?: true;
-  /** A source-local final-candidate gate deterministically suppressed the rejected draft. */
-  beforeAgentFinalizeDiscarded?: true;
   assistantTexts: string[];
   latestMcpAppChannelView?: McpAppChannelView;
   latestMcpConnectAction?: McpConnectAction;
@@ -367,8 +368,8 @@ export type EmbeddedRunAttemptResult = {
    * how config-enabled code mode stays visible as a no-op on harness routes.
    */
   codeModeEngaged?: boolean;
-  /** Host-authenticated request for one bounded post-mutation inspection attempt. */
-  codeModeReconciliationCandidate?: boolean;
+  /** Host-authenticated facts for bounded post-mutation inspection and recovery. */
+  codeModeRecoveryCandidate?: import("./terminal-retry-state.js").CodeModeRecoveryCandidate;
   /** Completed assistant round trips observed during this attempt. */
   assistantTurns?: number;
   /** Inner bridge call counts from this attempt's tool-search/code-mode catalog. */

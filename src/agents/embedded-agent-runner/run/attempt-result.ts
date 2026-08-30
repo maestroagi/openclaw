@@ -81,12 +81,10 @@ type EmbeddedAttemptResultState = Pick<
   | "finalPromptText"
   | "messagesSnapshot"
   | "beforeAgentFinalizeRevisionReason"
-  | "beforeAgentFinalizeRevisionDisableTools"
-  | "beforeAgentFinalizeDiscarded"
   | "lastAssistant"
   | "currentAttemptAssistant"
   | "currentAttemptCompletedAssistant"
-  | "codeModeReconciliationCandidate"
+  | "codeModeRecoveryCandidate"
   | "successfulNestedToolNames"
   | "attemptUsage"
   | "promptCache"
@@ -215,7 +213,6 @@ export function completeEmbeddedAttemptResult(
   input: CompleteEmbeddedAttemptResultInput,
 ): EmbeddedRunAttemptWithReceiptEvidence {
   const { attempt, state, subscription } = input;
-  const beforeAgentFinalizeDiscarded = state.beforeAgentFinalizeDiscarded === true;
   const terminal = projectAgentRunAttemptTerminal(state.terminal);
   const {
     assistantTexts,
@@ -286,7 +283,6 @@ export function completeEmbeddedAttemptResult(
 
   if (
     attempt.operation !== "settled-tool-finalization" &&
-    !beforeAgentFinalizeDiscarded &&
     input.hookRunner?.hasHooks("llm_output") &&
     shouldRunLlmOutputHooksForAttempt({ promptErrorSource: terminal.promptErrorSource })
   ) {
@@ -372,9 +368,7 @@ export function completeEmbeddedAttemptResult(
   });
   const completedClientToolCalls = collectCompletedClientToolCalls(input.clientToolCallSlots);
   const clientToolCalls =
-    !beforeAgentFinalizeDiscarded && completedClientToolCalls.length > 0
-      ? completedClientToolCalls
-      : undefined;
+    completedClientToolCalls.length > 0 ? completedClientToolCalls : undefined;
   const didSendDeterministicApprovalPromptNow = didSendDeterministicApprovalPrompt();
   const lastToolError = getLastToolError();
   const heartbeatToolResponse = getHeartbeatToolResponse();
@@ -458,20 +452,13 @@ export function completeEmbeddedAttemptResult(
     ...(settledTurnFinalizationContext ? { settledTurnFinalizationContext } : {}),
     replayMetadata,
     currentAttemptReplayMetadata,
-    codeModeReconciliationCandidate: state.codeModeReconciliationCandidate,
+    codeModeRecoveryCandidate: state.codeModeRecoveryCandidate,
     itemLifecycle: getItemLifecycle(),
     assistantTurns: getAssistantTurnCount(),
     setTerminalLifecycleMeta,
     bootstrapPromptWarningSignaturesSeen: input.bootstrapPromptWarning.warningSignaturesSeen,
     bootstrapPromptWarningSignature: input.bootstrapPromptWarning.signature,
-    assistantTexts: beforeAgentFinalizeDiscarded ? [] : assistantTexts,
-    lastAssistant: beforeAgentFinalizeDiscarded ? undefined : state.lastAssistant,
-    currentAttemptAssistant: beforeAgentFinalizeDiscarded
-      ? undefined
-      : state.currentAttemptAssistant,
-    currentAttemptCompletedAssistant: beforeAgentFinalizeDiscarded
-      ? undefined
-      : state.currentAttemptCompletedAssistant,
+    assistantTexts,
     latestMcpAppChannelView: getLatestMcpAppChannelView(),
     latestMcpConnectAction: getLatestMcpConnectAction(),
     lastAssistantTextMessageIndex: getLastAssistantTextMessageIndex(),

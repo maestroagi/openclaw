@@ -25,27 +25,6 @@ type ContextEngine = Awaited<ReturnType<typeof resolveContextEngine>>;
 type SessionPromptState = ReturnType<typeof createEmbeddedRunSessionPromptState>;
 type TerminalRetryState = ReturnType<typeof createEmbeddedRunTerminalRetryState>;
 
-export function resolveEmbeddedAttemptRetryParams(params: {
-  runParams: PreparedEmbeddedRunInput["runParams"];
-  terminalRetryState: TerminalRetryState;
-}): PreparedEmbeddedRunInput["runParams"] {
-  if (
-    !params.terminalRetryState.forceCodeModeReconciliationTools &&
-    !params.terminalRetryState.disableToolsForBeforeFinalizeRevision
-  ) {
-    return params.runParams;
-  }
-  return {
-    ...params.runParams,
-    ...(params.terminalRetryState.forceCodeModeReconciliationTools
-      ? { forceCodeModeReconciliationTools: true }
-      : {}),
-    ...(params.terminalRetryState.disableToolsForBeforeFinalizeRevision
-      ? { disableTools: true }
-      : {}),
-  };
-}
-
 export async function prepareAndDispatchEmbeddedRunAttempt(input: {
   runInput: PreparedEmbeddedRunInput;
   preparedRuntime: PreparedRuntime;
@@ -76,10 +55,15 @@ export async function prepareAndDispatchEmbeddedRunAttempt(input: {
     provider,
     modelId,
   } = input;
-  const params = resolveEmbeddedAttemptRetryParams({
-    runParams: runInput.runParams,
-    terminalRetryState: input.terminalRetryState,
-  });
+  const codeModeRecovery = terminalRetryState.codeModeRecovery;
+  const params =
+    codeModeRecovery.kind === "resume"
+      ? {
+          ...runInput.runParams,
+          codeModeOverride: false,
+          forceCodeModeTools: false,
+        }
+      : runInput.runParams;
   const {
     workspaceResolution,
     workspaceDir,
@@ -248,6 +232,7 @@ export async function prepareAndDispatchEmbeddedRunAttempt(input: {
   });
   const dispatchedAttempt = await dispatchEmbeddedRunAttempt({
     params,
+    codeModeRecovery: codeModeRecovery.kind === "idle" ? undefined : codeModeRecovery,
     runStartedAtMs: runInput.startedAtMs,
     transcriptOwnership: params.sessionManager
       ? { kind: "caller-owned", sessionManager: params.sessionManager }

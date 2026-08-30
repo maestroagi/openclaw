@@ -160,6 +160,7 @@ export function buildEmbeddedRunPayloads(params: {
   agentId?: string;
   runId?: string;
   runAborted?: boolean;
+  runStopReason?: string;
   deferAssistantTimeoutError?: boolean;
   didSendDeterministicApprovalPrompt?: boolean;
   heartbeatToolResponse?: HeartbeatToolResponse;
@@ -181,7 +182,6 @@ export function buildEmbeddedRunPayloads(params: {
     deliveredSourceReplyViaMessageTool,
     explicitFinalSourceReply,
     completedSourceReplyViaMessageTool,
-    hasDeferredHostFinalPayload,
   } = buildSourceReplyPayloadState({
     payloads: params.messagingToolSourceReplyPayloads,
     sentTargets: params.messagingToolSentTargets,
@@ -200,12 +200,10 @@ export function buildEmbeddedRunPayloads(params: {
   const suppressAssistantArtifacts =
     params.heartbeatToolResponse !== undefined ||
     params.didSendDeterministicApprovalPrompt === true ||
-    hasDeferredHostFinalPayload ||
     (params.sourceReplyDeliveryMode === "message_tool_only" && hasSourceReplyPayload) ||
     deliveredSourceReplyViaMessageTool;
   const suppressFailureArtifacts =
     params.didSendDeterministicApprovalPrompt === true ||
-    hasDeferredHostFinalPayload ||
     (params.sourceReplyDeliveryMode === "message_tool_only" && completedSourceReplyViaMessageTool);
   const nonEmptyAssistantTexts = params.assistantTexts
     .map((text) => sanitizeAssistantVisibleStreamText(text))
@@ -386,7 +384,6 @@ export function buildEmbeddedRunPayloads(params: {
         ).filter((text) => !shouldSuppressRawErrorText(text));
   let hasUserFacingReply =
     Boolean(errorText) ||
-    hasDeferredHostFinalPayload ||
     completedSourceReplyViaMessageTool ||
     params.heartbeatToolResponse?.notify === true;
   for (const text of answerTexts) {
@@ -426,14 +423,19 @@ export function buildEmbeddedRunPayloads(params: {
     hasUserFacingReply = true;
   }
   if (params.lastToolError) {
-    const failureWarning = buildFailureWarning({
-      lastToolError: params.lastToolError,
-      hasUserFacingReply,
-      suppressToolErrors: Boolean(params.config?.messages?.suppressToolErrors),
-      suppressToolErrorWarnings: params.suppressToolErrorWarnings,
-      verboseLevel: params.verboseLevel,
-      useMarkdown,
-    });
+    // A restart intentionally aborts the active tool while the Gateway takes over.
+    // Keep that lifecycle status independent from tool-error suppression.
+    const isRestartStatus = params.runStopReason === "restart";
+    const failureWarning = isRestartStatus
+      ? { text: "Gateway restarting…", nonTerminalToolErrorWarning: false }
+      : buildFailureWarning({
+          lastToolError: params.lastToolError,
+          hasUserFacingReply,
+          suppressToolErrors: Boolean(params.config?.messages?.suppressToolErrors),
+          suppressToolErrorWarnings: params.suppressToolErrorWarnings,
+          verboseLevel: params.verboseLevel,
+          useMarkdown,
+        });
     if (failureWarning) {
       const normalizedWarning = normalizeTextForComparison(failureWarning.text);
       const duplicateWarning = normalizedWarning
@@ -448,9 +450,13 @@ export function buildEmbeddedRunPayloads(params: {
       if (!duplicateWarning) {
         replyItems.push({
           text: failureWarning.text,
-          isError: true,
-          nonTerminalToolErrorWarning:
-            hasUserFacingReply && failureWarning.nonTerminalToolErrorWarning,
+          ...(!isRestartStatus
+            ? {
+                isError: true,
+                nonTerminalToolErrorWarning:
+                  hasUserFacingReply && failureWarning.nonTerminalToolErrorWarning,
+              }
+            : {}),
         });
       }
     }
@@ -461,13 +467,9 @@ export function buildEmbeddedRunPayloads(params: {
   const hasAudioAsVoiceTag = replyItems.some((item) => item.audioAsVoice);
   return replyItems
     .map((item) => {
-      const payload: ReplyPayload = item.hostFinalDeferredPayload
-        ? markReplyPayloadForSourceSuppressionDelivery(
-            Object.assign({}, item.hostFinalDeferredPayload),
-          )
-        : copyReplyPayloadMetadata(item, {
-            text: normalizeOptionalString(item.text),
-          });
+      const payload: ReplyPayload = copyReplyPayloadMetadata(item, {
+        text: normalizeOptionalString(item.text),
+      });
       const mediaUrl = item.mediaUrl ?? item.media?.[0];
       if (mediaUrl) {
         payload.mediaUrl = mediaUrl;
@@ -507,7 +509,6 @@ export function buildEmbeddedRunPayloads(params: {
       if (
         !item.isError &&
         !item.isReasoning &&
-        !item.hostFinalDeferredPayload &&
         (params.assistantMessageIndex !== undefined || params.assistantTranscriptOwned === true)
       ) {
         setReplyPayloadMetadata(payload, {

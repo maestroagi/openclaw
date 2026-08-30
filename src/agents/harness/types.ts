@@ -97,9 +97,8 @@ type AgentHarnessLegacyAttemptResult = Omit<
 type AgentHarnessAttemptParamsBase = Omit<
   InternalEmbeddedRunAttemptParams,
   | "admittedRunContext"
+  | "codeModeRecovery"
   | "contextEngineLogicalTurnLease"
-  | "deferSourceMessageToolDelivery"
-  | "onBeforeAgentFinalize"
   | "onContextEngineTurnCandidate"
   | "trajectoryRecorder"
 >;
