@@ -1238,6 +1238,8 @@ export const en: TranslationMap = {
     stopCloudWorker: "Stop cloud worker…",
     stopCloudWorkerConfirm: 'Stop the cloud worker for "{session}"?',
     stopCloudWorkerConfirmAction: "Stop worker",
+    initialTurnPausedByWorkerStop:
+      "Worker stop requested. Review the initial message before retrying.",
     stopCloudWorkerStale:
       'Gateway connection replaced before the cloud worker for "{session}" was stopped. Try again.',
     deleteSessionMenu: "Delete…",
@@ -5978,6 +5980,9 @@ export const en: TranslationMap = {
       tooLargeToDisplay: "This message is too large to display here.",
       unknownDate: "Unknown date",
       toolSender: "Tool",
+      forwardedFrom: "From",
+      forwardedFromAgent: "Forwarded from {agentId}",
+      forwardedMessage: "Forwarded message",
       fullContentLoadExhausted: "Could not load the full message.",
       voiceNote: "Voice note",
       duplicatesCollapsed: "{count} consecutive identical messages collapsed",
@@ -6288,6 +6293,8 @@ export const en: TranslationMap = {
       cameraPreview: "Camera preview",
       dismissVoiceInputError: "Dismiss voice input error",
       microphoneAccessFailed: "Unable to access microphone inputs.",
+      microphoneAccessPending:
+        "Waiting for microphone access. Bring this tab to the foreground and allow access if prompted.",
       microphoneBusy: "Microphone inputs are busy or unavailable to the browser.",
       microphoneStopped: "Microphone input stopped. Choose an available input and start again.",
       microphoneFallback: "Microphone {number}",
@@ -6315,7 +6322,6 @@ export const en: TranslationMap = {
         "Hold until dictation starts, then release and keep speaking. Tap Stop to insert the transcript.",
       dictationAudioUnsupported: "The Gateway returned an unsupported dictation audio format.",
       dictationBrowserAudioUnsupported: "This browser cannot capture dictation audio at 8 kHz.",
-      dictationConnecting: "Starting dictation…",
       dictationDisconnected: "Dictation stopped because the Gateway disconnected.",
       dictationFailed: "Dictation failed.",
       dictationInterruptedRecovery:
@@ -6364,6 +6370,7 @@ export const en: TranslationMap = {
     },
     voice: {
       asking: "Asking OpenClaw...",
+      preparing: "Preparing voice session...",
       connecting: "Connecting voice input...",
       listening: "Listening...",
     },

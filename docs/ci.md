@@ -206,6 +206,8 @@ Generated PR publication prepares the same pinned owner before minting tokens. O
 
 Maturity Scorecard prepares that immutable owner immediately before selected-ref checkout, preserving its runner-temporary environment handoff across checkout. Its trusted inline policy owns the full validation decision. Main, release-branch, and publication-base fetches and all local probes remain unbounded with one attempt. The sole 60-second operation is `ls-remote --exit-code --heads`: ordinary status 0 selects the branch, status 2 retains the default branch, and every other status fails with the lookup diagnostic after cleanup. A timeout is not absence; owner failure and cancellation never select a fallback or publish outputs. Main-ancestor, release-tag, and exact release-branch-head trust ordering, floating-main freeze, publication ancestry and excluded-path diff checks, and publication hash bytes remain unchanged.
 
+Linux App Release, macOS Release, and NPM Placeholder Bootstrap prepare the same pinned owner before their selected-source checkout. Linux keeps one `fetch --quiet origin main` with its 120-second deadline, then performs tag peeling and main ancestry locally without operation deadlines; ordinary ancestry nonzero retains the existing main-reachability rejection, while lifecycle failure or cancellation cannot publish `tag_sha`. macOS keeps its unbounded `rev-parse HEAD`, exact forced public-branch refspec, checkout-persisted read authentication, and one 120-second fetch before the metadata checker. NPM Placeholder keeps non-Git workflow/target identity rejection before checkout inspection, one 120-second forced main fetch, and two unbounded ancestry checks before publishing the immutable target SHA. None adds retries or backoff. The macOS metadata checker's separately owned ten-minute ancestry subprocess remains outside this explicit workflow-Git adoption.
+
 To use the standalone action from another workflow, pin `openclaw/openclaw/.github/actions/git-owner@<full-40-character-commit-SHA>` to a reviewed revision containing the action. Supply policy from the trusted workflow inline or from the same trusted action package, never from the selected candidate. Within `ci.yml`, the existing bundled-protocol and CI-routing matrix tasks smoke-test the action from the separately pinned `.ci-harness` checkout before Node setup, compare its output and copied bytes, and run owned `git --version` without network access. Other workflows' direct Git commands remain outside this ownership coverage until they adopt it.
 
 ## Scope and routing
@@ -217,7 +219,7 @@ Release screenshot routing is deliberately conservative because an app change ca
 Separate iOS and macOS Periphery workflows enforce a zero-findings dead-code policy. Each runs only when a non-draft pull request touches its native scan scope, or when manually dispatched.
 
 - **CI workflow edits** validate the Node CI graph, workflow linting, and the Windows lane (`ci.yml` executes it), but do not force iOS, Android, or macOS native builds by themselves; those platform lanes stay scoped to platform source changes.
-- **Git-owner changes** to its action, base-commit policy, projection generator, lifecycle tests and support, or named owner-adopting workflows such as Workflow Sanity, QA Profile Evidence, Mantis ref validation/installers/worktrees, and Docs Sync Publish Repo select the existing `macos-node` and Windows lanes. These run native checkout ownership proof without selecting Swift, iOS, or Android jobs; Mac app and shared-native changes retain their existing Mac lanes.
+- **Git-owner changes** to its action, base-commit policy, projection generator, lifecycle tests and support, or named owner-adopting workflows such as Workflow Sanity, QA Profile Evidence, Mantis ref validation/installers/worktrees, Docs Sync Publish Repo, OpenClaw Performance, and the Linux/macOS/npm-placeholder release admission jobs select the existing `macos-node` and Windows lanes. These run native checkout ownership proof without selecting Swift, iOS, or Android jobs; Mac app and shared-native changes retain their existing Mac lanes.
 - **macOS Swift runner budgets** are 20 minutes on Blacksmith and 30 minutes on every GitHub-hosted route, including first-attempt pull requests from untrusted contributors.
 - **Workflow Sanity** runs `actionlint`, `zizmor` over all workflow YAML files, the composite-action interpolation guard, and the conflict-marker guard. The PR-scoped `security-fast` job also runs `zizmor` over changed workflow files so workflow security findings fail early in the main CI graph.
 - **Docs on `main` pushes** are checked by the standalone `Docs` workflow with the same ClawHub docs mirror used by CI, so mixed code+docs pushes do not also queue the CI `check-docs` shard. Pull requests and manual CI still run `check-docs` from CI when docs changed.
@@ -1123,10 +1125,9 @@ for later remote commands, sync the current checkout on every run, and stop it
 before handoff.
 
 Crabbox-backed Blacksmith runs warm, claim, sync, run, report, and clean up
-one-shot Testboxes. The built-in sync sanity check fails fast when
-`git status --short` on the synced box shows at least 200 tracked deletions,
-which catches disappearing root files such as `pnpm-lock.yaml`. For intentional
-large-deletion PRs, set `CRABBOX_ALLOW_MASS_DELETIONS=1` for the remote command.
+one-shot Testboxes. Native Blacksmith owns synchronization; Crabbox's direct
+SSH sync controls and mass-deletion sanity checks do not run on this delegated
+path.
 
 Crabbox also terminates a local Blacksmith CLI invocation that stays in the
 sync phase for more than five minutes without post-sync output. Set
@@ -1139,7 +1140,7 @@ Before a first run, check the wrapper from the repo root:
 node scripts/crabbox-wrapper.mjs run --help | sed -n '1,120p'
 ```
 
-The repo wrapper refuses a stale Crabbox binary that does not advertise the selected provider, and Blacksmith-backed runs require Crabbox 0.22.0 or newer so the wrapper gets the current Testbox sync, queue, and cleanup behavior. In Codex worktrees or linked/sparse checkouts, avoid the local `pnpm crabbox:run` script because pnpm may reconcile dependencies before Crabbox starts; invoke the node wrapper directly instead:
+The repo wrapper validates the selected Crabbox binary and provider before running. In Codex worktrees or linked/sparse checkouts, avoid the local `pnpm crabbox:run` script because pnpm may reconcile dependencies before Crabbox starts; invoke the node wrapper directly instead:
 
 ```bash
 node scripts/crabbox-wrapper.mjs run --provider blacksmith-testbox --timing-json --shell -- "pnpm test <path-or-filter>"
@@ -1213,9 +1214,16 @@ node scripts/crabbox-wrapper.mjs run --provider blacksmith-testbox --id <tbx_id>
 pnpm crabbox:stop -- <tbx_id>
 ```
 
-Reuse the lease, not stale source. Omit `--no-sync` so each run uploads the
-current checkout; use it only to rerun an unchanged, already-synced tree
-intentionally. Untrusted contributor/fork code must use
+Reuse the lease, not stale source. Blacksmith Testbox owns sync, including
+reused `--id` runs. Do not pass `--no-sync`: the wrapper rejects it before
+lease handling or delegation. A fingerprint cache hit is not a no-sync guarantee.
+
+Sync success is not proof of source identity. Verify the materialized Git tree
+before exact-candidate proof. Keep QA evidence outside the synced checkout and
+download it before another run. Do not bypass security exclusions, accept a
+mismatched tree, or silently switch providers.
+
+Untrusted contributor/fork code must use
 `CRABBOX_ENV_ALLOW=CI`, `--provider aws --no-hydrate`, and a fresh
 temporary remote `HOME` for every command; install dependencies inside that
 sanitized command before testing. Reuse only a newly warmed lease dedicated to
