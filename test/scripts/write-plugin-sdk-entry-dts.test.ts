@@ -28,12 +28,16 @@ const declarationInputs = [
   { file: "src/actual.cts", specifier: "../actual.cjs", name: "EmittedCts" },
 ] as const;
 
-function runFixture(root: string, args: string[], privateQa = false) {
+function runFixture(root: string, args: string[], privateQa = false, env: NodeJS.ProcessEnv = {}) {
   return spawnSync(process.execPath, args, {
     cwd: root,
     encoding: "utf8",
     env: {
       ...process.env,
+      OPENCLAW_BUNDLED_PLUGIN_BUILD_IDS: undefined,
+      OPENCLAW_INTERNAL_DOCKER_BUILD_PLUGIN_IDS: undefined,
+      OPENCLAW_INCLUDE_OPTIONAL_BUNDLED: undefined,
+      ...env,
       OPENCLAW_BUILD_PRIVATE_QA: privateQa ? "1" : "0",
       OPENCLAW_RUN_NODE_SKIP_DTS_BUILD: "0",
       // Use the build owner's existing direct-tool path, without a fixture pnpm shim.
@@ -42,7 +46,11 @@ function runFixture(root: string, args: string[], privateQa = false) {
   });
 }
 
-function readConfigEntries(root: string, privateQa: boolean) {
+type ConfigEntries = { inputs: string[]; selected: Record<string, string> };
+// Share canonical input metadata; every case still compiles in a fresh fixture tree.
+let configEntries: { production: ConfigEntries; qa: ConfigEntries } | undefined;
+
+function readConfigEntries(root: string, privateQa: boolean): ConfigEntries {
   const result = runFixture(
     root,
     [
@@ -64,7 +72,14 @@ process.stdout.write(JSON.stringify({ inputs: Object.values(groups[0].entry), se
     privateQa,
   );
   expect(result.status, result.stdout + result.stderr).toBe(0);
-  return JSON.parse(result.stdout) as { inputs: string[]; selected: Record<string, string> };
+  const entries = JSON.parse(result.stdout) as ConfigEntries;
+  const relative = (source: string) => path.relative(root, path.resolve(root, source));
+  return {
+    inputs: entries.inputs.map(relative),
+    selected: Object.fromEntries(
+      Object.entries(entries.selected).map(([name, source]) => [name, relative(source)]),
+    ),
+  };
 }
 
 function createFixture() {
@@ -123,8 +138,10 @@ function createFixture() {
   ]) {
     write(source, "export {};\n");
   }
-  const production = readConfigEntries(root, false);
-  const qa = readConfigEntries(root, true);
+  const { production, qa } = (configEntries ??= {
+    production: readConfigEntries(root, false),
+    qa: readConfigEntries(root, true),
+  });
   // Rolldown resolves the complete canonical entry graph even for declaration-only groups.
   // Empty non-SDK sources are fixture inputs, never replacement compiler output.
   for (const source of new Set(qa.inputs)) {
@@ -194,8 +211,8 @@ function createFixture() {
   };
 }
 
-function runWriter(root: string, privateQa = false) {
-  return runFixture(root, ["--import", loader, writer], privateQa);
+function runWriter(root: string, privateQa = false, env: NodeJS.ProcessEnv = {}) {
+  return runFixture(root, ["--import", loader, writer], privateQa, env);
 }
 
 function treeHashes(root: string) {
@@ -246,6 +263,55 @@ function expectStagingClean(root: string) {
 }
 
 describe("write-plugin-sdk-entry-dts", () => {
+  it.each<{ name: string; badPlugin: string; before: NodeJS.ProcessEnv; after: NodeJS.ProcessEnv }>(
+    [
+      {
+        name: "bounded plugins",
+        badPlugin: "broken",
+        before: { OPENCLAW_BUNDLED_PLUGIN_BUILD_IDS: "plain" },
+        after: {},
+      },
+      {
+        name: "optional plugins",
+        badPlugin: "acpx",
+        before: { OPENCLAW_INCLUDE_OPTIONAL_BUNDLED: "0" },
+        after: {},
+      },
+      {
+        name: "Docker plugins",
+        badPlugin: "external",
+        before: {},
+        after: { OPENCLAW_INTERNAL_DOCKER_BUILD_PLUGIN_IDS: "external" },
+      },
+    ],
+  )(
+    "rejects newly selected $name instead of restoring their previous SDK cache",
+    ({ badPlugin, before, after }) => {
+      const { root, write } = createFixture();
+      for (const id of ["plain", badPlugin]) {
+        write(`extensions/${id}/openclaw.plugin.json`, JSON.stringify({ id }));
+        write(
+          `extensions/${id}/package.json`,
+          JSON.stringify({
+            name: `@openclaw/${id}`,
+            openclaw: { build: { bundledDist: id !== "external" } },
+          }),
+        );
+        if (id !== badPlugin) {
+          write(`extensions/${id}/index.ts`, "export {};\n");
+        }
+      }
+      const initial = runWriter(root, false, before);
+      expect(initial.status, initial.stdout + initial.stderr).toBe(0);
+      const published = treeHashes(path.join(root, "dist"));
+      const selected = runWriter(root, false, after);
+      expect(selected.status, selected.stdout + selected.stderr).toBeGreaterThan(0);
+      expect(selected.stdout + selected.stderr).toContain(`extensions/${badPlugin}/index.ts`);
+      expect(treeHashes(path.join(root, "dist"))).toEqual(published);
+      expectStagingClean(root);
+    },
+  );
+
   it("publishes fresh canonical partitions with stable bytes and public nominal identity", () => {
     const { root, write, writeDeclarations, production, qa } = createFixture();
     expect(production).toEqual(
@@ -270,12 +336,43 @@ describe("write-plugin-sdk-entry-dts", () => {
 
     const initial = runWriter(root);
     expect(initial.status, initial.stdout + initial.stderr).toBe(0);
+    expect(
+      (initial.stdout + initial.stderr).match(/\[tsdown-build\] invocation \d\/2 finished/gu),
+    ).toHaveLength(2);
     const before = treeHashes(path.join(root, "dist"));
     expectOutputs(root, production, Object.keys(before));
     expectStagingClean(root);
     for (const entry of qa.filter((entry) => !production.includes(entry))) {
       expect(fs.existsSync(path.join(root, `dist/${entry}.d.ts`)), entry).toBe(false);
     }
+
+    // Restore into an equivalent checkout; copying the whole fixture can turn
+    // Windows junctions into source directories and correctly invalidate its cache.
+    const { root: relocated } = createFixture();
+    fs.cpSync(
+      path.join(root, ".artifacts/build-all-cache"),
+      path.join(relocated, ".artifacts/build-all-cache"),
+      { recursive: true },
+    );
+    const restored = runWriter(relocated);
+    expect(restored.status, restored.stdout + restored.stderr).toBe(0);
+    expect(restored.stdout + restored.stderr).not.toContain("[tsdown-build] invocation");
+    const restoredFiles = treeHashes(path.join(relocated, "dist"));
+    expect(restoredFiles).toEqual(
+      Object.fromEntries(
+        Object.entries(before).filter(([file]) => !Object.hasOwn(preserved, `dist/${file}`)),
+      ),
+    );
+    expectOutputs(relocated, production, Object.keys(restoredFiles));
+    expectStagingClean(relocated);
+    // Identical sources with a different QA selection must emit the extra canonical entries.
+    const privateQa = runWriter(relocated, true);
+    expect(privateQa.status, privateQa.stdout + privateQa.stderr).toBe(0);
+    expect(
+      (privateQa.stdout + privateQa.stderr).match(/\[tsdown-build\] invocation \d\/2 finished/gu),
+    ).toHaveLength(2);
+    expectOutputs(relocated, qa, Object.keys(treeHashes(path.join(relocated, "dist"))));
+    expectStagingClean(relocated);
 
     writeDeclarations("after");
     fs.rmSync(path.join(root, "contracts/before.ts"));
@@ -288,6 +385,7 @@ describe("write-plugin-sdk-entry-dts", () => {
     expect(first).not.toEqual(before);
     const repeated = runWriter(root, true);
     expect(repeated.status, repeated.stdout + repeated.stderr).toBe(0);
+    expect(repeated.stdout + repeated.stderr).not.toContain("[tsdown-build] invocation");
     // Include shared root chunks, not just flat SDK entries, in filename/byte determinism.
     expect(treeHashes(path.join(root, "dist"))).toEqual(first);
     expectStagingClean(root);
