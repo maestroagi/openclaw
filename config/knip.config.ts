@@ -161,6 +161,8 @@ const rootEntries = [
   "src/commands/status.ts!",
   "src/cli/daemon-cli.ts!",
   "src/agents/code-mode.worker.ts!",
+  // The local exec bootstrap launches credential resolution by computed subprocess URL.
+  "src/agents/github-exec-launcher.ts!",
   // Worker-thread and script entrypoints import contracts that production Knip cannot trace.
   "src/agents/compaction-planning.worker.ts!",
   "scripts/print-cli-backend-live-metadata.ts!",
@@ -474,10 +476,8 @@ const config = {
         "highlight.js",
         "playwright-core",
         "partial-json",
-        // Optional runtime imports: the native Canvas bundle falls back without Markdown,
-        // and the meme-maker skill emits SVG when sharp is not installed.
+        // The native Canvas bundle falls back without optional Markdown support.
         "@a2ui/markdown-it",
-        "sharp",
         "sqlite-vec",
         "tree-sitter-bash",
         ...rootToolingAndWorkspaceDependencies,
