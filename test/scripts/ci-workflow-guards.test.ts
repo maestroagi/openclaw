@@ -2208,7 +2208,7 @@ NODE
       contents: "read",
       packages: "write",
     });
-    expect(releaseWorkflow.jobs.approve_docker_publish.environment).toBe("docker-release");
+    expect(releaseWorkflow.jobs.publish.environment).toBe("docker-release");
   });
 
   it("forbids moving reusable workflow references", () => {
@@ -3469,7 +3469,11 @@ NODE
     expect(step.run).toContain('"$comparison_status" != "ahead"');
     expect(step.run).toContain('"$comparison_status" != "identical"');
 
-    for (const contextRef of ["release/2026.8.1", "extended-stable/2026.8.33"]) {
+    for (const contextRef of [
+      "release/2026.8.1",
+      "release/2026.8.1-1",
+      "extended-stable/2026.8.33",
+    ]) {
       for (const comparisonStatus of ["ahead", "identical"]) {
         const result = runTargetContextValidation(contextRef, targetSha, comparisonStatus);
         expect(result.status, `${contextRef}: ${result.output}`).toBe(0);
@@ -4392,7 +4396,7 @@ NODE
           step: expect.objectContaining({ name: "Setup Node environment" }),
         },
         {
-          file: ".github/workflows/openclaw-npm-release.yml",
+          file: ".github/workflows/openclaw-npm-preflight.yml",
           mode: "read-write",
           step: expect.objectContaining({ name: "Setup Node environment" }),
         },
@@ -7798,6 +7802,63 @@ server.listen(0, "127.0.0.1", () => {
     expect(schemaVersionStep.run).toContain("node scripts/check-native-state-schema-version.mjs");
     expect(schemaVersionStep.run).toContain('elif [[ "$HISTORICAL_TARGET" == "true" ]]');
   });
+
+  it("prepares offline Apple assets before CI opens a macOS SwiftPM graph", () => {
+    for (const [workflowPath, jobName] of [
+      [".github/workflows/ci.yml", "macos-swift"],
+      [".github/workflows/codeql-macos-critical-security.yml", "macos"],
+      [".github/workflows/macos-periphery.yml", "scan"],
+      [".github/workflows/shared-openclawkit-periphery.yml", "scan-macos"],
+    ] as const) {
+      const workflow = parse(readFileSync(workflowPath, "utf8"));
+      const steps = workflow.jobs[jobName].steps as WorkflowStep[];
+      const setupIndex = steps.findIndex((step) => step.uses?.endsWith("/setup-node-env"));
+      const prepareIndex = steps.findIndex((step) =>
+        step.run?.includes("node scripts/prepare-apple-mermaid.mjs"),
+      );
+      const graphIndex = steps.findIndex((step) =>
+        /swift (?:build|package)|periphery scan/u.test(step.run ?? ""),
+      );
+
+      const setupStep = expectDefined(steps[setupIndex], `${workflowPath}: dependency setup`);
+      expect(setupStep.with?.["install-deps"]).not.toBe("false");
+      expect(prepareIndex, `${workflowPath}: resource preparation`).toBeGreaterThan(setupIndex);
+      expect(graphIndex, `${workflowPath}: SwiftPM graph`).toBeGreaterThan(prepareIndex);
+    }
+  });
+
+  it.each([
+    { historical: false, helperPresent: true, expectedStatus: 0 },
+    { historical: true, helperPresent: false, expectedStatus: 0 },
+    { historical: false, helperPresent: false, expectedStatus: 1 },
+  ])(
+    "preserves the Apple asset contract for $historical historical / $helperPresent helper",
+    (testCase) => {
+      const steps = readCiWorkflow().jobs["macos-swift"].steps as WorkflowStep[];
+      const step = expectDefined(
+        steps.find((candidate) =>
+          candidate.run?.includes("node scripts/prepare-apple-mermaid.mjs"),
+        ),
+        "Apple asset preparation step",
+      );
+      const root = tempDirs.make("openclaw-apple-assets-workflow-");
+      const marker = path.join(root, "prepared");
+      if (testCase.helperPresent) {
+        mkdirSync(path.join(root, "scripts"));
+        writeFileSync(
+          path.join(root, "scripts/prepare-apple-mermaid.mjs"),
+          'import { writeFileSync } from "node:fs"; writeFileSync("prepared", "ready");',
+        );
+      }
+      const result = runWorkflowShellScript(expectDefined(step.run, "asset preparation script"), {
+        cwd: root,
+        env: { ...process.env, HISTORICAL_TARGET: String(testCase.historical) },
+      });
+
+      expect(result.status, result.stderr).toBe(testCase.expectedStatus);
+      expect(existsSync(marker)).toBe(testCase.helperPresent);
+    },
+  );
 
   it("retries macOS release builds only when Sparkle metadata is incomplete", () => {
     const workflow = readCiWorkflow();

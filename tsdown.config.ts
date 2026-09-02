@@ -2,7 +2,7 @@
 import fs from "node:fs";
 import { isBuiltin } from "node:module";
 import path from "node:path";
-import type { UserConfig } from "tsdown";
+import type { DtsOptions, UserConfig } from "tsdown";
 import {
   collectBundledPluginBuildEntries,
   collectChannelConfigDoctorBuildEntries,
@@ -297,6 +297,8 @@ const rootDependencyOptions = withExternalPackageSubpaths({
     "@larksuiteoapi/node-sdk",
     "@matrix-org/matrix-sdk-crypto-nodejs",
     "@openclaw/ai",
+    // Its crypto loader uses createRequire(import.meta.url) for package-owned dependencies.
+    "@openclaw/crabline",
     // Its native loader resolves optional platform packages from the package scope.
     "@openclaw/fs-safe",
     "@slack/bolt",
@@ -442,6 +444,7 @@ function buildDockerE2eHarnessEntries(): Record<string, string> {
     "cli/run-main": "src/cli/run-main.ts",
     "config/config": "src/config/config.ts",
     "infra/sqlite-audit-record-store": "src/infra/sqlite-audit-record-store.ts",
+    "plugins/official-external-install-records": "src/plugins/official-external-install-records.ts",
     "system-agent/audit": "src/system-agent/audit.ts",
     "system-agent/system-agent": "src/system-agent/system-agent.ts",
     "system-agent/rescue-message": "src/system-agent/rescue-message.ts",
@@ -712,6 +715,11 @@ const unifiedDeps = {
   dts: { neverBundle: shouldNeverBundleDeclarationDependency },
 };
 
+// TypeScript supports this hidden flag before get-tsconfig's option type does.
+const unifiedDeclarationCompilerOptions: NonNullable<DtsOptions["compilerOptions"]> & {
+  stableTypeOrdering: true;
+} = { stableTypeOrdering: true };
+
 const configs = [
   nodeBuildConfig({
     name: TSDOWN_PACKAGE_CONFIG_GROUP,
@@ -792,7 +800,11 @@ const configs = [
             deps: unifiedDeps,
             hooks: { "build:done": createDeclarationInputCapture(name) },
           },
-          { emitDtsOnly: true, entry: sources },
+          {
+            emitDtsOnly: true,
+            entry: sources,
+            compilerOptions: unifiedDeclarationCompilerOptions,
+          },
         ),
       )
     : []),

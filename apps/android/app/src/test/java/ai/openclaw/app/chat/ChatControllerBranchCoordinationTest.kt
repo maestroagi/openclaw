@@ -3,7 +3,7 @@ package ai.openclaw.app.chat
 import ai.openclaw.app.gateway.GatewayRequestOutcomeUnknown
 import ai.openclaw.app.gateway.GatewayRequestRejected
 import ai.openclaw.app.gateway.GatewaySession
-import androidx.room.Room
+import androidx.room3.Room
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -242,7 +242,8 @@ class ChatControllerBranchCoordinationTest {
     runTest {
       val gateway = ScriptedGateway(json)
       val listCalls = AtomicInteger()
-      val firstListFailure = CompletableDeferred<Unit>()
+      val retryListStarted = CompletableDeferred<Unit>()
+      val releaseRetryList = CompletableDeferred<Unit>()
       gateway.respond("sessions.rewind") { throw GatewayRequestOutcomeUnknown("response lost") }
       gateway.respond("chat.history") {
         if (gateway.callCount("chat.history") == 1) throw IllegalStateException("history temporarily unavailable")
@@ -253,9 +254,10 @@ class ChatControllerBranchCoordinationTest {
       }
       gateway.respond("sessions.branches.list") {
         if (listCalls.incrementAndGet() == 1) {
-          firstListFailure.complete(Unit)
           throw IllegalStateException("branches temporarily unavailable")
         }
+        retryListStarted.complete(Unit)
+        releaseRetryList.await()
         """{"branches":[{"leafEntryId":"leaf-rewound","headline":"Rewound","messageCount":1,"active":true}]}"""
       }
       gateway.respondChatSend("started")
@@ -268,8 +270,10 @@ class ChatControllerBranchCoordinationTest {
 
       assertNull(controller.rewindSessionAtEntryResult("main", "entry-a"))
       assertTrue(controller.sendMessageAwaitAcceptance("queued after rewind", "off", emptyList()))
-      firstListFailure.await()
+      // A past failure cannot fence dispatch; keep its successful retry pending while checking.
+      retryListStarted.await()
       assertEquals(0, gateway.callCount("chat.send"))
+      releaseRetryList.complete(Unit)
 
       withContext(Dispatchers.Default.limitedParallelism(1)) {
         withTimeout(5_000) {
@@ -1401,11 +1405,15 @@ class ChatControllerBranchCoordinationTest {
       runCurrent()
       controller.awaitOutboxRestore()
 
+      val ownerJob = requireNotNull(controllerScopes.last().coroutineContext[Job])
+      val previousJobs = ownerJob.children.toSet()
       controller.handleGatewayEvent(
         "sessions.changed",
         """{"reason":"branch-switch","sessionKey":"$backgroundKey","agentId":"main"}""",
       )
-      runCurrent()
+      // Completing this event's work, not draining the test dispatcher, joins Room's IO.
+      val eventJobs = ownerJob.children.filterNot { it in previousJobs }.toList()
+      eventJobs.forEach { it.join() }
       assertTrue(outbox.branchState("gateway-a", backgroundScope)?.needsReconciliation == true)
     }
 

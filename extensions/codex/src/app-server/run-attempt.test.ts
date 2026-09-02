@@ -120,6 +120,7 @@ import {
 } from "./session-binding.test-helpers.js";
 import * as sharedClientModule from "./shared-client.js";
 import type { CodexAppServerClientOptions } from "./shared-client.js";
+import { attachSqliteSessionTarget } from "./sqlite-session.test-helpers.js";
 import { createClientHarness, createCodexTestModel } from "./test-support.js";
 import {
   buildDeveloperInstructions,
@@ -255,27 +256,6 @@ async function writeExistingBinding(
   });
 }
 
-async function attachSqliteSessionTarget(
-  params: EmbeddedRunAttemptParams,
-  storePath: string,
-  sessionId: string,
-): Promise<void> {
-  params.sessionId = sessionId;
-  params.sessionKey = `agent:main:${sessionId}`;
-  params.sessionTarget = {
-    agentId: "main",
-    sessionId,
-    sessionKey: params.sessionKey,
-    storePath,
-  };
-  await upsertSessionEntry({
-    agentId: "main",
-    sessionKey: params.sessionKey,
-    storePath,
-    entry: { sessionFile: params.sessionFile, sessionId, updatedAt: Date.now() },
-  });
-}
-
 async function appendSqliteHistoryMessage(
   params: EmbeddedRunAttemptParams,
   message: ReturnType<typeof userMessage> | ReturnType<typeof assistantMessage>,
@@ -327,7 +307,6 @@ function createThreadLifecycleAppServerOptions(): Parameters<
       headers: {},
     },
     requestTimeoutMs: 60_000,
-    turnCompletionIdleTimeoutMs: 60_000,
     approvalPolicy: "never",
     approvalsReviewer: "user",
     sandbox: "workspace-write",
@@ -3249,6 +3228,78 @@ describe("runCodexAppServerAttempt", () => {
     expect(JSON.stringify(llmInputPayload)).not.toContain("previous turn");
   });
 
+  it.each([
+    {
+      channel: "whatsapp",
+      currentChannelId: "whatsapp:chat-wa",
+      expectedChatId: "chat-wa",
+    },
+    {
+      channel: "telegram",
+      currentChannelId: "telegram:-100123",
+      expectedChatId: "-100123",
+    },
+    {
+      channel: "imessage",
+      currentChannelId: "imessage:any;-;chat-imessage",
+      expectedChatId: "any;-;chat-imessage",
+    },
+  ])(
+    "provides authenticated $channel context to before_prompt_build",
+    async ({ channel, currentChannelId, expectedChatId }) => {
+      const beforePromptBuild = vi.fn(() => undefined);
+      initializeGlobalHookRunner(
+        createMockPluginRegistry([{ hookName: "before_prompt_build", handler: beforePromptBuild }]),
+      );
+      const { sessionFile, workspaceDir } = createRunPaths();
+      const harness = createStartedThreadHarness();
+      const params = createParams(sessionFile, workspaceDir);
+      params.messageChannel = channel;
+      params.messageProvider = channel;
+      params.currentChannelId = currentChannelId;
+      params.messageTo = currentChannelId;
+      params.agentAccountId = "account-a";
+      params.senderId = `sender-${channel}`;
+      params.channelContext = {
+        sender: { id: "stale-sender", profile: `${channel}-profile` },
+        chat: { id: "stale-chat", thread: `${channel}-thread` },
+      };
+
+      const run = runCodexAppServerAttempt(params);
+      await harness.waitForMethod("turn/start");
+      await harness.completeTurn({ threadId: "thread-1", turnId: "turn-1" });
+      await run;
+
+      const [, hookContext] = mockCall(beforePromptBuild, "before_prompt_build") as [
+        unknown,
+        {
+          accountId?: string;
+          channel?: string;
+          channelContext?: {
+            chat?: { id?: string; thread?: string };
+            sender?: { id?: string; profile?: string };
+          };
+          channelId?: string;
+          chatId?: string;
+          messageProvider?: string;
+          senderId?: string;
+        },
+      ];
+      expect(hookContext).toMatchObject({
+        accountId: "account-a",
+        channel,
+        messageProvider: channel,
+        channelId: expectedChatId,
+        chatId: expectedChatId,
+        senderId: `sender-${channel}`,
+        channelContext: {
+          sender: { id: `sender-${channel}`, profile: `${channel}-profile` },
+          chat: { id: expectedChatId, thread: `${channel}-thread` },
+        },
+      });
+    },
+  );
+
   it("fails closed when before_prompt_build restricts Codex tools", async () => {
     const authorizedEnrichment = vi.fn(() => ({ prependContext: "private recalled context" }));
     initializeGlobalHookRunner(
@@ -4417,7 +4468,12 @@ describe("runCodexAppServerAttempt", () => {
     const resumedRun = runCodexAppServerAttempt(resumeParams);
     await Promise.race([resumedRun, resumeHarness.waitForMethod("turn/start")]);
     await resumeHarness.completeTurn({ threadId: "thread-1", turnId: "turn-1" });
-    await resumedRun;
+    expect(readAttemptTerminal(await resumedRun)).toMatchObject({
+      aborted: false,
+      timedOut: false,
+      promptError: null,
+    });
+    expect(resumeHarness.requests.some(({ method }) => method === "turn/interrupt")).toBe(false);
     const threadResume = resumeHarness.requests.find(
       (request) => request.method === "thread/resume",
     );
@@ -5547,7 +5603,7 @@ describe("runCodexAppServerAttempt", () => {
       const params = createRunParams();
       params.abortSignal = abortController.signal;
       params.onPartialReply = onPartialReply;
-      const run = runCodexAppServerAttempt(params, { turnTerminalIdleTimeoutMs: 30 * 60_000 });
+      const run = runCodexAppServerAttempt(params);
       const settled = vi.fn();
       void run.then(settled);
       try {
@@ -5582,7 +5638,7 @@ describe("runCodexAppServerAttempt", () => {
           timedOut: termination === "terminal timeout",
         });
         if (termination === "terminal timeout") {
-          expect(result.codexAppServerFailure?.turnWatchTimeoutKind).toBe("terminal");
+          expect(result.codexAppServerFailure?.kind).toBe("turn_settlement_timeout");
         }
         expect(resolveActiveEmbeddedRunSessionId(params.sessionKey!)).toBeUndefined();
       } finally {
@@ -5616,7 +5672,7 @@ describe("runCodexAppServerAttempt", () => {
         return {};
       },
     );
-    const run = runCodexAppServerAttempt(createRunParams(), { turnTerminalIdleTimeoutMs: 60_000 });
+    const run = runCodexAppServerAttempt(createRunParams());
     await bufferedTerminal;
     await new Promise<void>((resolve) => {
       setImmediate(resolve);
@@ -5631,6 +5687,7 @@ describe("runCodexAppServerAttempt", () => {
   });
 
   it("does not time out when turn progress arrives before turn/start returns", async () => {
+    vi.useFakeTimers();
     const harness: ReturnType<typeof createAppServerHarness> = createAppServerHarness(
       async (method) => {
         if (method === "thread/start") {
@@ -5651,15 +5708,10 @@ describe("runCodexAppServerAttempt", () => {
       },
     );
     const params = createRunParams();
-    params.timeoutMs = 60_000;
-    const run = runCodexAppServerAttempt(params, {
-      turnCompletionIdleTimeoutMs: 5,
-      turnTerminalIdleTimeoutMs: 60_000,
-    });
+    params.timeoutMs = 60 * 60_000;
+    const run = runCodexAppServerAttempt(params);
     await harness.waitForMethod("turn/start");
-    await new Promise((resolve) => {
-      setTimeout(resolve, 20);
-    });
+    await vi.advanceTimersByTimeAsync(60_001);
     expect(harness.request.mock.calls.some(([method]) => method === "turn/interrupt")).toBe(false);
     await harness.completeTurn({ threadId: "thread-1", turnId: "turn-1" });
     const result = await run;
