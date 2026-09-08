@@ -2762,5 +2762,81 @@
   {
     "source": "Operator incident response",
     "target": "运维方事件响应"
+  },
+  {
+    "source": "Command surface",
+    "target": "命令总览"
+  },
+  {
+    "source": "Operator flow",
+    "target": "操作员流程"
+  },
+  {
+    "source": "Canonical scenario coverage",
+    "target": "标准场景覆盖"
+  },
+  {
+    "source": "Channel QA reference",
+    "target": "通道 QA 参考"
+  },
+  {
+    "source": "Slack QA",
+    "target": "Slack QA"
+  },
+  {
+    "source": "WhatsApp QA and credentials",
+    "target": "WhatsApp QA 与凭据"
+  },
+  {
+    "source": "Extending the QA stack",
+    "target": "扩展 QA 技术栈"
+  },
+  {
+    "source": "QA reporting",
+    "target": "QA 报告"
+  },
+  {
+    "source": "Hook reference",
+    "target": "Hook 参考"
+  },
+  {
+    "source": "Tool call policy hooks",
+    "target": "工具调用策略 Hook"
+  },
+  {
+    "source": "Prompt and session hooks",
+    "target": "提示词与会话 Hook"
+  },
+  {
+    "source": "Message and delivery hooks",
+    "target": "消息与投递 Hook"
+  },
+  {
+    "source": "Gateway and install lifecycle hooks",
+    "target": "Gateway 与安装生命周期 Hook"
+  },
+  {
+    "source": "How to migrate a plugin",
+    "target": "如何迁移插件"
+  },
+  {
+    "source": "Import path reference",
+    "target": "导入路径参考"
+  },
+  {
+    "source": "Removed surfaces and replacements",
+    "target": "已移除的接口与替代方案"
+  },
+  {
+    "source": "Talk and realtime voice migration",
+    "target": "Talk 与实时语音迁移"
+  },
+  {
+    "source": "Compatibility policy and records",
+    "target": "兼容性策略与记录"
+  },
+  {
+    "source": "Removal timeline",
+    "target": "移除时间线"
   }
 ]

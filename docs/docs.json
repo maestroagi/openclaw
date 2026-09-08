@@ -1754,6 +1754,16 @@
                   },
                   "plugins/cli-backend-plugins",
                   "plugins/hooks",
+                  {
+                    "group": "Plugin hooks",
+                    "pages": [
+                      "plugins/hooks/reference",
+                      "plugins/hooks/tool-policy",
+                      "plugins/hooks/prompt-and-session",
+                      "plugins/hooks/messages",
+                      "plugins/hooks/lifecycle"
+                    ]
+                  },
                   "plugins/plugin-permission-requests",
                   "plugins/adding-capabilities"
                 ]
@@ -2562,6 +2572,17 @@
                   "plugins/architecture",
                   "plugins/architecture-internals",
                   "plugins/sdk-migration",
+                  {
+                    "group": "Plugin SDK migration",
+                    "pages": [
+                      "plugins/sdk-migration/how-to-migrate",
+                      "plugins/sdk-migration/import-paths",
+                      "plugins/sdk-migration/removed-surfaces",
+                      "plugins/sdk-migration/talk",
+                      "plugins/sdk-migration/compatibility-policy",
+                      "plugins/sdk-migration/removal-timeline"
+                    ]
+                  },
                   "plugins/compatibility",
                   "plugins/sdk-channel-outbound",
                   "plugins/sdk-channel-inbound",
@@ -2695,6 +2716,19 @@
                   },
                   "help/scripts",
                   "concepts/qa-e2e-automation",
+                  {
+                    "group": "QA stack",
+                    "pages": [
+                      "concepts/qa-e2e-automation/command-surface",
+                      "concepts/qa-e2e-automation/operator-flow",
+                      "concepts/qa-e2e-automation/scenario-coverage",
+                      "concepts/qa-e2e-automation/channel-qa-reference",
+                      "concepts/qa-e2e-automation/slack-qa",
+                      "concepts/qa-e2e-automation/whatsapp-and-credentials",
+                      "concepts/qa-e2e-automation/extending-the-stack",
+                      "concepts/qa-e2e-automation/qa-reporting"
+                    ]
+                  },
                   "concepts/personal-agent-benchmark-pack"
                 ]
               }

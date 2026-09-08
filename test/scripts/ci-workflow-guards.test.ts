@@ -9055,8 +9055,7 @@ server.listen(0, "127.0.0.1", () => {
       "Setup Node",
       "Clone publish repo",
       "Sync docs into publish repo",
-      "Install docs MDX checker dependency",
-      "Check publish docs MDX",
+      "Cache successful docs validation",
       "Commit publish repo sync",
     ]);
     expect(steps[3]).toEqual({
@@ -9074,9 +9073,13 @@ server.listen(0, "127.0.0.1", () => {
         "persist-credentials": false,
       },
     });
-    expect(steps.slice(1).every((step) => step.if === "env.OPENCLAW_DOCS_SYNC_TOKEN != ''")).toBe(
-      true,
-    );
+    for (const step of steps.slice(1)) {
+      expect(step.if).toBe(
+        step.name === "Cache successful docs validation"
+          ? "env.OPENCLAW_DOCS_SYNC_TOKEN != '' && github.repository == 'openclaw/openclaw' && github.ref == 'refs/heads/main'"
+          : "env.OPENCLAW_DOCS_SYNC_TOKEN != ''",
+      );
+    }
     expect(source).not.toContain("setup-python");
     expect(workflow.concurrency).toEqual({
       group:
@@ -9085,8 +9088,8 @@ server.listen(0, "127.0.0.1", () => {
     });
     const clone = expectDefined(steps[5]?.run, "clone policy");
     const sync = expectDefined(steps[6]?.run, "sync body");
-    const publish = expectDefined(steps[9]?.run, "publication policy");
-    expect(steps[9]?.["working-directory"]).toBe("publish");
+    const publish = expectDefined(steps[8]?.run, "publication policy");
+    expect(steps[8]?.["working-directory"]).toBe("publish");
     for (const policy of [clone, publish]) {
       expect(
         policy.startsWith(
@@ -13123,7 +13126,11 @@ printf '%s\n' "\${CURL_SUCCESS_IP:-203.0.113.7}"
         if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
           // A Gateway created by the suite's server factory supplies its own UI;
           // a separate backend in a test can still use the shared UI bundle.
-          if (inSuiteServer && node.expression.text === "createOpenClawTestInstance") {
+          if (
+            inSuiteServer &&
+            (node.expression.text === "createOpenClawTestInstance" ||
+              node.expression.text === "startProductionControlUiE2eServer")
+          ) {
             ownsPrivateServer = true;
             return;
           }
@@ -13183,9 +13190,11 @@ printf '%s\n' "\${CURL_SUCCESS_IP:-203.0.113.7}"
       "ui/src/e2e/child-session-load-errors.e2e.test.ts",
       "ui/src/e2e/command-palette-catalog.real-gateway.e2e.test.ts",
       "ui/src/e2e/cron-duration-save.real-gateway.e2e.test.ts",
+      "ui/src/e2e/device-platform-family.real-gateway.e2e.test.ts",
       "ui/src/e2e/mobile-chat-session-menu.e2e.test.ts",
       "ui/src/e2e/mobile-sidebar-session-menu.e2e.test.ts",
       "ui/src/e2e/model-picker-search.real-gateway.e2e.test.ts",
+      "ui/src/e2e/new-session-page.cloud-startup.runtime-load.e2e.test.ts",
       "ui/src/e2e/session-management.delete.e2e.test.ts",
       "ui/src/e2e/sidebar-account-footer.e2e.test.ts",
     ]);
