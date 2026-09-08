@@ -3261,7 +3261,7 @@ describe("doctor health contributions", () => {
       checksSkipped: 0,
       findings: [expect.objectContaining({ checkId: "core/doctor/disk-space" })],
     });
-    expect(mocks.collectDiskSpaceHealthFindings).toHaveBeenCalledWith(ctx.cfg);
+    expect(mocks.collectDiskSpaceHealthFindings).toHaveBeenCalledWith();
   });
 
   it("keeps WhatsApp responsiveness opt-in for default lint selection", async () => {
@@ -3933,6 +3933,69 @@ describe("doctor health contributions", () => {
     expect(mocks.runDoctorHealthRepairs).toHaveBeenCalledWith(expect.any(Object), {
       checks: [{ id: "plugin/example/unrelated", kind: "plugin", sourceContract: "split" }],
     });
+  });
+
+  it("skips opt-in extension checks during routine repair", async () => {
+    mocks.listHealthChecks.mockReturnValue([
+      { id: "plugin/example/regular", kind: "plugin" },
+      { id: "plugin/example/opt-in", kind: "plugin", defaultEnabled: false },
+    ]);
+    const contribution = requireDoctorContribution("doctor:structured-health-repairs");
+    const ctx = createDoctorContext({
+      cfg: {},
+      configResult: { cfg: {} },
+      cfgForPersistence: {},
+      shouldRepair: true,
+      env: { OPENCLAW_UPDATE_POST_CORE: "1" },
+    });
+
+    await contribution.run(ctx);
+
+    expect(mocks.runDoctorHealthRepairs).toHaveBeenCalledWith(
+      expect.objectContaining({ env: { OPENCLAW_UPDATE_POST_CORE: "1" } }),
+      { checks: [{ id: "plugin/example/regular", kind: "plugin", sourceContract: "split" }] },
+    );
+  });
+
+  it("retains extension repair warnings without relabeling errors", async () => {
+    const contribution = requireDoctorContribution("doctor:structured-health-repairs");
+    const ctx = createDoctorContext({
+      cfg: {},
+      configResult: { cfg: {} },
+      cfgForPersistence: {},
+      shouldRepair: true,
+      env: { OPENCLAW_UPDATE_POST_CORE: "1" },
+    });
+    mocks.runDoctorHealthRepairs.mockResolvedValue({
+      config: {},
+      changes: [],
+      warnings: ["optional repair unavailable"],
+      remainingFindings: [
+        {
+          checkId: "plugin/example/probe",
+          severity: "warning",
+          message: "version probe timed out",
+        },
+        {
+          checkId: "plugin/example/broken",
+          severity: "error",
+          message: "required artifact missing",
+        },
+      ],
+    });
+
+    await contribution.run(ctx);
+
+    expect(ctx.updateWarnings).toEqual([
+      "plugin/example/probe: version probe timed out",
+      "optional repair unavailable",
+    ]);
+    expect(ctx.runtime.log).toHaveBeenCalledWith(
+      "[warning] plugin/example/probe - version probe timed out",
+    );
+    expect(ctx.runtime.error).toHaveBeenCalledWith(
+      "[error] plugin/example/broken - required artifact missing",
+    );
   });
 
   it("rejects extension repairs that claim reserved core doctor ids", async () => {
