@@ -88,6 +88,7 @@ import { createMemoryWriteProvenanceObserver } from "./memory-write-provenance.j
 import type { ModelAuthMode } from "./model-auth.js";
 import { resolveOpenClawPluginToolsForOptions } from "./openclaw-plugin-tools.js";
 import { createOpenClawTools, filterToolsByClientCaps } from "./openclaw-tools.js";
+import { filterRequesterYieldTools } from "./openclaw-tools.requester-yield.js";
 import type { PreparedModelRuntimeSnapshot } from "./prepared-model-runtime.js";
 import type { SandboxContext } from "./sandbox.js";
 import { resolveSandboxFileIdentity } from "./sandbox/file-mutation-identity.js";
@@ -1117,7 +1118,7 @@ function createOpenClawCodingToolsInternal(options?: OpenClawCodingToolsOptions)
   };
   // NOTE: Keep canonical (lowercase) tool names here. Provider transports remap on the wire.
   return finalizeAgentTools({
-    tools: authorizedTools,
+    tools: filterRequesterYieldTools(authorizedTools, executionSessionKey),
     modelProvider: options?.modelProvider,
     modelId: options?.modelId,
     modelCompat: options?.modelCompat,
