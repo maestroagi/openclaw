@@ -1563,6 +1563,8 @@ export const en: TranslationMap & {
       agentJobsSubtitle: "Scheduled jobs targeting this agent.",
       noJobs: "No jobs assigned.",
       runNow: "Run Now",
+      edit: "Edit",
+      editJob: "Edit {name}",
     },
     files: {
       emptyDraft: "Empty draft",
@@ -3591,6 +3593,7 @@ export const en: TranslationMap & {
     header: {
       selfLearning: "Self-learning",
       selfLearningAria: "Toggle autonomous self-learning",
+      weeklyReviewsPaused: "Weekly reviews paused. Enable cron in Automation settings.",
       selfLearningTooltip:
         "Capture corrections and review completed work as reusable skills. Automatic mode applies scanner-approved captures to Skills.",
     },
