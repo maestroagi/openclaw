@@ -908,10 +908,7 @@ extensions/parallel/src/parallel-web-search-provider.runtime.ts	2
 extensions/perplexity/src/perplexity-web-search-provider.shared.ts	1
 extensions/pixverse/video-generation-provider.ts	2
 extensions/policy/src/cli.ts	1
-extensions/policy/src/doctor/access-findings.ts	1
-extensions/policy/src/doctor/access-shapes.ts	2
 extensions/policy/src/doctor/automatic-repairs.ts	7
-extensions/policy/src/doctor/data-auth-shapes.ts	1
 extensions/policy/src/doctor/evaluation.ts	4
 extensions/policy/src/doctor/exec-approval-findings.ts	1
 extensions/policy/src/doctor/policy-runtime.ts	2
@@ -1719,7 +1716,6 @@ src/agents/embedded-agent-runner/prompt-cache-observability.ts	2
 src/agents/embedded-agent-runner/replay-history.ts	53
 src/agents/embedded-agent-runner/result-fallback-classifier.ts	2
 src/agents/embedded-agent-runner/run-entry.ts	3
-src/agents/embedded-agent-runner/run-orchestrator.ts	1
 src/agents/embedded-agent-runner/run.overflow-compaction.harness.ts	4
 src/agents/embedded-agent-runner/run/abortable.ts	2
 src/agents/embedded-agent-runner/run/attempt-async-tasks.ts	1
@@ -3055,7 +3051,6 @@ src/infra/sqlite-readonly-location.ts	3
 src/infra/sqlite-schema-contract.ts	9
 src/infra/sqlite-snapshot.ts	2
 src/infra/sqlite-strict.ts	7
-src/infra/sqlite-transaction.ts	2
 src/infra/sqlite-user-version.ts	1
 src/infra/sqlite-wal.ts	5
 src/infra/startup-migration-checkpoint.ts	1

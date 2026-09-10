@@ -7,7 +7,7 @@ import { openNodeSqliteDatabase } from "../infra/node-sqlite.js";
 import {
   prepareSqliteReadOnlyLocation,
   prepareSqliteReadOnlyLocationSync,
-} from "../infra/sqlite-readonly-location.js";
+} from "../infra/sqlite-snapshot-source.js";
 import { withSqliteSourceHandle } from "../infra/sqlite-source-handle.js";
 import { resolveGlobalSingleton } from "../shared/global-singleton.js";
 import { openClawStateDatabaseCache } from "./openclaw-state-db-cache.js";
@@ -118,10 +118,15 @@ function withOpenClawStateReadOnlyLocation<T>(
   location: string,
 ): T {
   const read = () => {
-    const db = openNodeSqliteDatabase(location, { readOnly: true });
+    // node:sqlite opens without a busy handler, so a timeout installed by a
+    // later PRAGMA leaves the first statement — legacy catalog admission's
+    // sqlite_schema read — failing outright on any transient lock.
+    const db = openNodeSqliteDatabase(location, {
+      readOnly: true,
+      timeout: OPENCLAW_SQLITE_BUSY_TIMEOUT_MS,
+    });
     let closeSchemaReadAdmission: (() => void) | undefined;
     try {
-      db.exec(`PRAGMA busy_timeout = ${OPENCLAW_SQLITE_BUSY_TIMEOUT_MS};`);
       closeSchemaReadAdmission = openDanglingWorkshopIndexReadAdmission(db);
       assertSupportedStateSchemaVersion(db, pathname);
       return operation({ db, path: pathname });
