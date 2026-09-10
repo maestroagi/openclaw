@@ -305,7 +305,8 @@ Without a scope flag, selections change only the current session. `agents.defaul
 - A user-selected `/model` ref is strict for that session: if it becomes unreachable, the reply fails visibly instead of silently falling back through `agents.defaults.model.fallbacks`. Configured defaults and cron job primaries still use fallback chains.
 - `/model status` is the detailed view: auth candidates per provider, and (when configured) the provider endpoint `baseUrl` plus `api` mode.
 - Model refs are parsed by splitting on the first `/`; type `provider/model`. If the model ID itself contains `/` (OpenRouter-style), include the provider prefix, e.g. `/model openrouter/moonshotai/kimi-k2`. If you omit the provider, OpenClaw tries: (1) alias match, (2) unique configured-provider match for that exact unprefixed model id, (3) the configured default provider (deprecated fallback) — and if that provider no longer exposes the configured default model, the first configured provider/model instead, to avoid surfacing a stale removed-provider default.
-- Model refs are normalized to lowercase; provider IDs are otherwise exact, so use the ID advertised by the plugin.
+- When inferring a provider, exact model ID case takes precedence over case-insensitive matches within the same configuration scope. A case-insensitive match is used only when it identifies one provider. Per-agent model entries take precedence over global entries and configured provider catalogs.
+- Provider IDs are normalized to lowercase; model IDs follow the provider's normalization rules. Use the spelling advertised by the plugin.
 
 Full command behavior and config: [Slash commands](/tools/slash-commands).
 
@@ -391,6 +392,12 @@ values. A self-hosted mirror can be selected with an HTTPS
 [configuration reference](/gateway/config-runtime#models).
 
 Custom providers configured under `models.providers` are written into `models.json` under the agent directory (default `~/.openclaw/agents/<agentId>/agent/models.json`). Provider-plugin catalogs are stored separately as generated plugin-owned catalog shards and load automatically. This file is merged with config by default; set `models.mode: "replace"` to use only your configured providers.
+
+Generated plugin catalogs supply model inventory, not request credentials. Their
+cached API keys, authentication modes, and request headers do not authorize model
+requests. Use a current auth profile or authored request configuration instead.
+The session SDK preserves authored `models.json` keys and headers while merging
+generated model metadata below authored rows.
 
 <AccordionGroup>
   <Accordion title="Merge mode precedence">

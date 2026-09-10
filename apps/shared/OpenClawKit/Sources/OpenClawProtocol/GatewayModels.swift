@@ -2366,6 +2366,7 @@ public struct EnvironmentSummary: Codable, Sendable {
     public let desktop: Bool?
     public let issues: [[String: AnyCodable]]?
     public let worker: WorkerEnvironmentMetadata?
+    public let preparation: [String: AnyCodable]?
     public let requirednodecommand: RequiredNodeCommand?
 
     public init(
@@ -2387,6 +2388,7 @@ public struct EnvironmentSummary: Codable, Sendable {
         desktop: Bool? = nil,
         issues: [[String: AnyCodable]]? = nil,
         worker: WorkerEnvironmentMetadata? = nil,
+        preparation: [String: AnyCodable]? = nil,
         requirednodecommand: RequiredNodeCommand? = nil)
     {
         self.id = id
@@ -2407,6 +2409,7 @@ public struct EnvironmentSummary: Codable, Sendable {
         self.desktop = desktop
         self.issues = issues
         self.worker = worker
+        self.preparation = preparation
         self.requirednodecommand = requirednodecommand
     }
 
@@ -2429,6 +2432,7 @@ public struct EnvironmentSummary: Codable, Sendable {
         case desktop
         case issues
         case worker
+        case preparation
         case requirednodecommand = "requiredNodeCommand"
     }
 }
@@ -2470,6 +2474,7 @@ public struct EnvironmentsCreateResult: Codable, Sendable {
     public let desktop: Bool?
     public let issues: [[String: AnyCodable]]?
     public let worker: WorkerEnvironmentMetadata?
+    public let preparation: [String: AnyCodable]?
 
     public init(
         id: String,
@@ -2489,7 +2494,8 @@ public struct EnvironmentsCreateResult: Codable, Sendable {
         invocablecommands: [String]? = nil,
         desktop: Bool? = nil,
         issues: [[String: AnyCodable]]? = nil,
-        worker: WorkerEnvironmentMetadata? = nil)
+        worker: WorkerEnvironmentMetadata? = nil,
+        preparation: [String: AnyCodable]? = nil)
     {
         self.id = id
         self.type = type
@@ -2509,6 +2515,7 @@ public struct EnvironmentsCreateResult: Codable, Sendable {
         self.desktop = desktop
         self.issues = issues
         self.worker = worker
+        self.preparation = preparation
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -2530,6 +2537,47 @@ public struct EnvironmentsCreateResult: Codable, Sendable {
         case desktop
         case issues
         case worker
+        case preparation
+    }
+}
+
+public struct EnvironmentsPrepareParams: Codable, Sendable {
+    public let profileid: String
+    public let projectpath: String
+
+    public init(
+        profileid: String,
+        projectpath: String)
+    {
+        self.profileid = profileid
+        self.projectpath = projectpath
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case profileid = "profileId"
+        case projectpath = "projectPath"
+    }
+}
+
+public struct EnvironmentsPrepareResult: Codable, Sendable {
+    public let environmentid: String
+    public let preparationkey: String
+    public let reused: Bool
+
+    public init(
+        environmentid: String,
+        preparationkey: String,
+        reused: Bool)
+    {
+        self.environmentid = environmentid
+        self.preparationkey = preparationkey
+        self.reused = reused
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case environmentid = "environmentId"
+        case preparationkey = "preparationKey"
+        case reused
     }
 }
 
@@ -2570,6 +2618,7 @@ public struct EnvironmentsDestroyResult: Codable, Sendable {
     public let desktop: Bool?
     public let issues: [[String: AnyCodable]]?
     public let worker: WorkerEnvironmentMetadata?
+    public let preparation: [String: AnyCodable]?
 
     public init(
         id: String,
@@ -2589,7 +2638,8 @@ public struct EnvironmentsDestroyResult: Codable, Sendable {
         invocablecommands: [String]? = nil,
         desktop: Bool? = nil,
         issues: [[String: AnyCodable]]? = nil,
-        worker: WorkerEnvironmentMetadata? = nil)
+        worker: WorkerEnvironmentMetadata? = nil,
+        preparation: [String: AnyCodable]? = nil)
     {
         self.id = id
         self.type = type
@@ -2609,6 +2659,7 @@ public struct EnvironmentsDestroyResult: Codable, Sendable {
         self.desktop = desktop
         self.issues = issues
         self.worker = worker
+        self.preparation = preparation
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -2630,6 +2681,7 @@ public struct EnvironmentsDestroyResult: Codable, Sendable {
         case desktop
         case issues
         case worker
+        case preparation
     }
 }
 
@@ -2693,6 +2745,7 @@ public struct EnvironmentsStatusResult: Codable, Sendable {
     public let desktop: Bool?
     public let issues: [[String: AnyCodable]]?
     public let worker: WorkerEnvironmentMetadata?
+    public let preparation: [String: AnyCodable]?
 
     public init(
         id: String,
@@ -2712,7 +2765,8 @@ public struct EnvironmentsStatusResult: Codable, Sendable {
         invocablecommands: [String]? = nil,
         desktop: Bool? = nil,
         issues: [[String: AnyCodable]]? = nil,
-        worker: WorkerEnvironmentMetadata? = nil)
+        worker: WorkerEnvironmentMetadata? = nil,
+        preparation: [String: AnyCodable]? = nil)
     {
         self.id = id
         self.type = type
@@ -2732,6 +2786,7 @@ public struct EnvironmentsStatusResult: Codable, Sendable {
         self.desktop = desktop
         self.issues = issues
         self.worker = worker
+        self.preparation = preparation
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -2753,6 +2808,7 @@ public struct EnvironmentsStatusResult: Codable, Sendable {
         case desktop
         case issues
         case worker
+        case preparation
     }
 }
 
@@ -9976,6 +10032,7 @@ public struct SessionsCreateParams: Codable, Sendable {
     public let agentid: String?
     public let label: String?
     public let displayname: String?
+    public let titlesource: String?
     public let category: String?
     public let model: String?
     public let contextwindow: String?
@@ -10012,6 +10069,7 @@ public struct SessionsCreateParams: Codable, Sendable {
         agentid: String? = nil,
         label: String? = nil,
         displayname: String? = nil,
+        titlesource: String? = nil,
         category: String? = nil,
         model: String? = nil,
         contextwindow: String? = nil,
@@ -10047,6 +10105,7 @@ public struct SessionsCreateParams: Codable, Sendable {
         self.agentid = agentid
         self.label = label
         self.displayname = displayname
+        self.titlesource = titlesource
         self.category = category
         self.model = model
         self.contextwindow = contextwindow
@@ -10084,6 +10143,7 @@ public struct SessionsCreateParams: Codable, Sendable {
         case agentid = "agentId"
         case label
         case displayname = "displayName"
+        case titlesource = "titleSource"
         case category
         case model
         case contextwindow = "contextWindow"
@@ -13011,6 +13071,7 @@ public struct TaskSummary: Codable, Sendable {
     public let agentid: String?
     public let sessionkey: String?
     public let childsessionkey: String?
+    public let hastranscript: Bool?
     public let ownerkey: String?
     public let runid: String?
     public let taskid: String?
@@ -13042,6 +13103,7 @@ public struct TaskSummary: Codable, Sendable {
         agentid: String? = nil,
         sessionkey: String? = nil,
         childsessionkey: String? = nil,
+        hastranscript: Bool? = nil,
         ownerkey: String? = nil,
         runid: String? = nil,
         taskid: String? = nil,
@@ -13072,6 +13134,7 @@ public struct TaskSummary: Codable, Sendable {
         self.agentid = agentid
         self.sessionkey = sessionkey
         self.childsessionkey = childsessionkey
+        self.hastranscript = hastranscript
         self.ownerkey = ownerkey
         self.runid = runid
         self.taskid = taskid
@@ -13104,6 +13167,7 @@ public struct TaskSummary: Codable, Sendable {
         case agentid = "agentId"
         case sessionkey = "sessionKey"
         case childsessionkey = "childSessionKey"
+        case hastranscript = "hasTranscript"
         case ownerkey = "ownerKey"
         case runid = "runId"
         case taskid = "taskId"
@@ -13201,6 +13265,46 @@ public struct TasksGetResult: Codable, Sendable {
         task: TaskSummary)
     {
         self.task = task
+    }
+}
+
+public struct TasksHistoryParams: Codable, Sendable {
+    public let taskid: String
+    public let cursor: String?
+    public let limit: Int?
+
+    public init(
+        taskid: String,
+        cursor: String? = nil,
+        limit: Int? = nil)
+    {
+        self.taskid = taskid
+        self.cursor = cursor
+        self.limit = limit
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case taskid = "taskId"
+        case cursor
+        case limit
+    }
+}
+
+public struct TasksHistoryResult: Codable, Sendable {
+    public let messages: [AnyCodable]
+    public let nextcursor: String?
+
+    public init(
+        messages: [AnyCodable],
+        nextcursor: String? = nil)
+    {
+        self.messages = messages
+        self.nextcursor = nextcursor
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case messages
+        case nextcursor = "nextCursor"
     }
 }
 
