@@ -180,6 +180,7 @@ export async function installManagedPlugin(
         : undefined;
       const installed = await installManagedPluginSource({
         applyRuntime: captured?.applyRuntime,
+        deferRuntime: params.deferRuntime,
         beforePersistentApply,
         request,
         snapshot,
@@ -565,11 +566,12 @@ export async function refreshManagedPlugins(
 ): Promise<{ application: PluginRuntimeApplication }> {
   const env = params.env ?? process.env;
   return await withManagedPluginMutation(params, async (beforePersistentApply) => {
-    const snapshot = await readPluginMutationSnapshot(env, beforePersistentApply);
-    refreshManagedPluginMetadata({ config: snapshot.config, env });
+    const config = await readPluginRuntimeConfig();
+    beforePersistentApply();
+    refreshManagedPluginMetadata({ config, env });
     return {
       application: await params.applyRuntime({
-        config: snapshot.config,
+        config,
         pluginIds: [],
         reason: "metadata",
         assertInvokerOwned: beforePersistentApply,
