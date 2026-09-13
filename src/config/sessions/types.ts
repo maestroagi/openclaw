@@ -589,7 +589,7 @@ type SessionEntryCore = SessionRestartRecoveryState &
     label?: string;
     /** Automatic device name; never claims a custom label or overrides a generated title. */
     autoLabel?: string;
-    /** Persistent operator/agent-set sidebar emoji icon (single grapheme). */
+    /** Persistent sidebar emoji, named glyph, or canonical SVG image data URL. */
     icon?: string;
     /** Named sidebar tint (SESSION_COLOR_IDS); palette mirrors Claude Code /color for import. */
     color?: string;
