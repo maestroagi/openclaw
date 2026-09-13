@@ -19,6 +19,9 @@ export const en: TranslationMap & {
   skillWorkshop: TranslationMap;
 } = {
   pluginUi: {
+    sessionRecentMessages: "Recent messages",
+    sessionHistoryUnavailable: "Session history could not be loaded. Try again.",
+    sessionHistoryEmpty: "No recent messages.",
     customize: "Customize UI",
     selectionScope: "Choose views for this browser window. Built-in views are always available.",
     builtin: "Built-in view",
@@ -1305,6 +1308,8 @@ export const en: TranslationMap & {
     },
     iconEmojiSection: "Emoji",
     iconGlyphSection: "Icons",
+    noIcon: "No icon",
+    noColor: "No color",
     customEmojiCell: "Custom emoji…",
     customEmojiTitle: "Custom emoji",
     customEmojiSet: "Set",
@@ -5169,6 +5174,12 @@ export const en: TranslationMap & {
       expand: "Focus",
       expandPanel: "Expand {panel}",
       restore: "Restore split",
+      useViewAsDefault: "Use current view as default",
+      savingDefault: "Saving default…",
+      defaultSaved: "Dashboard default saved for future opens.",
+      defaultSaveFailed:
+        "Could not save the dashboard default. Check the connection and try again.",
+      defaultSaveError: "Could not save the dashboard default: {error}",
       swap: "Swap {main} and {side}",
       layout: "Layout",
       dockLeft: "Move side panel left",

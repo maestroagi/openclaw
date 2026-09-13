@@ -49,12 +49,14 @@ const runtimeConsumers = [
     mode: "runtime" as const,
     dir: "extensions",
   })),
-  {
-    file: "src/node-host/linux-node-plugin.integration.test.ts",
-    configs: ["test/vitest/vitest.unit.config.ts", "test/vitest/vitest.unit-src.config.ts"],
-    mode: "runtime",
-    dir: "",
-  },
+  ...["src/node-host/linux-node-plugin.integration.test.ts", "src/entry.memory-json.test.ts"].map(
+    (file) => ({
+      file,
+      configs: ["test/vitest/vitest.unit.config.ts", "test/vitest/vitest.unit-src.config.ts"],
+      mode: "runtime" as const,
+      dir: "",
+    }),
+  ),
   ...[
     "test/openai-model-discovery-auth-order.test.ts",
     "test/plugin-npm-runtime-build.test.ts",
