@@ -12,6 +12,7 @@ export type WorktreeFilesystemOptions = {
 
 export interface WorktreeFilesystemBackend {
   id: string;
+  estimateCloneBytes: (entries: number, indexBytes: number) => number;
   createTemplate: (path: string, options: WorktreeFilesystemOptions) => Promise<void>;
   cloneTemplate: (
     source: string,
@@ -70,6 +71,8 @@ async function runBtrfsMutation(
 
 const btrfsBackend: WorktreeFilesystemBackend = {
   id: "btrfs",
+  // Subvolume snapshots share directory metadata too; reserve index rewrites and tree updates.
+  estimateCloneBytes: (_entries, indexBytes) => 16 * 1024 ** 2 + 2 * indexBytes,
   async createTemplate(destination, options) {
     await runBtrfsMutation(["create", "--", destination], destination, options);
   },
@@ -124,6 +127,8 @@ export async function detectWorktreeFilesystemBackend(
     }
     return {
       id: "refs",
+      estimateCloneBytes: (entries, indexBytes) =>
+        16 * 1024 ** 2 + 2 * indexBytes + entries * (8192 + volume.clusterSize),
       async createTemplate(destination, templateOptions) {
         assertActive(templateOptions);
         await fs.mkdir(destination);
@@ -142,8 +147,26 @@ export async function detectWorktreeFilesystemBackend(
     if (apfsFilesystem.type === undefined || volume.type !== apfsFilesystem.type) {
       return null;
     }
+    const parentAcl = apfsFilesystem.readDirectoryAcl(parentPath);
+    if (parentAcl === undefined || parentAcl === "inheritable") {
+      return null;
+    }
+    const assertCloneAcls = (directory: string, parent: string) => {
+      const acl = apfsFilesystem.readDirectoryAcl(parent);
+      // A private Git template can retain ACLs from its own parent. Do not
+      // transplant those into another checkout or repair ACLs independently of Git.
+      if (
+        acl === undefined ||
+        acl === "inheritable" ||
+        apfsFilesystem.readDirectoryAcl(directory) !== "none"
+      ) {
+        throw new Error("APFS directory cloning cannot preserve directory ACLs; use Git checkout");
+      }
+    };
     return {
       id: "apfs",
+      // Directory clones share file data but allocate file and directory metadata.
+      estimateCloneBytes: (entries, indexBytes) => 16 * 1024 ** 2 + 2 * indexBytes + entries * 8192,
       async createTemplate(destination, templateOptions) {
         assertActive(templateOptions);
         await fs.mkdir(destination);
@@ -153,11 +176,17 @@ export async function detectWorktreeFilesystemBackend(
         if (!stats.isDirectory()) {
           throw new Error(`Worktree template is not a directory: ${source}`);
         }
+        const parent = path.dirname(destination);
+        assertCloneAcls(source, parent);
         assertActive(cloneOptions);
         // Join the atomic native operation even on cancellation, so recovery
         // cannot race a clone still writing the destination on another thread.
         await apfsFilesystem.cloneDirectory(source, destination);
         assertActive(cloneOptions);
+        // Selection may precede a long template checkout. Recheck around the
+        // native call, including ACLs inherited/copied onto the new root, so a
+        // changed policy takes the existing cleanup + native Git fallback.
+        assertCloneAcls(destination, parent);
       },
     };
   }
