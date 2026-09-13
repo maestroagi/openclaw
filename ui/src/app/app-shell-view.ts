@@ -66,7 +66,7 @@ import {
   normalizeCatalogOpenTarget,
   normalizeChatSendShortcut,
 } from "./settings.ts";
-import { renderCollapsedAssistantToggles } from "./shell-assistant-toggles.ts";
+import { renderCollapsedHomeToggle } from "./shell-assistant-toggles.ts";
 import { createUpdateProgressWatcher } from "./update-confirmation.ts";
 
 const EMPTY_SESSION_HAS_DRAFT = () => false;
@@ -499,10 +499,7 @@ export function renderApplicationShell(host: ShellViewHost) {
                     ${icons.search}
                   </button>
                 </openclaw-tooltip>
-                ${renderCollapsedAssistantToggles({
-                  homeAvailable: homePanelAvailable,
-                  custodianAvailable: custodianPanelAvailable,
-                })}
+                ${homePanelAvailable ? renderCollapsedHomeToggle() : nothing}
               </div>
             `
           : nothing
