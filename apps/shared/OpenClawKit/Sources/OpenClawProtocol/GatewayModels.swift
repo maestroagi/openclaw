@@ -5486,6 +5486,8 @@ public struct CronJob: Codable, Sendable {
 }
 
 public struct CronListParams: Codable, Sendable {
+    public let sessionkey: String?
+    public let sessionagentid: String?
     public let includedisabled: Bool?
     public let limit: Int?
     public let offset: Int?
@@ -5501,6 +5503,8 @@ public struct CronListParams: Codable, Sendable {
     public let includedeliverypreviews: Bool?
 
     public init(
+        sessionkey: String? = nil,
+        sessionagentid: String? = nil,
         includedisabled: Bool? = nil,
         limit: Int? = nil,
         offset: Int? = nil,
@@ -5515,6 +5519,8 @@ public struct CronListParams: Codable, Sendable {
         compact: Bool? = nil,
         includedeliverypreviews: Bool? = nil)
     {
+        self.sessionkey = sessionkey
+        self.sessionagentid = sessionagentid
         self.includedisabled = includedisabled
         self.limit = limit
         self.offset = offset
@@ -5531,6 +5537,8 @@ public struct CronListParams: Codable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
+        case sessionkey = "sessionKey"
+        case sessionagentid = "sessionAgentId"
         case includedisabled = "includeDisabled"
         case limit
         case offset
@@ -8587,6 +8595,50 @@ public struct ModelsAuthRefreshParams: Codable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case operation
         case agentid = "agentId"
+    }
+}
+
+public struct ModelsAuthSetApiKeyParams: Codable, Sendable {
+    public let provider: String
+    public let apikey: String
+    public let agentid: String?
+
+    public init(
+        provider: String,
+        apikey: String,
+        agentid: String? = nil)
+    {
+        self.provider = provider
+        self.apikey = apikey
+        self.agentid = agentid
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case provider
+        case apikey = "apiKey"
+        case agentid = "agentId"
+    }
+}
+
+public struct ModelsAuthSetApiKeyResult: Codable, Sendable {
+    public let provider: String
+    public let profileid: String
+    public let warning: String?
+
+    public init(
+        provider: String,
+        profileid: String,
+        warning: String? = nil)
+    {
+        self.provider = provider
+        self.profileid = profileid
+        self.warning = warning
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case provider
+        case profileid = "profileId"
+        case warning
     }
 }
 
@@ -15037,6 +15089,36 @@ public struct SessionVisibilitySetResult: Codable, Sendable {
         case ok
         case sessionkey = "sessionKey"
         case visibility
+    }
+}
+
+public struct SessionWorkspaceRecoveryRequiredErrorDetails: Codable, Sendable {
+    public let code: String
+    public let cause: String
+    public let recoveryaction: String
+    public let sessionid: String
+    public let source: [String: AnyCodable]
+
+    public init(
+        code: String,
+        cause: String,
+        recoveryaction: String,
+        sessionid: String,
+        source: [String: AnyCodable])
+    {
+        self.code = code
+        self.cause = cause
+        self.recoveryaction = recoveryaction
+        self.sessionid = sessionid
+        self.source = source
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case code
+        case cause
+        case recoveryaction = "recoveryAction"
+        case sessionid = "sessionId"
+        case source
     }
 }
 
@@ -26389,6 +26471,7 @@ public enum GatewayErrorDetails: Codable, Sendable {
     case wizardNotFound(WizardNotFoundErrorDetails)
     case setupAdmissionBusy(SetupAdmissionBusyErrorDetails)
     case githubPublicationSelectionRejected(GitHubPublicationSelectionRejectedErrorDetails)
+    case sessionWorkspaceRecoveryRequired(SessionWorkspaceRecoveryRequiredErrorDetails)
 
     public init(code: String, missingscope: String, requiredscopes: [String]) {
         self = .missingScope(
@@ -26413,6 +26496,7 @@ public enum GatewayErrorDetails: Codable, Sendable {
         case .wizardNotFound(let value): value.code
         case .setupAdmissionBusy(let value): value.code
         case .githubPublicationSelectionRejected(let value): value.code
+        case .sessionWorkspaceRecoveryRequired(let value): value.code
         }
     }
 
@@ -26445,6 +26529,7 @@ public enum GatewayErrorDetails: Codable, Sendable {
         case "WIZARD_NOT_FOUND": self = try .wizardNotFound(WizardNotFoundErrorDetails(from: decoder))
         case "SETUP_ADMISSION_BUSY": self = try .setupAdmissionBusy(SetupAdmissionBusyErrorDetails(from: decoder))
         case "GITHUB_PUBLICATION_SELECTION_REJECTED": self = try .githubPublicationSelectionRejected(GitHubPublicationSelectionRejectedErrorDetails(from: decoder))
+        case "SESSION_WORKSPACE_RECOVERY_REQUIRED": self = try .sessionWorkspaceRecoveryRequired(SessionWorkspaceRecoveryRequiredErrorDetails(from: decoder))
         default:
             throw DecodingError.dataCorruptedError(
                 forKey: .discriminator,
@@ -26467,6 +26552,7 @@ public enum GatewayErrorDetails: Codable, Sendable {
         case .wizardNotFound(let value): try value.encode(to: encoder)
         case .setupAdmissionBusy(let value): try value.encode(to: encoder)
         case .githubPublicationSelectionRejected(let value): try value.encode(to: encoder)
+        case .sessionWorkspaceRecoveryRequired(let value): try value.encode(to: encoder)
         }
     }
 }
