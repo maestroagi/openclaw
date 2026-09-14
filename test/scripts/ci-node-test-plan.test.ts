@@ -3138,12 +3138,16 @@ describe("scripts/lib/ci-node-test-plan.mts", () => {
         createPluginsVitestConfig({}),
         createTasksVitestConfig({}),
         createToolingVitestConfig({}),
+        createWizardVitestConfig({}),
       ].flatMap(listMatchedTestFiles),
     );
     for (const file of databaseWorkerCoreTestFiles) {
       expect(admitted.has(file), file).toBe(true);
       expect(former.has(file), file).toBe(false);
     }
+    const recoveryTest = "src/wizard/setup.inference-recovery.integration.test.ts";
+    expect(admitted.has(recoveryTest), recoveryTest).toBe(true);
+    expect(former.has(recoveryTest), recoveryTest).toBe(false);
     const selected = [
       "src/plugin-state/plugin-state-store.test.ts",
       "test/plugins/beam-http-identity.test.ts",

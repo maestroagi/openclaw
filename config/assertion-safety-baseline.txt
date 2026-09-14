@@ -550,7 +550,7 @@ extensions/imessage/src/monitor/inbound-processing.ts	2
 extensions/imessage/src/monitor/monitor-provider.ts	2
 extensions/imessage/src/probe.ts	1
 extensions/imessage/src/remote-host.ts	1
-extensions/imessage/src/send.ts	5
+extensions/imessage/src/send.ts	2
 extensions/imessage/src/setup-core.ts	1
 extensions/imessage/src/shared.ts	1
 extensions/imessage/src/state-migrations.ts	6
@@ -3620,7 +3620,7 @@ ui/src/components/app-sidebar-session-menu-renderers.ts	4
 ui/src/components/app-sidebar-session-narration.ts	5
 ui/src/components/app-sidebar-session-row-render.ts	2
 ui/src/components/app-sidebar-session-section-header.ts	6
-ui/src/components/app-sidebar.ts	2
+ui/src/components/app-sidebar.ts	1
 ui/src/components/app-topbar.ts	1
 ui/src/components/board/board-view.ts	1
 ui/src/components/board/board-widget-cell.ts	1
