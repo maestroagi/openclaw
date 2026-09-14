@@ -5516,6 +5516,7 @@ td.data-table-key-col {
 
 .device-pair-setup__body {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   justify-items: center;
   gap: 15px;
   padding: 0 28px 24px;
@@ -5663,7 +5664,19 @@ td.data-table-key-col {
 .device-pair-setup__command {
   display: grid;
   width: min(540px, 100%);
+  min-width: 0;
+  max-width: 100%;
   gap: 10px;
+}
+
+.device-pair-setup .login-gate__command {
+  min-width: 0;
+}
+
+.device-pair-setup .login-gate__command code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .device-pair-setup__meta {

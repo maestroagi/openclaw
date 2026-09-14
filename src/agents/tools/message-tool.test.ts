@@ -2,6 +2,7 @@
 // outbound message execution context.
 import fs from "node:fs/promises";
 import { Type } from "typebox";
+import { Value } from "typebox/value";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DecisionReceiptV1 } from "../../../packages/gateway-protocol/src/index.js";
 import { createExecutionIdentityAdmissionToken } from "../../audit/execution-identity-admission.js";
@@ -1235,6 +1236,34 @@ describe("poll vote echo guard", () => {
     });
 
     expect(mocks.runMessageAction).toHaveBeenCalledTimes(6);
+  });
+
+  it("keeps captured poll aliases when the active channel adapter changes", async () => {
+    const tool = createPollVoteTool();
+    setActivePluginRegistry(
+      createTestRegistry([
+        {
+          pluginId: "imessage",
+          source: "test",
+          plugin: createChannelPlugin({
+            id: "imessage",
+            label: "iMessage",
+            docsPath: "/channels/imessage",
+            blurb: "Replacement test plugin",
+            actions: ["poll-vote"],
+          }),
+        },
+      ]),
+    );
+    await castBlueVote(tool, { chatGuid: "iMessage;-;+15559998888" });
+    const result = await tool.execute("send", {
+      action: "send",
+      channel: "imessage",
+      message: "Blue",
+    });
+
+    expect(result.details).not.toMatchObject({ status: "suppressed" });
+    expect(mocks.runMessageAction).toHaveBeenCalledTimes(2);
   });
 
   it("consumes the guard on the first same-route visible send", async () => {
@@ -3640,6 +3669,56 @@ describe("message tool schema scoping", () => {
     expect(properties).not.toHaveProperty("activityName");
     expect(properties).not.toHaveProperty("eventName");
   });
+
+  it.each([
+    { action: "channel-info", hasTeamId: true },
+    { action: "channel-list", hasTeamId: true },
+    { action: "conversation-open", hasTeamId: true },
+    { action: "send", hasTeamId: false },
+    { action: "read", hasTeamId: false },
+  ] as const)(
+    "limits teamId to consuming actions when only $action is allowed",
+    ({ action, hasTeamId }) => {
+      const plugin = createChannelPlugin({
+        id: "test-channel",
+        label: "Test Channel",
+        docsPath: "/channels/test-channel",
+        blurb: "Team and workspace action schema fixture.",
+        actions: ["send", "read", "channel-info", "channel-list", "conversation-open"],
+      });
+      setActivePluginRegistry(
+        createTestRegistry([{ pluginId: "test-channel", source: "test", plugin }]),
+      );
+
+      for (const currentChannelProvider of ["test-channel", undefined]) {
+        const tool = createMessageTool({
+          config: {
+            agents: {
+              list: [{ id: "schema-agent", tools: { message: { actions: { allow: [action] } } } }],
+            },
+          },
+          agentId: "schema-agent",
+          currentChannelProvider,
+        });
+        const properties = getToolProperties(tool);
+        expect(getActionEnum(properties)).toEqual([action]);
+        if (!hasTeamId) {
+          expect(properties).not.toHaveProperty("teamId");
+          continue;
+        }
+        expectStringSchema(properties.teamId);
+        expect(Value.Check(tool.parameters, { action })).toBe(true);
+        for (const teamId of ["11111111-1111-1111-1111-111111111111", "T11111111"]) {
+          expect(Value.Check(tool.parameters, { action, teamId })).toBe(true);
+        }
+        if (currentChannelProvider && action === "conversation-open") {
+          for (const field of ["channelId", "guildId", "userId", "roleId"]) {
+            expect(properties).not.toHaveProperty(field);
+          }
+        }
+      }
+    },
+  );
 
   it("prunes fields for action groups that discovery does not advertise", () => {
     const plugin = createChannelPlugin({

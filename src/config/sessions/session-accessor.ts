@@ -326,7 +326,6 @@ export {
 } from "./session-accessor.sqlite-transcript-watermark.js";
 export {
   bindSessionTranscriptStoreScope,
-  resolveConcreteSessionStorePath,
   resolveSessionTranscriptDatabasePath,
   resolveSessionTranscriptReadTarget,
   resolveSessionTranscriptRuntimeTarget,
