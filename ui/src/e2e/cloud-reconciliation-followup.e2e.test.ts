@@ -1,5 +1,6 @@
 import path from "node:path";
 import { expect, it } from "vitest";
+import type { ApplicationContext } from "../app/context.ts";
 import {
   captureUiProofEnabled,
   chatSessionListResponse,
@@ -167,6 +168,13 @@ suite.define(() => {
         }
 
         const active = session("active");
+        // The persisted event and later history reads describe the same reply.
+        const resumedReplyId = "automatic-follow-up-result";
+        const resumedReply = {
+          role: "assistant",
+          content: "The queued follow-up started automatically.",
+          __openclaw: { id: resumedReplyId },
+        };
         const activeHistory = {
           inFlightRun: null,
           messages: [
@@ -175,6 +183,7 @@ suite.define(() => {
               ...pendingInput.message,
               __openclaw: { id: "persisted-follow-up", idempotencyKey: `${runId}:user` },
             },
+            resumedReply,
           ],
           pendingInputs: { items: [], total: 0 },
           sessionId: active.sessionId,
@@ -191,8 +200,8 @@ suite.define(() => {
         await gateway.emitGatewayEvent("session.message", {
           activeRunIds: [],
           hasActiveRun: false,
-          message: { role: "assistant", content: "The queued follow-up started automatically." },
-          messageId: "automatic-follow-up-result",
+          message: resumedReply,
+          messageId: resumedReplyId,
           messageSeq: 3,
           session: active,
           sessionKey,
@@ -217,7 +226,21 @@ suite.define(() => {
           });
         }
 
+        const completedUpdatedAt = await page.evaluate(async (key) => {
+          const app = document.querySelector("openclaw-app") as HTMLElement & {
+            runtime?: { context: ApplicationContext };
+          };
+          const sessions = app.runtime?.context.sessions;
+          if (!sessions) {
+            throw new Error("session capability unavailable");
+          }
+          await sessions.refresh({ agentId: "main", force: true });
+          return sessions.state.result?.sessions.find((row) => row.key === key)?.updatedAt;
+        }, sessionKey);
+        expect(completedUpdatedAt).toBeGreaterThan(active.updatedAt);
+
         const failed = session("failed");
+        expect(completedUpdatedAt).toBeLessThanOrEqual(failed.updatedAt);
         await gateway.setMethodResponse("chat.history", { ...activeHistory, sessionInfo: failed });
         await gateway.setSessionsListResponse(chatSessionListResponse([failed]));
         await gateway.emitGatewayEvent("sessions.changed", {
