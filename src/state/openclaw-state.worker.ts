@@ -4,6 +4,7 @@ import {
   readConfigHealthSnapshotInDatabase,
 } from "../config/io.health-state.kernel.js";
 import { loadMutableCronStoreInWorker } from "../cron/store/load.worker.js";
+import { countFailedDeliveryQueueEntriesInDatabase } from "../infra/delivery-queue-sqlite.kernel.js";
 import { executeSessionDeliveryCommand } from "../infra/session-delivery-queue.worker.js";
 import { createSqliteAuditRecordKernel } from "../infra/sqlite-audit-record.kernel.js";
 import {
@@ -48,6 +49,7 @@ import {
   summarizeTaskRecordsForFlowInDatabase,
 } from "../tasks/task-registry.store.kernel.js";
 import { readTaskRegistryStatusSnapshot } from "../tasks/task-registry.store.status.js";
+import { recordBackupRunInDatabase } from "./backup-run-records.kernel.js";
 import {
   openClawStateDatabaseCache,
   retainOpenClawStateDatabase,
@@ -292,6 +294,9 @@ function createSharedStateWorkerBackend(
       if (command.type === "cron.loadMutable") {
         return loadMutableCronStoreInWorker(database, command.input.storeKey);
       }
+      if (command.type === "deliveryQueue.countFailed") {
+        return countFailedDeliveryQueueEntriesInDatabase(database);
+      }
       if (
         command.type === "sessionDelivery.enqueue" ||
         command.type === "sessionDelivery.enqueueClaimed" ||
@@ -314,6 +319,12 @@ function createSharedStateWorkerBackend(
         path: context.databasePath,
         env: getSqliteWorkerStateContext().environment,
       };
+      if (command.type === "backup.recordOutcome") {
+        return runOpenClawStateWriteTransaction(
+          ({ db }) => recordBackupRunInDatabase(db, command.input),
+          writeOptions,
+        );
+      }
       if (command.type === "projects.findRoot") {
         ensureProjectRegistrySchema(writeOptions);
         return resolveRecordedProjectRootInDatabase(database.db, command.input.repoRoot);
