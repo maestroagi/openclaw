@@ -6,12 +6,20 @@ import { toSafeImportPath } from "../shared/import-specifier.js";
 import { createJiti } from "./jiti-factory.js";
 import { isJavaScriptModulePath, isPluginSourceModulePath } from "./native-module-require.js";
 import type { PluginModuleLoader } from "./plugin-cache-artifacts.js";
-import { bindPluginCacheRoot, getPluginCache, withPluginCache } from "./plugin-cache.js";
+import {
+  bindPluginCacheRoot,
+  getPluginCache,
+  withPluginCache,
+  type PluginCache,
+} from "./plugin-cache.js";
 import { capturePluginGenerationArtifact } from "./plugin-generation-artifact.js";
-import type { PluginModuleLoaderOwner } from "./plugin-instance.types.js";
+import type { PluginModuleLoaderRecovery } from "./plugin-instance.types.js";
 import { getCachedPluginModuleLoader } from "./plugin-module-loader-cache.js";
+import {
+  preparePluginModuleLoaderRecovery,
+  type PluginInstanceModuleLoaderParams,
+} from "./plugin-module-loader-recovery.js";
 import { bindNativePluginInstanceModuleLoader } from "./plugin-native-module-loader.js";
-import type { PluginOrigin } from "./plugin-origin.types.js";
 import { installOpenClawPluginSdkNativeResolver } from "./plugin-sdk-native-resolver.js";
 import {
   buildPluginTypeScriptSource,
@@ -19,24 +27,33 @@ import {
   type PluginSourceFile,
   type PluginSourceLoadMode,
 } from "./plugin-source-build.js";
-import {
-  preparePluginLoaderAliases,
-  isPluginSdkAliasSpecifier,
-  type PluginSdkResolutionPreference,
-} from "./sdk-alias.js";
+import { preparePluginLoaderAliases, isPluginSdkAliasSpecifier } from "./sdk-alias.js";
+
+// Compiled recovery shares process code identity without closing over the
+// binder's predecessor instance or source-graph state.
+function createSharedModuleLoader(cache: PluginCache, loader: PluginModuleLoader) {
+  const load = (source: string) => withPluginCache(cache, () => loader(toSafeImportPath(source)));
+  const captureRecovery = (): PluginModuleLoaderRecovery => {
+    let released = false;
+    return {
+      bind(target) {
+        if (released) {
+          throw new Error("Plugin module recovery has already been consumed or released");
+        }
+        released = true;
+        target.bindModuleLoader(load);
+        target.bindModuleLoaderRecovery(captureRecovery);
+      },
+      dispose() {
+        released = true;
+      },
+    };
+  };
+  return { load, captureRecovery };
+}
 
 /** Runtime and setup share code identity policy while keeping separate instance authority. */
-export function bindPluginInstanceModuleLoader(params: {
-  instance: PluginModuleLoaderOwner;
-  origin: PluginOrigin;
-  source: string;
-  rootDir: string;
-  devSourceRoot?: string | null;
-  standalone?: boolean;
-  pluginSdkResolution?: PluginSdkResolutionPreference;
-  expectedSourceDigest?: string;
-  createHostModuleLoader?: () => PluginModuleLoader;
-}): void {
+export function bindPluginInstanceModuleLoader(params: PluginInstanceModuleLoaderParams): void {
   const cache = getPluginCache();
   if (params.origin === "bundled" && isJavaScriptModulePath(params.source)) {
     if (params.expectedSourceDigest !== undefined) {
@@ -61,9 +78,9 @@ export function bindPluginInstanceModuleLoader(params: {
         pluginSdkResolution: params.pluginSdkResolution,
       });
     }
-    params.instance.bindModuleLoader((source) =>
-      withPluginCache(cache, () => loader(toSafeImportPath(source))),
-    );
+    const shared = createSharedModuleLoader(cache, loader);
+    params.instance.bindModuleLoader(shared.load);
+    params.instance.bindModuleLoaderRecovery(shared.captureRecovery);
     return;
   }
   const nativeHooks = typeof Module.registerHooks === "function";
@@ -105,6 +122,11 @@ export function bindPluginInstanceModuleLoader(params: {
     params.instance.sourceDigest = artifact.sourceDigest;
   }
   params.instance.onModuleDispose(artifact.disposeAsync);
+  const bindModuleLoader = preparePluginModuleLoaderRecovery(
+    params,
+    artifact,
+    bindPluginInstanceModuleLoader,
+  );
   const nativeAliases = nativeHooks
     ? undefined
     : preparePluginLoaderAliases({
@@ -137,7 +159,13 @@ export function bindPluginInstanceModuleLoader(params: {
         ...artifact.sourceAliases,
       },
     });
-    bindNativePluginInstanceModuleLoader(params, cache, artifact, loader, nativeAliases.sdkRoots);
+    bindNativePluginInstanceModuleLoader(
+      { ...params, bindModuleLoader },
+      cache,
+      artifact,
+      loader,
+      nativeAliases.sdkRoots,
+    );
     return;
   }
   const nativeRequire = createRequire(params.source);
@@ -402,7 +430,7 @@ export function bindPluginInstanceModuleLoader(params: {
   });
   params.instance.lifecycle.onDispose(() => hooks.deregister());
   const results = new Map<string, { value: unknown } | { error: unknown }>();
-  params.instance.bindModuleLoader(
+  bindModuleLoader(
     (source) =>
       withPluginCache(cache, () => {
         const captured = artifact.resolve(source);

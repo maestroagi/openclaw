@@ -3780,7 +3780,7 @@ describe("scripts/test-projects changed-target routing", () => {
     expectSingleVitestRunPlan(buildVitestRunPlans([file]), { config, includePatterns: [file] });
   });
 
-  it("routes explicit active-memory and Codex extension tests to their shards", () => {
+  it("routes explicit active-memory and Codex index tests to the database worker", () => {
     expect(
       buildVitestRunPlans([
         "extensions/active-memory/index.test.ts",
@@ -3788,15 +3788,15 @@ describe("scripts/test-projects changed-target routing", () => {
       ]),
     ).toEqual([
       {
-        config: "test/vitest/vitest.extension-codex.config.ts",
+        config: "test/vitest/vitest.extension-database-workers.config.ts",
         forwardedArgs: [],
-        includePatterns: ["extensions/codex/index.test.ts"],
+        includePatterns: ["extensions/active-memory/index.test.ts"],
         watchMode: false,
       },
       {
         config: "test/vitest/vitest.extension-database-workers.config.ts",
         forwardedArgs: [],
-        includePatterns: ["extensions/active-memory/index.test.ts"],
+        includePatterns: ["extensions/codex/index.test.ts"],
         watchMode: false,
       },
     ]);
@@ -3952,7 +3952,7 @@ describe("scripts/test-projects changed-target routing", () => {
   it.each([
     {
       directory: "extensions/matrix/src/matrix/client",
-      selected: "extensions/matrix/src/matrix/client/storage.test.ts",
+      selected: ["extensions/matrix/src/matrix/client/storage.test.ts"],
       inherited: [
         "extensions/matrix/src/matrix/client/storage.test.ts",
         "extensions/matrix/src/matrix/thread-bindings.test.ts",
@@ -3960,7 +3960,10 @@ describe("scripts/test-projects changed-target routing", () => {
     },
     {
       directory: "extensions/matrix/src/matrix/sdk",
-      selected: "extensions/matrix/src/matrix/sdk/idb-persistence.test.ts",
+      selected: [
+        "extensions/matrix/src/matrix/sdk/idb-persistence.test.ts",
+        "extensions/matrix/src/matrix/sdk/recovery-key-store.test.ts",
+      ],
       inherited: ["extensions/matrix/**/*.test.ts"],
     },
   ])(
@@ -3976,7 +3979,7 @@ describe("scripts/test-projects changed-target routing", () => {
         const worker = specs.find(
           (spec) => spec.config === "test/vitest/vitest.extension-database-workers.config.ts",
         );
-        expect(worker?.includePatterns).toEqual([selected]);
+        expect(worker?.includePatterns).toEqual(selected);
         expect(specs.flatMap((spec) => spec.includePatterns ?? [])).not.toContain(
           "extensions/matrix/src/matrix/thread-bindings.test.ts",
         );

@@ -1646,7 +1646,7 @@ src/agents/compaction-planning.ts	1
 src/agents/compaction-planning.worker.ts	1
 src/agents/compaction-real-conversation.ts	9
 src/agents/compaction-usage.ts	3
-src/agents/compaction.ts	5
+src/agents/compaction.ts	4
 src/agents/content-blocks.ts	1
 src/agents/context-cache-projection.ts	1
 src/agents/context-cache.ts	1
@@ -2491,7 +2491,6 @@ src/config/sessions/archive-compression.ts	1
 src/config/sessions/cleanup-service.ts	3
 src/config/sessions/conversation-delivery-store.ts	2
 src/config/sessions/group.ts	1
-src/config/sessions/legacy-main-session-migration-operations.ts	1
 src/config/sessions/legacy-main-session-migration.ts	5
 src/config/sessions/lifecycle.ts	1
 src/config/sessions/metadata.ts	1
@@ -2524,7 +2523,6 @@ src/config/sessions/session-reset-boundary-event.ts	5
 src/config/sessions/session-snapshot-merge.ts	26
 src/config/sessions/session-sqlite-target.ts	3
 src/config/sessions/session-store-config.ts	2
-src/config/sessions/session-suggestion-store.ts	2
 src/config/sessions/session-transcript-projection-rebuild.ts	6
 src/config/sessions/session-transcript-reconcile.worker.ts	1
 src/config/sessions/skill-prompt-blobs.ts	5
@@ -3771,7 +3769,7 @@ ui/src/pages/chat/session-cache.ts	2
 ui/src/pages/chat/stream-reconciliation.ts	9
 ui/src/pages/chat/talk/gateway-relay.ts	1
 ui/src/pages/chat/talk/google-live.ts	2
-ui/src/pages/chat/talk/session.ts	2
+ui/src/pages/chat/talk/session.ts	1
 ui/src/pages/chat/talk/shared.ts	7
 ui/src/pages/chat/talk/webrtc.ts	2
 ui/src/pages/chat/workspace-conflict.ts	2

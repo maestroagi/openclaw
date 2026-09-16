@@ -18,6 +18,7 @@ export function bindNativePluginInstanceModuleLoader(
     instance: PluginModuleLoaderOwner;
     rootDir: string;
     origin: PluginOrigin;
+    bindModuleLoader?: PluginModuleLoaderOwner["bindModuleLoader"];
   },
   cache: ReturnType<typeof getPluginCache>,
   artifact: ReturnType<typeof capturePluginGenerationArtifact>,
@@ -121,7 +122,7 @@ export function bindNativePluginInstanceModuleLoader(
     origin: params.origin,
     rootDir: params.rootDir,
   });
-  params.instance.bindModuleLoader(
+  (params.bindModuleLoader ?? params.instance.bindModuleLoader.bind(params.instance))(
     (source) =>
       withPluginCache(cache, () => {
         const captured = artifact.resolve(source, rejectHardlinks);
