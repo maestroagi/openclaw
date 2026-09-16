@@ -38,7 +38,6 @@ import {
 export function capturePluginGenerationArtifact(
   rootDir: string,
   entryFile?: string,
-  inputBoundaryRoot = rootDir,
   execute?: <T>(run: () => T) => T,
   moduleSource?: (filename: string) => string,
 ) {
@@ -70,7 +69,7 @@ export function capturePluginGenerationArtifact(
     metadataOnly = false,
     executableEntry = false,
   ): string => {
-    const boundary = entry && !executableEntry ? fs.realpathSync(inputBoundaryRoot) : root;
+    const boundary = root;
     const existing = packages.get(root);
     if (existing) {
       if (!metadataOnly) {
@@ -85,14 +84,9 @@ export function capturePluginGenerationArtifact(
       moduleRoot,
       parentName.startsWith("@") ? parentName : "",
       path.basename(boundary),
-      path.relative(boundary, root),
     );
-    const capturedBoundary = path.resolve(destination, path.relative(root, boundary));
-    sourceAliases[boundary] = capturedBoundary;
+    const capturedBoundary = destination;
     sourceAliases[root] = destination;
-    if (entry && !executableEntry) {
-      sourceAliases[path.resolve(inputBoundaryRoot)] = capturedBoundary;
-    }
     digest.update(packageId).update("\0");
     const owner: PluginPackageCapture = {
       destination,
@@ -396,7 +390,7 @@ export function capturePluginGenerationArtifact(
           return input;
         }
         const requested = path.resolve(path.dirname(source), value);
-        const lexicalBoundary = entry && !executableEntry ? path.resolve(inputBoundaryRoot) : root;
+        const lexicalBoundary = entry && !executableEntry ? path.resolve(rootDir) : root;
         const local =
           module && path.isAbsolute(value) && isPathInside(lexicalBoundary, requested)
             ? path.join(boundary, path.relative(lexicalBoundary, requested))
