@@ -4831,7 +4831,7 @@ NODE
     expect(job["timeout-minutes"]).toBe(60);
     expect(job.permissions).toEqual({ contents: "read" });
     expect(job.strategy).toBeUndefined();
-    expect(job.steps[0]).toEqual(jobs["pnpm-store-warmup"].steps[0]);
+    expect(job.steps[0]).toEqual(jobs["build-artifacts"].steps[0]);
     expect(job.steps[1].uses).toBe("./.ci-harness/.github/actions/setup-node-env");
     expect(job.steps[1].with).toMatchObject({
       "build-all-cache-scope": "full",
@@ -5319,7 +5319,14 @@ require("node:fs").writeFileSync("scheduler-baseline", process.env.OPENCLAW_UPGR
     expect(sdkRestoreStep.if).toBe("inputs.cache-mode != 'off'");
     expect(sdkRestoreStep.uses).toBe(CACHE_V5);
     expect(sdkRestoreStep.with?.key).toContain(`platform-${appCompileSdk}.0-`);
+    expect(sdkRestoreStep.with?.key).toContain(
+      "${{ inputs.install-screenshot-emulators == 'true' && 'screenshot-emulators' || 'base' }}",
+    );
+    expect(String(sdkRestoreStep.with?.["restore-keys"])).toContain(
+      "inputs.install-screenshot-emulators == 'true'",
+    );
     expect(sdkSaveStep.if).toContain("inputs.cache-mode == 'read-write'");
+    expect(sdkSaveStep.if).toContain("steps.android-sdk-cache.outputs.cache-hit != 'true'");
     expect(sdkSaveStep.uses).toBe(CACHE_SAVE_V5);
     expect(sdkSaveStep.with?.key).toBe("${{ steps.android-sdk-cache.outputs.cache-primary-key }}");
     expect(gradleCacheStep).toMatchObject({
@@ -5718,11 +5725,13 @@ require("node:fs").writeFileSync("scheduler-baseline", process.env.OPENCLAW_UPGR
     );
 
     expect(restoreStep.with?.key).toBe(
+      "${{ runner.os }}-android-sdk-v2-cmdline-15859902-platform-37.0-build-tools-36.0.0-${{ inputs.install-screenshot-emulators == 'true' && 'screenshot-emulators' || 'base' }}",
+    );
+    expect(String(restoreStep.with?.["restore-keys"]).trim().split("\n")).toEqual([
+      "${{ inputs.install-screenshot-emulators == 'true' && format('{0}-android-sdk-v2-cmdline-15859902-platform-37.0-build-tools-36.0.0-base', runner.os) || '' }}",
       "${{ runner.os }}-android-sdk-v1-cmdline-15859902-platform-37.0-build-tools-36.0.0",
-    );
-    expect(String(restoreStep.with?.["restore-keys"]).trim()).toBe(
       "${{ runner.os }}-android-sdk-v1-cmdline-15859902-",
-    );
+    ]);
     expect(setupStep.run).toContain('CMDLINE_TOOLS_VERSION="15859902"');
     expect(setupStep.run).toContain(
       'CMDLINE_TOOLS_SHA256="4e4c464f145a7512b57d088ac6c278c03c9eea610886b35a5e0804e74eedf583"',
@@ -6985,7 +6994,6 @@ setImmediate(() => {
       "docker-seed-e2e": "ubuntu-24.04",
       "macos-node": "macos-15",
       "native-i18n": "ubuntu-24.04",
-      "pnpm-store-warmup": "ubuntu-24.04",
       preflight: "ubuntu-24.04",
       "security-fast": "ubuntu-24.04",
       "qa-smoke-ci-profile": "ubuntu-24.04",
@@ -7647,12 +7655,6 @@ setImmediate(() => {
     expect(preflightRestore?.step.if).toContain("github.event_name == 'pull_request'");
     expect(preflightRestore?.step.if).toContain("vars.OPENCLAW_CI_RUNNER_BACKEND != 'github'");
     expect(preflightRestore?.step.if).toContain("vars.OPENCLAW_CI_RUNNER_BACKEND != 'hybrid'");
-    expect(workflow.jobs["pnpm-store-warmup"].if).toContain(
-      "needs.preflight.outputs.runner_profile == 'github'",
-    );
-    expect(workflow.jobs["pnpm-store-warmup"].if).toContain(
-      "needs.preflight.outputs.runner_profile == 'hybrid'",
-    );
     const consumers = dependencySetups.filter(({ jobName }) => jobName !== "preflight");
     expect(consumers.map(({ jobName }) => jobName).toSorted()).toEqual([
       "build-artifacts",
@@ -11417,6 +11419,9 @@ server.listen(0, "127.0.0.1", () => {
       const workflow = parse(readFileSync(workflowPath, "utf8"));
       const steps = workflow.jobs[jobName].steps as WorkflowStep[];
       const setupIndex = steps.findIndex((step) => step.uses?.endsWith("/setup-node-env"));
+      const installIndex = steps.findIndex(
+        (step) => step.name === "Install Mermaid renderer dependencies",
+      );
       const prepareIndex = steps.findIndex((step) =>
         step.run?.includes("node scripts/prepare-apple-mermaid.mjs"),
       );
@@ -11425,8 +11430,26 @@ server.listen(0, "127.0.0.1", () => {
       );
 
       const setupStep = expectDefined(steps[setupIndex], `${workflowPath}: dependency setup`);
-      expect(setupStep.with?.["install-deps"]).not.toBe("false");
-      expect(prepareIndex, `${workflowPath}: resource preparation`).toBeGreaterThan(setupIndex);
+      const installStep = expectDefined(steps[installIndex], `${workflowPath}: dependency install`);
+      expect(setupStep.with?.["install-deps"]).toBe("false");
+      expect(installStep.env).toEqual({ CI: "true" });
+      expect(installStep.run?.trim().split(/\s+/u)).toEqual([
+        "pnpm",
+        "install",
+        "--frozen-lockfile",
+        "--prefer-offline",
+        "--optional",
+        "--filter",
+        "'@openclaw/mermaid-renderer...'",
+        "--config.ignore-scripts=false",
+        "--config.engine-strict=false",
+        "--config.enable-pre-post-scripts=true",
+        "--config.side-effects-cache=true",
+      ]);
+      expect(installIndex, `${workflowPath}: filtered dependency install`).toBeGreaterThan(
+        setupIndex,
+      );
+      expect(prepareIndex, `${workflowPath}: resource preparation`).toBeGreaterThan(installIndex);
       expect(graphIndex, `${workflowPath}: SwiftPM graph`).toBeGreaterThan(prepareIndex);
     }
   });
@@ -16656,7 +16679,6 @@ printf '%s\n' "\${CURL_SUCCESS_IP:-203.0.113.7}"
     const gate = workflow.jobs["ci-gate"];
     const requiredJobs = ["preflight", "security-fast"];
     const selectedJobs = [
-      "pnpm-store-warmup",
       "build-artifacts",
       "control-ui-performance",
       "native-i18n",
@@ -16771,52 +16793,24 @@ printf '%s\n' "\${CURL_SUCCESS_IP:-203.0.113.7}"
       label: "same-repo Blacksmith PR",
       context: { eventName: "pull_request" },
       expected: {
-        "pnpm-store-warmup": false,
         "checks-node-compat": false,
         "ios-build": true,
         "ios-screenshot-shard": false,
       },
-    },
-    {
-      label: "fork PR",
-      context: { eventName: "pull_request", headRepository: "contributor/fork" },
-      expected: { "pnpm-store-warmup": true },
-    },
-    {
-      label: "same-repo docs-only PR",
-      context: { eventName: "pull_request", preflightOutputs: { run_node: "false" } },
-      expected: { "pnpm-store-warmup": true },
-    },
-    {
-      label: "no Node or docs scope",
-      context: { preflightOutputs: { run_node: "false", run_check_docs: "false" } },
-      expected: { "pnpm-store-warmup": false },
     },
     {
       label: "canonical Blacksmith push",
       context: { eventName: "push" },
       expected: {
-        "pnpm-store-warmup": false,
         "checks-node-compat": false,
         "ios-build": true,
         "ios-screenshot-shard": false,
       },
     },
     {
-      label: "non-main push",
-      context: { eventName: "push", ref: "refs/heads/topic" },
-      expected: { "pnpm-store-warmup": true },
-    },
-    {
-      label: "fork repository push",
-      context: { eventName: "push", repository: "contributor/fork" },
-      expected: { "pnpm-store-warmup": true },
-    },
-    {
       label: "GitHub push",
       context: { eventName: "push", runnerProfile: "github" },
       expected: {
-        "pnpm-store-warmup": true,
         "check-lint-hosted-core-shard": true,
         "check-test-types-hosted-core-shard": true,
       },
@@ -16824,7 +16818,7 @@ printf '%s\n' "\${CURL_SUCCESS_IP:-203.0.113.7}"
     {
       label: "hybrid PR",
       context: { eventName: "pull_request", runnerProfile: "hybrid" },
-      expected: { "pnpm-store-warmup": true, "check-lint-hosted-core-shard": true },
+      expected: { "check-lint-hosted-core-shard": true },
     },
     {
       label: "targeted core test PR",

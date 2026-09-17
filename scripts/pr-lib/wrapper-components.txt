@@ -254,6 +254,7 @@ src/commands/doctor/shared/codex-route-agent-entries.ts
 src/commands/doctor/shared/codex-route-model-ref.ts
 src/commands/doctor/shared/configured-channel-ids.ts
 src/commands/doctor/shared/include-migration-ownership.ts
+src/commands/doctor/shared/legacy-config-binding-repair-input.ts
 src/commands/doctor/shared/legacy-config-compat.ts
 src/commands/doctor/shared/legacy-config-issues.ts
 src/commands/doctor/shared/legacy-config-migrations.audio.ts
@@ -345,6 +346,8 @@ src/config/io.plugin-metadata.ts
 src/config/io.read-helpers.ts
 src/config/io.recovery.ts
 src/config/io.runtime.ts
+src/config/io.snapshot-preparation.ts
+src/config/io.snapshot-preparation.types.ts
 src/config/io.snapshot-shared.ts
 src/config/io.snapshot.ts
 src/config/io.state.ts
@@ -428,6 +431,7 @@ src/config/validation-plugin-config.ts
 src/config/validation-plugin-registry.ts
 src/config/validation-plugin-rules.ts
 src/config/validation.ts
+src/config/validation.types.ts
 src/config/version.ts
 src/config/web-search-legacy-provider-keys.ts
 src/config/write-lock.ts

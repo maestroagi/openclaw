@@ -8,6 +8,7 @@ import {
   codeModeRetentionEntrypoint,
 } from "../../src/agents/code-mode-retention-entrypoint.test-support.ts";
 import { cliCompactionBackendEntrypoints } from "../../src/agents/command/cli-compaction-runtime.test-support.ts";
+import { bashOutputSpillEntrypoints } from "../../src/agents/sessions/bash-output-spill-entrypoints.test-support.ts";
 import {
   cliRecoveryEntrypoints,
   gatewayDirectStopEntrypoints,
@@ -70,6 +71,7 @@ export const vitestWorkerBuildEntries = {
     codeModeRetentionEntrypoint,
     codeModeDescriptionRetentionEntrypoint,
     ...cliCompactionBackendEntrypoints,
+    ...Object.values(bashOutputSpillEntrypoints),
     ...publishedSdkBridgeEntrypoints,
     mcpProviderCatalogEntrypoint,
     pluginRuntimeRetentionEntrypoint,

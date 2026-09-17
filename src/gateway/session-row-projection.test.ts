@@ -1,4 +1,5 @@
 import { renameSync } from "node:fs";
+import { performance } from "node:perf_hooks";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, expect, it, vi } from "vitest";
 import { notifyPreparedModelRuntimePublication } from "../agents/prepared-model-runtime.publication-events.js";
@@ -301,6 +302,14 @@ it("invalidates parent links when a child moves and when deletion crosses a mate
         },
       );
     }
+    let workMs = 0;
+    const clock = vi.spyOn(performance, "now").mockImplementation(() => workMs);
+    const readInputs = rowInputs.readSessionRowInputs;
+    const inputs = vi.spyOn(rowInputs, "readSessionRowInputs").mockImplementation((params) => {
+      const result = readInputs(params);
+      workMs += 20;
+      return result;
+    });
     const projection = await createSessionRowProjection({ cfg });
     try {
       replaceSessionEntrySync(
@@ -327,6 +336,8 @@ it("invalidates parent links when a child moves and when deletion crosses a mate
       ).toBeUndefined();
     } finally {
       projection.dispose();
+      inputs.mockRestore();
+      clock.mockRestore();
     }
   });
 });

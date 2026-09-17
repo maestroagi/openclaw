@@ -45,6 +45,8 @@ function seedTranscriptState(storePath: string): void {
   const insertEvent = database.db.prepare(
     "INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)",
   );
+  // The fixture is already projected; NULL eligibility would schedule an
+  // unrelated background index rebuild during the deletion measurement.
   const insertActive = database.db.prepare(
     `INSERT INTO session_transcript_active_events
        (session_id, active_position, event_seq, message_position, context_eligible)

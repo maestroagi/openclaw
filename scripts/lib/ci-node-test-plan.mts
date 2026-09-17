@@ -2555,6 +2555,27 @@ const WHOLE_CONFIG_SPLIT_FILE_LISTERS = new Map<string, () => string[]>([
   ["core-unit-fast-isolated", getUnitFastIsolatedTestFiles],
 ]);
 
+const wholeConfigSplitFileCache = new Map<string, string[]>();
+
+function listWholeConfigSplitFiles(shardName: string): string[] | undefined {
+  const listFiles = WHOLE_CONFIG_SPLIT_FILE_LISTERS.get(shardName);
+  if (!listFiles) {
+    return undefined;
+  }
+  // Test fixtures deliberately replace the CLI process inventory. The other
+  // owner inventories are immutable for the process lifetime and expensive to
+  // rediscover (git walks plus glob matching) on every candidate plan.
+  if (shardName === "agentic-cli-process") {
+    return listFiles();
+  }
+  let files = wholeConfigSplitFileCache.get(shardName);
+  if (!files) {
+    files = listFiles();
+    wholeConfigSplitFileCache.set(shardName, files);
+  }
+  return files;
+}
+
 type HostedToolingTailDonation = {
   parentShardName: string;
   file: string;
@@ -2630,8 +2651,7 @@ function splitOversizedCompactGroup(
   ) {
     return [{ group, seconds: measuredProfileSeconds }];
   }
-  const includePatterns =
-    group.includePatterns ?? WHOLE_CONFIG_SPLIT_FILE_LISTERS.get(group.shard_name)?.();
+  const includePatterns = group.includePatterns ?? listWholeConfigSplitFiles(group.shard_name);
   const buildModes = new Map(
     includePatterns?.map((file) => [file, resolveTestFilesBuildMode([file])]) ?? [],
   );
@@ -3048,7 +3068,7 @@ function createCompactNodeTestShardBundles(
       shard_name: shard.shardName,
     });
     const partitionFiles = group.pretestBuildMode
-      ? (group.includePatterns ?? WHOLE_CONFIG_SPLIT_FILE_LISTERS.get(group.shard_name)?.())
+      ? (group.includePatterns ?? listWholeConfigSplitFiles(group.shard_name))
       : undefined;
     const partition = partitionFiles
       ? partitionRuntimeTestFiles(group.configs, partitionFiles)

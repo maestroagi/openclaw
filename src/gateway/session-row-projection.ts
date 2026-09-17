@@ -479,18 +479,13 @@ export async function createSessionRowProjection(params: {
     const started = performance.now();
     prepare();
     const configuredAgentIds = new Set(listAgentIds(cfg));
-    for (const id of ids) {
-      const row = rows.get(id);
-      if (row) {
-        acquireEntry(row, readEntry(row));
-      }
-    }
     for (const [offset, id] of ids.entries()) {
       if (offset > 0 && performance.now() - started >= 12) {
         break;
       }
-      const row = rows.get(id),
+      const current = rows.get(id),
         revision = epoch;
+      const row = current && acquireEntry(current, readEntry(current));
       if (row && materialize(row, configuredAgentIds) && epoch === revision) {
         dirty.delete(id);
       }
