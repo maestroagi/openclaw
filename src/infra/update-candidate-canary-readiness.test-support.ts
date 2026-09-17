@@ -16,7 +16,7 @@ export function expectCanaryReadinessWarning(
   status: number,
 ) {
   expect(step).toMatchObject({
-    name: "candidate gateway canary",
+    name: "Checking Gateway startup",
     advisory: {
       kind: "candidate-runtime-unavailable",
       message: expect.stringContaining(`failed: HTTP ${status}`),
@@ -151,9 +151,7 @@ export function registerCanaryReadinessBudgetTests(
     const params = { root: root(), stateDir: root(), config: {}, env: {}, timeoutMs: 250 };
     const unavailable = await validateUpdateCandidateCanary(params);
     expect(unavailable.status).toBe("ok");
-    expect(unavailable.logTail.join("\n")).toContain(
-      "Candidate stopped by the validation deadline",
-    );
+    expect(unavailable.logTail.join("\n")).toContain("Update checks reached their time limit");
     expect(unavailable.steps.at(-1)?.advisory?.message).toContain("ECONNREFUSED");
     expect(unavailable.steps.at(-1)?.failureFacts).toEqual([
       {
@@ -176,9 +174,9 @@ export function registerCanaryReadinessBudgetTests(
   });
 
   it.each([
-    ["lint", "candidate migration rehearsal", "candidate doctor lint"],
-    ["startup", "candidate migration continuation", "candidate gateway canary"],
-    ["config", undefined, "candidate config validation"],
+    ["lint", "Checking data migrations", "Checking update health"],
+    ["startup", "Checking update recovery", "Checking Gateway startup"],
+    ["config", undefined, "Checking configuration"],
   ] as const)("attributes %s failures to their check", async (phase, previous, name) => {
     let now = 2_000_000;
     const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
@@ -234,7 +232,7 @@ export function registerCanaryReadinessBudgetTests(
     });
     expect(result).toMatchObject({ status: "error", phase: "runtime" });
     expect(result.steps).toEqual([
-      expect.objectContaining({ name: "candidate runtime", exitCode: 1 }),
+      expect.objectContaining({ name: "Checking update runtime", exitCode: 1 }),
     ]);
     expect(result.steps[0]?.stderrTail).toContain("ENOTDIR");
     expect(mocks.snapshot).not.toHaveBeenCalled();
