@@ -19,7 +19,7 @@ type CapturedRevocation = {
 };
 
 const owners = new WeakMap<object, RevocationOwner>();
-const captures = new WeakMap<CurrentCaller, CapturedRevocation>();
+const captures = new WeakMap<() => unknown, CapturedRevocation>();
 
 function getOwner(context: object): RevocationOwner {
   let owner = owners.get(context);
@@ -83,11 +83,23 @@ export function captureGatewayDeviceRevocation(
   return { isCurrent, release: releaseHold(capture) };
 }
 
+/** Carry the original capture through a composed commit guard without changing its contract. */
+export function bindGatewayDeviceRevocation<T extends () => unknown>(
+  guard: T,
+  isCurrent: CurrentCaller | undefined,
+): T {
+  const capture = isCurrent ? captures.get(isCurrent) : undefined;
+  if (capture) {
+    captures.set(guard, capture);
+  }
+  return guard;
+}
+
 /** Transfer a hold on the original captured state, never recapture a later device/session. */
 export function retainGatewayDeviceRevocation(
-  isCurrent: CurrentCaller | undefined,
+  guard: (() => unknown) | undefined,
 ): (() => void) | undefined {
-  const capture = isCurrent ? captures.get(isCurrent) : undefined;
+  const capture = guard ? captures.get(guard) : undefined;
   if (!capture) {
     return undefined;
   }
