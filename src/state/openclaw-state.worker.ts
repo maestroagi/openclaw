@@ -18,6 +18,7 @@ import {
 } from "../gateway/managed-image-record-store.kernel.js";
 import { readDeferredPluginMigrations } from "../infra/deferred-plugin-migrations.js";
 import { countFailedDeliveryQueueEntriesInDatabase } from "../infra/delivery-queue-sqlite.kernel.js";
+import { readDeviceAuthTokensFromDatabase } from "../infra/device-auth-store.kernel.js";
 import { executePromotionCommand } from "../infra/promotions-feed.worker.js";
 import {
   readApnsRegistrationFromDatabase,
@@ -31,6 +32,7 @@ import {
   readStableSqliteFileGeneration,
   sameSqliteFileGeneration,
 } from "../infra/sqlite-file-generation.js";
+import { assertTransactionUsable } from "../infra/sqlite-transaction.js";
 import type { SqliteWorkerBackend } from "../infra/sqlite-worker-contract.js";
 import { getSqliteWorkerStateContext } from "../infra/sqlite-worker-state-context.js";
 import {
@@ -57,6 +59,7 @@ import {
   listProjectRegistryInDatabase,
   removeProjectRegistryInDatabase,
   resolveProjectCloneRefreshOwnerInDatabase,
+  resolveProjectRegistryInDatabase,
   resolveRecordedProjectRootInDatabase,
 } from "../projects/project-registry.kernel.js";
 import {
@@ -295,6 +298,9 @@ function createSharedStateWorkerBackend(
         );
       }
       const database = open();
+      if (command.type === "deviceAuth.list") {
+        return readDeviceAuthTokensFromDatabase(database.db, command.input);
+      }
       if (command.type === "managedImages.read") {
         return readManagedImageRecordInDatabase(database.db, command.input.attachmentId);
       }
@@ -415,6 +421,10 @@ function createSharedStateWorkerBackend(
         ensureProjectRegistrySchema(writeOptions);
         return listProjectRegistryInDatabase(database.db);
       }
+      if (command.type === "projects.resolve") {
+        ensureProjectRegistrySchema(writeOptions);
+        return resolveProjectRegistryInDatabase(database.db, command.input.id);
+      }
       if (command.type === "projects.insert") {
         ensureProjectRegistrySchema(writeOptions);
         return runOpenClawStateWriteTransaction(
@@ -472,6 +482,14 @@ function createSharedStateWorkerBackend(
         }, writeOptions);
       }
       throw new Error("Unknown shared-state SQLite command");
+    },
+    assertSettled() {
+      if (nativeDatabase) {
+        assertTransactionUsable(nativeDatabase.db);
+        if (nativeDatabase.db.isOpen && nativeDatabase.db.isTransaction) {
+          throw new Error("Shared-state worker retained an unsettled transaction");
+        }
+      }
     },
     close() {
       closed = true;
