@@ -19,6 +19,7 @@ export const databaseWorkerExtensionTestFiles = [
   "extensions/buzz/src/buzz-bus.socket.test.ts",
   "extensions/buzz/src/gateway.cold-start-recovery.test.ts",
   "extensions/clickclack/src/discussions/service-state-persistence.test.ts",
+  "extensions/clickclack/src/sender-authority.test.ts",
   "extensions/codex/doctor-contract-api.test.ts",
   "extensions/codex/index.test.ts",
   "extensions/codex/src/app-server/dynamic-tool-build.test.ts",
