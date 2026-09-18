@@ -227,7 +227,7 @@ extensions/codex/src/migration/session-binding-sidecars.ts	5
 extensions/codex/src/migration/source-files.ts	1
 extensions/codex/src/session-catalog-listing.ts	3
 extensions/codex/src/session-catalog-node-continue.ts	1
-extensions/codex/src/session-catalog-parsing.ts	8
+extensions/codex/src/session-catalog-parsing.ts	7
 extensions/codex/src/session-catalog-transcript-item.ts	1
 extensions/codex/src/session-catalog.ts	2
 extensions/codex/src/session-cli.ts	1
@@ -1182,7 +1182,7 @@ extensions/telegram/src/channel-actions.ts	1
 extensions/telegram/src/client-fetch.ts	5
 extensions/telegram/src/doctor-contract.ts	3
 extensions/telegram/src/doctor.ts	12
-extensions/telegram/src/fetch.ts	13
+extensions/telegram/src/fetch.ts	12
 extensions/telegram/src/forum-service-message.ts	1
 extensions/telegram/src/group-config-helpers.ts	1
 extensions/telegram/src/group-history-window.ts	1
@@ -2187,7 +2187,6 @@ src/cli/claws-cli.runtime.ts	2
 src/cli/command-config-resolution.ts	2
 src/cli/command-format.ts	1
 src/cli/command-options.ts	1
-src/cli/command-secret-gateway.ts	1
 src/cli/command-secret-targets.ts	2
 src/cli/completion-runtime.ts	4
 src/cli/config-cli-input.ts	2
@@ -2642,8 +2641,7 @@ src/gateway/node-pairing-ssh-verify.ts	1
 src/gateway/node-registry-private.ts	1
 src/gateway/node-registry.ts	4
 src/gateway/openai-agent-run-usage.ts	1
-src/gateway/openai-http.ts	27
-src/gateway/openresponses-http.ts	3
+src/gateway/openai-http.ts	22
 src/gateway/operator-approval-snapshot.ts	4
 src/gateway/operator-approval-store.ts	8
 src/gateway/operator-scopes.ts	1

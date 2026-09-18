@@ -1085,7 +1085,7 @@ await import('./scripts/check-docker-e2e-boundaries.mts');`,
         name: "update-first-hop-compat",
         resources: ["docker", "npm", "service"],
         stateScenario: "upgrade-survivor",
-        timeoutMs: 1_500_000,
+        timeoutMs: 2_700_000,
         weight: 3,
       },
       {

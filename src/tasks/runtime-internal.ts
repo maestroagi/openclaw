@@ -60,7 +60,7 @@ export {
   listFreshTasksForOwnerKey,
   listTaskRecordPage,
   listTaskRecords,
-  listTaskRecordsUnsorted,
+  listTaskRecordsForOwnerTree,
   listTasksForFlowId,
   listTasksForOwnerKey,
   linkTaskToFlowById,

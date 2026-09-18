@@ -2652,7 +2652,7 @@ describe("per-pane chat presentation state", () => {
       renderChatInto(container, { onRequestUpdate });
       const composer = getComposerTextarea(container);
       const transientTarget = document.createElement("button");
-      const chat = container.querySelector<HTMLElement>(".card.chat");
+      const chat = container.querySelector<HTMLElement>(".chat");
       if (!chat) {
         throw new Error("expected chat section");
       }
@@ -6082,7 +6082,7 @@ describe("chat attachment picker", () => {
         Object.defineProperty(drop, "dataTransfer", {
           value: { files: [file], types: ["Files"] },
         });
-        requireElement(container, "section.card.chat", "chat drop target").dispatchEvent(drop);
+        requireElement(container, "section.chat", "chat drop target").dispatchEvent(drop);
       }
 
       expect(readers).toHaveLength(1);
@@ -6150,7 +6150,7 @@ describe("chat attachment picker", () => {
     Object.defineProperty(drop, "dataTransfer", {
       value: { files: [file], types: ["Files"] },
     });
-    requireElement(container, "section.card.chat", "session A drop target").dispatchEvent(drop);
+    requireElement(container, "section.chat", "session A drop target").dispatchEvent(drop);
 
     expect(readers).toHaveLength(1);
     expect(reads.pendingReads).toBe(1);
@@ -6167,8 +6167,8 @@ describe("chat attachment picker", () => {
   it("highlights only the chat pane receiving a file drag", () => {
     const first = renderChatView();
     const second = renderChatView();
-    const firstChat = requireElement(first, "section.card.chat", "first chat drop target");
-    const secondChat = requireElement(second, "section.card.chat", "second chat drop target");
+    const firstChat = requireElement(first, "section.chat", "first chat drop target");
+    const secondChat = requireElement(second, "section.chat", "second chat drop target");
 
     secondChat.dispatchEvent(createDragEvent("dragenter"));
 
@@ -6182,7 +6182,7 @@ describe("chat attachment picker", () => {
 
   it("keeps the file drop overlay stable across nested drag targets", () => {
     const container = renderChatView();
-    const chat = requireElement(container, "section.card.chat", "chat drop target");
+    const chat = requireElement(container, "section.chat", "chat drop target");
 
     chat.dispatchEvent(createDragEvent("dragenter"));
     chat.dispatchEvent(createDragEvent("dragenter"));
@@ -6198,7 +6198,7 @@ describe("chat attachment picker", () => {
 
   it("cancels non-file drops outside the composer textarea but keeps them native inside it", () => {
     const container = renderChatView();
-    const chat = requireElement(container, "section.card.chat", "chat drop target");
+    const chat = requireElement(container, "section.chat", "chat drop target");
     const textarea = getComposerTextarea(container);
 
     const outsideDrop = createDragEvent("drop", ["text/uri-list"]);
@@ -6313,7 +6313,7 @@ describe("chat attachment picker", () => {
     });
     const container = renderAttachmentHarness(() => attachments, onAttachmentsChange);
     const textarea = getComposerTextarea(container);
-    const chat = requireElement(container, "section.card.chat", "chat drop target");
+    const chat = requireElement(container, "section.chat", "chat drop target");
     const pastedText = `large paste ${"x".repeat(1100)}`;
     const droppedFile = new File(["%PDF-1.4\n"], "brief.pdf", { type: "application/pdf" });
     const dropEvent = new Event("drop", { bubbles: true, cancelable: true });
@@ -10126,7 +10126,7 @@ describe("right-click Reply", () => {
   it("dismisses an inline confirmation before opening the reply context menu", () => {
     const container = renderChatView({ onSetReply: vi.fn() });
     document.body.appendChild(container);
-    const section = container.querySelector<HTMLElement>(".card.chat")!;
+    const section = container.querySelector<HTMLElement>(".chat")!;
     const confirmationOwner = document.createElement("span");
     confirmationOwner.className = "chat-confirm-wrap";
     const confirmationTrigger = document.createElement("button");
@@ -10389,7 +10389,7 @@ describe("right-click Reply", () => {
     const onClearReply = vi.fn();
     const container = renderReply({ onClearReply });
 
-    const section = container.querySelector<HTMLElement>(".card.chat");
+    const section = container.querySelector<HTMLElement>(".chat");
     const evt = new KeyboardEvent("keydown", {
       key: "Escape",
       shiftKey,
@@ -10557,7 +10557,7 @@ describe("right-click Reply", () => {
     const onClearReply = vi.fn();
     const container = renderReply({ onClearReply });
 
-    const section = container.querySelector<HTMLElement>(".card.chat");
+    const section = container.querySelector<HTMLElement>(".chat");
     const evt = new KeyboardEvent("keydown", {
       key: "Escape",
       bubbles: true,
@@ -10583,7 +10583,7 @@ describe("right-click Reply", () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     vi.stubGlobal("navigator", { clipboard: { writeText } });
     const container = renderChatView({ onSetReply: vi.fn() });
-    const section = container.querySelector<HTMLElement>(".card.chat");
+    const section = container.querySelector<HTMLElement>(".chat");
     expect(section).not.toBeNull();
 
     const { bubble, group } = appendChatBubble(container, {

@@ -63,6 +63,33 @@ export function listTaskRecordsUnsorted(): TaskRecord[] {
   return snapshotTaskRecords(tasks);
 }
 
+/** Coarse tree candidates; callers still enforce agent identity and current control authority. */
+export function listTaskRecordsForOwnerTree(rootOwnerKeys: ReadonlySet<string>): TaskRecord[] {
+  ensureTaskRegistryReady();
+  const owners = new Set(rootOwnerKeys);
+  const selected = new Set<string>();
+  for (const owner of owners) {
+    const key = normalizeOptionalString(owner);
+    if (!key) {
+      continue;
+    }
+    for (const taskId of taskIdsByOwnerKey.get(key) ?? []) {
+      const task = tasks.get(taskId);
+      if (!task || task.scopeKind !== "session") {
+        continue;
+      }
+      selected.add(taskId);
+      if (task.childSessionKey) {
+        owners.add(task.childSessionKey);
+      }
+    }
+  }
+  // Preserve registry insertion order, including descendants inserted before their parents.
+  return [...tasks.values()]
+    .filter((task) => selected.has(task.taskId))
+    .map((task) => cloneTaskRecord(task));
+}
+
 function taskMatchesRelatedSession(
   task: TaskRecord,
   sessionKey: string | undefined,
@@ -355,8 +382,9 @@ export function listTasksForAgentId(agentId: string): TaskRecord[] {
   if (!lookup) {
     return [];
   }
-  return snapshotTaskRecords(tasks)
+  return [...tasks.values()]
     .filter((task) => task.agentId?.trim() === lookup)
+    .map((task) => cloneTaskRecord(task))
     .toSorted(compareTasksNewestFirst);
 }
 

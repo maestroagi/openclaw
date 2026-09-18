@@ -103,7 +103,24 @@ function visitPluginEnvelope(
 
 const PLUGIN_SIGNALS = {
   dryRun: (record: Record<string, unknown>, status: string | undefined) =>
-    record.dryRun === true || status === "dry_run",
+    record.dryRun === true || status === "dry_run" || normalizeStatus(record.status) === "dry_run",
+  failure: (record: Record<string, unknown>) =>
+    record.ok === false ||
+    record.success === false ||
+    record.isError === true ||
+    record.delivered === false ||
+    record.complete === false ||
+    Boolean(record.error) ||
+    [record.status, record.deliveryStatus].some((value) => {
+      const status = normalizeStatus(value);
+      return (
+        status === "error" ||
+        status === "incomplete" ||
+        status === "partial_failed" ||
+        status === "dry_run" ||
+        (status !== undefined && NON_DELIVERY_STATUSES.has(status))
+      );
+    }),
   partial: (record: Record<string, unknown>, status: string | undefined) =>
     record.sentBeforeError === true ||
     record.visibleReplySent === true ||

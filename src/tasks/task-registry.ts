@@ -32,6 +32,7 @@ export {
   listFreshTasksForOwnerKey,
   listTaskRecordPage,
   listTaskRecords,
+  listTaskRecordsForOwnerTree,
   listTaskRecordsUnsorted,
   listTasksForAgentId,
   listTasksForFlowId,
