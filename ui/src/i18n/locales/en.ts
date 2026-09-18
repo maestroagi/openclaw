@@ -674,6 +674,8 @@ export const en: TranslationMap & {
         "The update was not applied because gateway restarts are disabled. Enable restarts in config, then retry.",
       restartUnavailable:
         "This global install cannot be safely replaced while restarts are disabled and no supervisor is present.",
+      externalSupervisorUpdateRequired:
+        "This Gateway is managed by an external supervisor. Use your server or deployment's update workflow to update OpenClaw and restart the Gateway. The Control UI and `openclaw update` cannot update this installation. No package changes or Gateway restart were attempted.",
       restartUnhealthy:
         "The replacement process never became healthy. The previous process stayed up so you can recover.",
       restartRevisionMismatch:
@@ -3395,6 +3397,11 @@ export const en: TranslationMap & {
     noResults: "No results",
     searchingSessions: "Searching sessions…",
     searchingCommands: "Searching commands…",
+    clearSearch: "Clear search",
+    escapeKey: "esc",
+    searchNotices: "Search notices ({count})",
+    filterLabel: "Filter search results",
+    filters: { all: "All", sessions: "Sessions", messages: "Messages" },
     searchFailed: "Chat search failed — check the gateway logs and retry",
     modelSearchFailed: "Model search unavailable. Change your search to retry.",
     searchPartial: "Transcript search unavailable — showing chat titles and metadata",
@@ -3403,6 +3410,7 @@ export const en: TranslationMap & {
       search: "Search",
       navigation: "Navigation",
       skills: "Skills",
+      messages: "In messages",
     },
     items: {
       apps: "Apps",
@@ -4269,6 +4277,9 @@ export const en: TranslationMap & {
       disconnected: "Not connected. Try again after reconnecting.",
     },
     imageLightbox: {
+      previous: "Previous image",
+      next: "Next image",
+      position: "{current} / {total}",
       label: "Image preview: {title}",
       open: "Open image {title}",
       openOriginal: "Open in new tab",
@@ -4424,6 +4435,9 @@ export const en: TranslationMap & {
       expandPanel: "Expand {panel}",
       restore: "Restore split",
       useViewAsDefault: "Use current view as default",
+      currentViewIsDefault: "This is the default view",
+      defaultViewDescription:
+        "Used when anyone opens this dashboard. Personal layout choices still apply.",
       savingDefault: "Saving default…",
       defaultSaved: "Dashboard default saved for future opens.",
       defaultSaveFailed:
