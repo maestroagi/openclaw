@@ -1,5 +1,5 @@
 import { expect, it, vi, type Mock } from "vitest";
-import { runEmbeddedAgentEntry } from "./run-entry.js";
+import { runEmbeddedAgentEntry } from "./run-entry.test-harness.js";
 import {
   createDirectHarness,
   makeResult,

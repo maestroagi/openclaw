@@ -23,6 +23,7 @@ import {
   finalizeAcceptedContextEngineTurn,
   type ContextEngineTurnAttemptFacts,
 } from "../harness/context-engine-turn-attempt.js";
+import { resolveAgentHarnessPolicy } from "../harness/policy.js";
 import { ensureSelectedAgentHarnessPlugin } from "../harness/runtime-plugin.js";
 import { selectAgentHarness } from "../harness/selection.js";
 import type { ModelFallbackResultClassification } from "../model-fallback-attempt.js";
@@ -36,6 +37,7 @@ import type {
 import type { ModelManifestNormalizationContext } from "../model-ref-shared.js";
 import { settleFailedRequesterRun, settleRequesterRun } from "../requester-run-settlement.js";
 import { resolveAgentRunAbortLifecycleFields } from "../run-termination.js";
+import { resolveSessionPlacementRuntimeOverride } from "../session-placement-admission.js";
 import {
   didEmbeddedCyberFailoverTargetCommitWork,
   EMBEDDED_CYBER_FAILOVER_TRIGGER_CODE,
@@ -66,6 +68,7 @@ import type { EmbeddedAgentRunResult } from "./types.js";
 export type { EmbeddedAgentRunEntryTerminal } from "./run-entry-terminal.js";
 
 type RunEntryCandidateOptions = {
+  agentHarnessRuntimeOverride: string | undefined;
   assistantErrorTranscript: AssistantErrorTranscript;
   authProfileFailurePolicy?: AuthProfileFailurePolicy;
   classifyResult: (result: EmbeddedAgentRunResult) => ModelFallbackResultClassification;
@@ -135,6 +138,7 @@ type EmbeddedAgentRunEntryParams<T extends EmbeddedAgentRunResult> = {
     resolveContextEngineHost?: (
       provider: string,
       model: string,
+      agentHarnessRuntimeOverride: string | undefined,
     ) => ContextEngineHostSupport | undefined;
   };
   behavior: RunEntryBehavior;
@@ -172,6 +176,22 @@ async function runEmbeddedAgentEntryInternal<T extends EmbeddedAgentRunResult>(
 ): Promise<EmbeddedAgentRunEntryResult<T>> {
   const lifecycleGeneration = captureAgentRunLifecycleGeneration(params.identity.runId);
   const runContext = getAgentRunContext(params.identity.runId);
+  const placementRuntime = resolveSessionPlacementRuntimeOverride(params.identity);
+  const resolveRuntimeOverride = (provider: string, model: string) => {
+    const requestedRuntime = params.harness.resolveRuntimeOverride(provider, model);
+    if (requestedRuntime || !placementRuntime) {
+      return requestedRuntime;
+    }
+    const policy = resolveAgentHarnessPolicy({
+      config: params.selection.cfg,
+      provider,
+      modelId: model,
+      agentId: params.identity.agentId,
+      sessionKey: params.harness.sessionKey,
+    });
+    // Explicit runtime choices still reach placement's compatibility check.
+    return policy.runtimeSource === "implicit" ? placementRuntime : undefined;
+  };
   const clearObservedModel = () => {
     const event = {
       ...params.identity,
@@ -265,11 +285,11 @@ async function runEmbeddedAgentEntryInternal<T extends EmbeddedAgentRunResult>(
         ...selection,
         ...params.identity,
         abortSignal: params.abortSignal,
-        resolveAgentHarnessRuntimeOverride: params.harness.resolveRuntimeOverride,
+        resolveAgentHarnessRuntimeOverride: resolveRuntimeOverride,
         prepareCandidateChain: async (candidates) => {
           for (const candidate of candidates) {
             try {
-              const agentHarnessRuntimeOverride = params.harness.resolveRuntimeOverride(
+              const agentHarnessRuntimeOverride = resolveRuntimeOverride(
                 candidate.provider,
                 candidate.model,
               );
@@ -281,6 +301,7 @@ async function runEmbeddedAgentEntryInternal<T extends EmbeddedAgentRunResult>(
               const resolvedHost = params.harness.resolveContextEngineHost?.(
                 candidate.provider,
                 candidate.model,
+                agentHarnessRuntimeOverride,
               );
               const host =
                 resolvedHost ??
@@ -410,6 +431,7 @@ async function runEmbeddedAgentEntryInternal<T extends EmbeddedAgentRunResult>(
           };
           try {
             const result = await params.runCandidate(provider, model, {
+              agentHarnessRuntimeOverride: resolveRuntimeOverride(provider, model),
               assistantErrorTranscript,
               // The original OpenAI refusal proves this turn's credential already
               // reached the provider. Keep a target-only entitlement rejection from
@@ -671,6 +693,7 @@ async function runEmbeddedAgentEntryInternal<T extends EmbeddedAgentRunResult>(
       if (fallbackResult.result.turnAttempt) {
         if (acceptedTerminal) {
           await finalizeAcceptedContextEngineTurn({
+            config: params.selection.cfg,
             facts: fallbackResult.result.turnAttempt,
             lease: contextEngineLogicalTurnLease,
           });

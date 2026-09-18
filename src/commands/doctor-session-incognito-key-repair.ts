@@ -192,11 +192,25 @@ function applyReservedIncognitoKeyRenameColumns(
   // Board widget foreign keys are immediate; defer them so every key-bearing row renames atomically.
   database.db.exec("PRAGMA defer_foreign_keys = ON;"); // sqlite-allow-raw -- transaction-local FK deferral.
   for (const rename of renames) {
+    const affected = executeSqliteQuerySync(
+      database.db,
+      getNodeSqliteKysely<OpenClawAgentKyselyDatabase>(database.db)
+        .selectFrom("session_nodes")
+        .select("session_key")
+        .where((eb) =>
+          eb.or([
+            eb("session_key", "=", rename.from),
+            eb("parent_session_key", "=", rename.from),
+            eb("spawned_by", "=", rename.from),
+            eb("fork_source_session_key", "=", rename.from),
+          ]),
+        ),
+    ).rows;
     updateSessionKeyColumns(database.db, rename);
-    publishSessionEntryCacheInvalidation(database, { sessionKey: rename.to });
+    for (const sessionKey of new Set([rename.to, ...affected.map((row) => row.session_key)])) {
+      publishSessionEntryCacheInvalidation(database, { sessionKey });
+    }
   }
-  // Key and lineage columns reshape the cached map even when no entry JSON needs rewriting.
-  publishSessionEntryCacheInvalidation(database);
 }
 
 function legacyIncognitoSessionKey(sessionKey: string): string {

@@ -47,6 +47,7 @@ type SessionPlacementSandboxParams = {
 };
 
 export type SessionPlacementAdmissionProvider = {
+  resolveRuntimeOverride?: (identity: Omit<LocalTurnPlacementClaim, "runId">) => string | undefined;
   assertCompactionSuccessorAllowed: (params: {
     currentTarget: SessionTranscriptRuntimeTarget;
     successorSessionId: string;
@@ -85,6 +86,13 @@ export function installSessionPlacementAdmissionProvider(
       state.provider = undefined;
     }
   };
+}
+
+/** Carries placement-owned runtime selection into candidate preparation and execution. */
+export function resolveSessionPlacementRuntimeOverride(
+  identity: Omit<LocalTurnPlacementClaim, "runId">,
+): string | undefined {
+  return state.provider?.resolveRuntimeOverride?.(identity);
 }
 
 /** Captures the exact placement owner, including standalone absence, before awaited work. */

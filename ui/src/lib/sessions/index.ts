@@ -247,7 +247,7 @@ export function createSessionCapability(
         if (source) {
           mutations.observePendingFields(
             source.row,
-            source.select(row, ["pinned", "pinnedAt", "unread"]),
+            source.select(row, ["pinned", "pinnedAt", "unread", "category"]),
             agentId,
           );
         }

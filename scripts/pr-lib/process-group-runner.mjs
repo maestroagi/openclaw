@@ -1,7 +1,7 @@
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { constants, tmpdir } from "node:os";
-import { basename, join, resolve } from "node:path";
+import { basename, delimiter, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const SIGNAL_GRACE_MS = 5000;
@@ -42,7 +42,7 @@ if (process.platform === "darwin") {
       lockScript,
       String(process.pid),
     ],
-    { encoding: "utf8", timeout: 5000, maxBuffer: 4096, stdio: ["ignore", "pipe", "pipe"] },
+    { encoding: "utf8", timeout: 15_000, maxBuffer: 4096, stdio: ["ignore", "pipe", "pipe"] },
   );
   if (identity.status !== 0 || !identity.stdout?.trim()) {
     console.error(
@@ -68,6 +68,31 @@ process.once("exit", () => {
 });
 // merge-run can delete this revision's script directory before lock release.
 writeFileSync(lockScriptSnapshot, readFileSync(lockScript));
+writeFileSync(
+  join(lockSnapshotDir, "host-tools.sh"),
+  readFileSync(new URL("./host-tools.sh", import.meta.url)),
+);
+// GC may delete the linked wrapper before reading the next PR. Retain this
+// stdlib-only adapter under the same supervisor-owned cleanup lifetime.
+for (const relative of [
+  "pr-lib/github.sh",
+  "pr-lib/github.mjs",
+  "lib/plain-gh.mjs",
+  "lib/direct-run.mjs",
+]) {
+  const target = join(lockSnapshotDir, "scripts", relative);
+  mkdirSync(dirname(target), { recursive: true });
+  writeFileSync(target, readFileSync(new URL(`../${relative}`, import.meta.url)));
+}
+// Imported Git owners and package-manager children use PATH. Keep the selected
+// binary available even after merge cleanup removes the wrapper's worktree.
+const selectedGit = process.env.OPENCLAW_PR_GIT || process.env.GIT_EXEC;
+const childPath = selectedGit
+  ? `${lockSnapshotDir}${delimiter}${process.env.PATH ?? ""}`
+  : process.env.PATH;
+if (selectedGit) {
+  symlinkSync(selectedGit, join(lockSnapshotDir, "git"));
+}
 if (process.platform === "darwin") {
   // Keep the complete stdlib-only provider beside the release shell. No app
   // node_modules, dynamic package loader or deleted source path is retained.
@@ -257,10 +282,12 @@ const child = spawn(script, args, {
   detached: true,
   env: {
     ...process.env,
+    PATH: childPath,
     GIT_CONFIG_PARAMETERS: gitConfigParameters,
     OPENCLAW_PR_DEDICATED_PROCESS_GROUP: "1",
     OPENCLAW_PR_LOCK_NOTIFY_FD: "3",
     OPENCLAW_PR_LOCK_SUPERVISOR_PID: String(process.pid),
+    OPENCLAW_PR_GITHUB_SNAPSHOT_ROOT: lockSnapshotDir,
   },
   stdio: ["inherit", "inherit", "inherit", "pipe"],
 });
@@ -324,10 +351,14 @@ function consumeNotificationLine(line) {
     return;
   }
 
-  const owner = spawnSync("git", ["-C", repoRoot, "cat-file", "blob", ownerOid], {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "ignore"],
-  });
+  const owner = spawnSync(
+    process.env.OPENCLAW_PR_GIT || process.env.GIT_EXEC || "git",
+    ["-C", repoRoot, "cat-file", "blob", ownerOid],
+    {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    },
+  );
   const ownerMatch =
     owner.status === 0
       ? /^version=3\nstate=active\npgid=([1-9][0-9]*)\nsupervisor_pid=([1-9][0-9]*)\nsupervisor_birth=[^\t\n]+\ntoken=[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\n?$/u.exec(
