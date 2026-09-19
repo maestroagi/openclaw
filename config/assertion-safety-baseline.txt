@@ -2495,7 +2495,6 @@ src/config/sessions/session-reset-boundary-event.ts	5
 src/config/sessions/session-snapshot-merge.ts	26
 src/config/sessions/session-sqlite-target.ts	3
 src/config/sessions/session-store-config.ts	2
-src/config/sessions/session-transcript-projection-rebuild.ts	6
 src/config/sessions/session-transcript-reconcile.worker.ts	1
 src/config/sessions/skill-prompt-blobs.ts	5
 src/config/sessions/store-entry-shape.ts	2
@@ -3076,7 +3075,7 @@ src/node-host/invoke-agent-cli-claude-params.ts	4
 src/node-host/invoke-agent-cli-claude.ts	1
 src/node-host/invoke-file-commands.ts	1
 src/node-host/invoke-payload.ts	5
-src/node-host/invoke.ts	4
+src/node-host/invoke.ts	3
 src/node-host/mcp.ts	3
 src/node-host/node-worker-bundle-installer.ts	1
 src/node-host/node-worker-transfer-client.ts	1

@@ -109,7 +109,7 @@ export function prepareSessionEntryPresenceRead(input: SessionAccessScope): Read
     sessionKey: resolved.sessionKey,
     storePath,
     read: incognito
-      ? async () => loadSessionEntryReadOnlyInScope(scope) !== undefined
+      ? async () => loadSessionEntryReadOnlyInScope({ ...scope, projection: "list" }) !== undefined
       : async () =>
           await withSessionHistoryWorkerDatabase(
             options,
