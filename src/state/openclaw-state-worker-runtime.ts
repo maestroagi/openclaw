@@ -32,16 +32,21 @@ import {
   reserveFleetCellInDatabase,
   updateFleetCellImageInDatabase,
 } from "../fleet/registry.kernel.js";
+import { readPendingRepositoryGitHubPublicationInDatabase } from "../gateway/github-repository-publication.kernel.js";
 import {
   readManagedImageRecordInDatabase,
   listManagedImageRecordEntriesInDatabase,
   listManagedImageOriginalMediaIdsInDatabase,
 } from "../gateway/managed-image-record-store.kernel.js";
 import { readDeferredPluginMigrations } from "../infra/deferred-plugin-migrations.js";
-import { countFailedDeliveryQueueEntriesInDatabase } from "../infra/delivery-queue-sqlite.kernel.js";
+import {
+  countFailedDeliveryQueueEntriesInDatabase,
+  pruneExpiredDeliveryQueueTombstonesInDatabase,
+} from "../infra/delivery-queue-sqlite.kernel.js";
 import * as deviceAuth from "../infra/device-auth-store.kernel.js";
 import { executeDeliveryQueueAck } from "../infra/outbound/delivery-queue-ack.worker.js";
 import { executeDeliveryQueueEnqueue } from "../infra/outbound/delivery-queue-enqueue.worker.js";
+import { loadDeliveryQueueMediaRetentionSnapshotInDatabase } from "../infra/outbound/delivery-queue-media-staging.kernel.js";
 import { executePendingDeliveryFailure } from "../infra/outbound/delivery-queue-pending-failure.worker.js";
 import { executePromotionCommand } from "../infra/promotions-feed.worker.js";
 import {
@@ -377,6 +382,9 @@ export function executeSharedStateCommand(
       : read(open().db);
   }
   const database = open();
+  if (command.type === "githubRepository.personalPending") {
+    return readPendingRepositoryGitHubPublicationInDatabase(database.db, command.input);
+  }
   if (command.type === "deviceAuth.list") {
     return deviceAuth.readDeviceAuthTokensFromDatabase(database.db, command.input);
   }
@@ -451,6 +459,12 @@ export function executeSharedStateCommand(
   }
   if (command.type === "deliveryQueue.countFailed") {
     return countFailedDeliveryQueueEntriesInDatabase(database);
+  }
+  if (command.type === "deliveryQueue.pruneTombstones") {
+    return pruneExpiredDeliveryQueueTombstonesInDatabase(database);
+  }
+  if (command.type === "deliveryQueue.mediaRetentionSnapshot") {
+    return loadDeliveryQueueMediaRetentionSnapshotInDatabase(database, command.input);
   }
   if (
     command.type === "sessionDelivery.enqueue" ||
