@@ -8,6 +8,8 @@ import {
   PAIRING_SCOPE,
   QUESTIONS_SCOPE,
   READ_SCOPE,
+  SESSION_READ_SCOPE,
+  SESSION_WRITE_SCOPE,
   TALK_SCOPE,
   TALK_SECRETS_SCOPE,
   WRITE_SCOPE,
@@ -28,6 +30,8 @@ const OperatorScopeSchema = z.enum([
   ADMIN_SCOPE,
   READ_SCOPE,
   WRITE_SCOPE,
+  SESSION_READ_SCOPE,
+  SESSION_WRITE_SCOPE,
   APPROVALS_SCOPE,
   QUESTIONS_SCOPE,
   PAIRING_SCOPE,
@@ -50,6 +54,8 @@ const GatewayOperatorRoleDefinitionSchema = z.strictObject({
   ]),
   /** Ceiling applied to the authenticated profile's granted operator scopes. */
   scopes: z.array(OperatorScopeSchema).transform((scopes) => uniqueValues(scopes)),
+  /** Required access-policy plugin; availability is checked at admission, not config parsing. */
+  accessPolicyPlugin: z.string().trim().min(1).max(128).optional(),
 });
 const GatewayOperatorRoleNameSchema = z.string().trim().min(1).max(128);
 const GATEWAY_HTTP_LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
