@@ -3303,10 +3303,10 @@ jobs:
               ;;
             contracts-plugins-ci-routing)
               pnpm test:contracts:plugins
-              pnpm test src/commands/status.scan-result.test.ts src/scripts/ci-changed-scope*.test.ts test/scripts/changed-lanes.test.ts test/scripts/changed-path-facts.test.ts test/scripts/ci-changed-node-test-plan.test.ts test/scripts/ci-docker-seed-plan.test.ts test/scripts/ci-run-node-test-shard.test.ts test/scripts/ci-workflow-guards.test.ts test/scripts/run-vitest.test.ts test/scripts/test-projects.test.ts
+              pnpm test src/commands/status.scan-result.test.ts src/scripts/ci-changed-scope*.test.ts test/scripts/changed-lanes.test.ts test/scripts/changed-path-facts.test.ts test/scripts/ci-changed-node-test-plan.test.ts test/scripts/ci-docker-seed-plan.test.ts test/scripts/ci-run-node-test-shard.test.ts test/scripts/ci-workflow-guards.test.ts test/scripts/ci-workflow-planning.test.ts test/scripts/ci-workflow-evidence.test.ts test/scripts/run-vitest.test.ts test/scripts/test-projects.test.ts
               ;;
             ci-routing)
-              pnpm test src/commands/status.scan-result.test.ts src/scripts/ci-changed-scope*.test.ts test/scripts/changed-lanes.test.ts test/scripts/changed-path-facts.test.ts test/scripts/ci-changed-node-test-plan.test.ts test/scripts/ci-docker-seed-plan.test.ts test/scripts/ci-run-node-test-shard.test.ts test/scripts/ci-workflow-guards.test.ts test/scripts/run-vitest.test.ts test/scripts/test-projects.test.ts
+              pnpm test src/commands/status.scan-result.test.ts src/scripts/ci-changed-scope*.test.ts test/scripts/changed-lanes.test.ts test/scripts/changed-path-facts.test.ts test/scripts/ci-changed-node-test-plan.test.ts test/scripts/ci-docker-seed-plan.test.ts test/scripts/ci-run-node-test-shard.test.ts test/scripts/ci-workflow-guards.test.ts test/scripts/ci-workflow-planning.test.ts test/scripts/ci-workflow-evidence.test.ts test/scripts/run-vitest.test.ts test/scripts/test-projects.test.ts
               ;;
             coercion-helpers)
               pnpm check:coercion-helpers
@@ -3370,7 +3370,7 @@ jobs:
         # Main owns full coverage. PRs need an exact-tree coverage receipt from
         # their admitted Node plan; release gates retain their separate merge tree.
         # State cases mutate process-global config and database state. Independent
-        # files let Vitest distribute the complete matrix across four workers.
+        # files let Vitest distribute the complete matrix across up to four workers.
         if: matrix.task == 'baseline-ratchets' && !(github.repository == 'openclaw/openclaw' && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.preflight.outputs.run_check == 'true') && !(github.repository == 'openclaw/openclaw' && github.event_name == 'pull_request' && needs.preflight.outputs.startup_corpus_node_revision && needs.preflight.outputs.startup_corpus_node_revision == needs.preflight.outputs.checkout_revision)
         run: |
           set -euo pipefail
@@ -3385,7 +3385,9 @@ jobs:
             fi
           }
           if [[ -f test/vitest/vitest.startup-corpus-paths.mjs ]]; then
-            run_startup_corpus --maxWorkers=4 src/config/config-startup-corpus.test.ts \
+            # Runner labels can advertise more CPUs than this process can use.
+            startup_workers="$(node -p 'Math.min(4, require("node:os").availableParallelism())')"
+            run_startup_corpus --maxWorkers="$startup_workers" src/config/config-startup-corpus.test.ts \
               src/config/state-startup-corpus*.test.ts
             exit 0
           elif [[ "${{ needs.preflight.outputs.frozen_target }}" != "true" ]]; then
