@@ -36,6 +36,10 @@ import type {
   SessionModelContextLimits,
 } from "./session-accessor.sqlite-model-context.js";
 import type { loadTranscriptReadSnapshotSync } from "./session-accessor.sqlite-read.js";
+import type {
+  SessionEntryReplacementSelection,
+  SessionEntryReplacementState,
+} from "./session-accessor.sqlite-replacement-read.js";
 import type { ResolvedTranscriptReadScope } from "./session-accessor.sqlite-scope.js";
 import type { SessionTranscriptWatermark } from "./session-accessor.sqlite-transcript-watermark-read.js";
 import type {
@@ -46,6 +50,7 @@ import type {
   SessionTranscriptRuntimeTarget,
 } from "./session-accessor.types.js";
 import type { CanonicalSessionReaderContinuation } from "./session-canonical-key.js";
+import type { SessionColdArchive } from "./session-cold-storage-state.js";
 import type {
   SessionHistoryWorkerRequest,
   SessionHistoryWorkerResult,
@@ -205,6 +210,18 @@ type SessionTranscriptCurrentTurnEntryWorkerInput = Omit<
 > &
   SessionTranscriptCurrentTurnEntryRequest & { kind: "current-turn-entry" };
 
+export type SessionColdMetadataWorkerInput = {
+  kind: "cold-metadata";
+  database: { agentId: string; path: string };
+  sessionId: string;
+  env: NodeJS.ProcessEnv;
+};
+
+export type SessionColdMetadataWorkerResult = {
+  kind: "cold-metadata";
+  archive: Omit<SessionColdArchive, "archive_blob"> | undefined;
+};
+
 export type SessionRowPresenceWorkerInput = {
   kind: "session-row-presence";
   database: { agentId: string; path: string };
@@ -257,9 +274,10 @@ export type SessionExactEntriesWorkerInput = {
   env: NodeJS.ProcessEnv;
   sessionKeys: readonly string[];
   lifecycleSessionKey?: string;
-  projection?: "full" | "backing" | "sharing";
+  projection?: "full" | "backing" | "sharing" | "replacement";
   includeMembers?: boolean;
   includeAuthorization?: boolean;
+  replacementSelection?: SessionEntryReplacementSelection;
   continuation?: CanonicalSessionReaderContinuation;
 };
 
@@ -274,6 +292,7 @@ export type SessionExactEntriesWorkerResult = {
     birthtime?: string;
   };
   members?: Record<string, SessionMember[]>;
+  replacement?: SessionEntryReplacementState & { databaseIdentity: string };
   sharing?: {
     source: { agentId: string; path: string };
     databaseIdentity: string;
@@ -330,6 +349,7 @@ export type SessionBranchSummaryWorkerInput = {
 };
 
 export type SessionHistoryWorkerInput =
+  | SessionColdMetadataWorkerInput
   | SessionTranscriptHydrationWorkerInput
   | SessionTranscriptCurrentTurnEntryWorkerInput
   | SessionTranscriptHistoryWorkerInput
@@ -364,6 +384,7 @@ export type SessionHistoryWorkerPreparedInput = {
 
 export type SessionTranscriptWorkerValues = {
   "transcript-search": SessionTranscriptSearchWorkerResult;
+  "cold-metadata": SessionColdMetadataWorkerResult;
   "transcript-hydration": SessionTranscriptHydrationWorkerResult;
   "current-turn-entry": SessionTranscriptCurrentTurnEntryRead;
   "sqlite-target": { target: ResolvedSqliteStoreTarget };
@@ -406,6 +427,9 @@ export type SessionTranscriptWorkerReply<Kind extends keyof SessionTranscriptWor
     };
 
 export type SessionHistoryWorkerDatabase = {
+  readColdMetadata: (
+    input: Omit<SessionColdMetadataWorkerInput, "kind" | "database">,
+  ) => Promise<SessionColdMetadataWorkerResult>;
   searchTranscripts: (
     params: SessionTranscriptSearchWorkerInput["params"],
   ) => Promise<SessionTranscriptSearchWorkerResult["result"]>;

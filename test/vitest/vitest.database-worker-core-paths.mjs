@@ -1,5 +1,7 @@
 // These consumers need the host-owned SQLite broker, which runs in forked processes.
 export const databaseWorkerCoreTestFiles = [
+  "src/cli/daemon-cli/restart-health-client.test.ts",
+  "src/acp/control-plane/manager.test.ts",
   "src/config/sessions/disk-budget.physical-usage.test.ts",
   "src/agents/agent-bundle-mcp-requester-connect.read.test.ts",
   "src/agents/mcp-oauth-provider.read.test.ts",
@@ -69,6 +71,7 @@ export const databaseWorkerCoreTestFiles = [
   "src/agents/subagents/announce/subagent-announce.requester-settle-wake.test.ts",
   "src/agents/subagents/registry/subagent-control.accounting.test.ts",
   "src/agents/subagents/registry/subagent-registry.persistence.test.ts",
+  "src/agents/subagents/registry/subagent-registry.session-failure.test.ts",
   "src/agents/subagents/spawn/subagent-spawn.test.ts",
   "src/agents/cli-runner/prepare.test.ts",
   "src/agents/cli-runner/prepare.durable-context.test.ts",
@@ -102,6 +105,7 @@ export const databaseWorkerCoreTestFiles = [
   "src/agents/sessions/session-manager-hydration-stream.test.ts",
   "src/channels/join-intro/report-channel-room-join.test.ts",
   "src/plugin-sdk/ingress-effect-once.test.ts",
+  "src/plugin-sdk/session-transcript-runtime.test.ts",
   "src/plugin-sdk/persistent-dedupe.worker.test.ts",
   "src/acp/runtime/session-meta.legacy-migration.test.ts",
   "src/agents/mcp-oauth-refresh-issuer.test.ts",
@@ -227,6 +231,7 @@ export const databaseWorkerCoreTestFiles = [
   "src/audit/audit-event-store.message.test.ts",
   "src/audit/audit-event-writer.test.ts",
   "src/audit/audit-event-writer.worker.test.ts",
+  "src/audit/execution-decision-cursors.test.ts",
   "src/audit/execution-decision-work.test.ts",
   "src/audit/execution-identity-context.test.ts",
   "src/agents/tools/sessions-access.test.ts",
@@ -350,6 +355,7 @@ export const databaseWorkerCoreTestFiles = [
   "src/state/openclaw-agent-execution.integrity.test.ts",
   "src/state/openclaw-agent-execution-cleanup.test.ts",
   "src/sessions/session-state-events.test.ts",
+  "src/sessions/session-created.test.ts",
   "src/sessions/session-upstream-links.test.ts",
   "src/sessions/session-upstream-monitor.test.ts",
   "test/canonical-descendant.integration.test.ts",
@@ -401,6 +407,7 @@ export const databaseWorkerCoreTestFiles = [
   "src/tasks/task-registry-flow-sync.test.ts",
   "src/tasks/task-registry-live-flow.worker.test.ts",
   "src/tasks/task-registry.restore-ownership.test.ts",
+  "src/tasks/task-run-owner.test.ts",
   "src/agents/agent-harness-completion-delivery.test.ts",
   "src/agents/openclaw-tools.subagents.scope.test.ts",
   "src/agents/media-generation-task-status.cold.test.ts",
@@ -596,6 +603,7 @@ export const databaseWorkerCoreTestFiles = [
   "src/agents/tools/cron-tool.output-contract.test.ts",
   "src/plugins/services.cron.test.ts",
   "test/plugins/memory-dreaming-cron.test.ts",
+  "test/plugins/workboard-automation-authority.test.ts",
   "src/state/creator-namespace-migration.test.ts",
   "src/agents/auth-profiles/store-owner-publication.test.ts",
   "src/agents/auth-profiles/usage.inherited-owner.test.ts",
@@ -627,6 +635,7 @@ const databaseWorkerCoreTestFileSet = new Set(databaseWorkerCoreTestFiles);
 
 // Preserve watch admission for consumers previously inferred into fast lanes.
 export const databaseWorkerCoreFormerFastKinds = new Map([
+  ["src/agents/subagents/registry/subagent-registry.session-failure.test.ts", "unitFast"],
   ["src/agents/mcp-oauth-store.test.ts", "unitFast"],
   ["src/node-host/invoke-system-run.test.ts", "unitFastIsolated"],
   ["src/state/openclaw-agent-execution-cleanup.test.ts", "unitFastIsolated"],
