@@ -49,13 +49,15 @@ retain immediate fresh ownership verification, including their transaction and
 commit grants. Schemas, retained data, and update behavior are unchanged.
 
 Legacy session-entry patches yield while waiting for a competing SQLite writer.
-Each native attempt uses a zero busy timeout through commit; only a failed
-`BEGIN IMMEDIATE` can retry, within the connection's existing admission budget.
+Each `BEGIN IMMEDIATE` attempt uses a zero busy timeout and can retry within the
+connection's existing admission budget. Once admitted, the synchronous callback
+and commit retain the connection's original busy timeout: rollback-journal
+readers can temporarily block commit even after writer admission succeeds.
 The session writer queue retains FIFO order, the captured connection stays
 retained, and each attempt rechecks its owner. The admitted transaction revalidates
 the prepared rows and caller authority before mutation. Its callback and committed
 publications never replay. Entry reads and transaction bodies still execute on
-the calling thread; this bounded cutover removes native lock waits without
+the calling thread; this bounded cutover removes native writer-admission waits without
 changing schemas, durability, or update behavior.
 
 Channel setup awaits a fresh policy read after the agent-selection prompt.
@@ -607,6 +609,23 @@ completion delivery; stored history does not supply live execution authority.
 The existing shared schema is unchanged. Cron retains its own history operations
 on the existing storage rows; removed Task projections do not regain execution
 or delivery authority.
+
+Requester wake transitions and settlement use that same worker transaction and
+registry publication owner. Timers and retries retain the original database, run,
+and wake generation through acknowledgement. A known commit keeps its existing
+wake episode until current canonical facts can be published; reconciliation reads
+those facts without repeating the data write. Outcome settlement also retains any
+committed system-event intent until the existing queue owner can finish scheduling
+it. Pending intent payloads must still match; current terminal queue receipts are
+consumed without another dispatch. An absent or replaced intent leaves the episode
+unsettled instead of recreating delivery, including when existing retention has
+removed a terminal receipt.
+
+Uncertain outcomes stay fenced. Definite failures retain the existing delivery
+failure and replay rules, and outcome-bearing settlement publishes its new
+delivery receipt. Initial requester-yield creation and requester/session reads
+remain separate worker migration work. Schema, retention, and update behavior
+are unchanged.
 
 Concurrent first opens wait for owner-record publication and a transient schema
 initializer within one database busy timeout. Incomplete records never grant
