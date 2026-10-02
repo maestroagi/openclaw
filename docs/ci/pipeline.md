@@ -190,11 +190,14 @@ test-project planner to find their owners. The runtime owner admits only qualifi
 configs, exact files, and partitions; ambiguous selections retain Node. No tests
 are removed from the selected inventory.
 
-Worktree removal recovery (`src/agents/worktrees/service.removal-recovery.test.ts`)
-also supports Bun when it is the entire exact selection in `agents-support`.
-Mixed and broad PR selections retain their original Node invocation. Dual-runtime
-validation keeps that complete Node selection and adds only the qualified recovery
-file when the original include patterns select it.
+Worktree removal recovery (`src/agents/worktrees/service.removal-recovery.test.ts`),
+plugin CommonJS interoperability (`src/plugins/plugin-module-generation.interop.test.ts`),
+oxlint configuration (`test/scripts/oxlint-config.test.ts`), and update timeout
+diagnostics (`test/scripts/upgrade-survivor-timeout-diagnostics.test.ts`) also
+support Bun when qualified files make up the entire exact selection in their
+existing scoped owner. Mixed and broad PR selections retain their original Node
+invocation. Dual-runtime validation keeps that complete Node selection and adds
+only the qualified files selected by the original include patterns.
 
 The gateway-client leaf config also supports Bun. Its existing ordered
 gateway-core/gateway-client stripes run the core portion on Node and the client
@@ -267,12 +270,16 @@ functions remain valid after the original cache buffer is garbage-collected.
 It also keeps allocator ownership during zero-time event-loop polls, while
 retaining the idle handoff for polls that can block.
 
-The pinned build pairs Bun `fc90aa4d9c5dac37f7a63a04f8bd2e25df930c60` with WebKit
+The pinned build pairs Bun `b3684189fe1f3592dfc5f9774060b405a243d9a6` with WebKit
 `fb1167ebf2cb9edc1f6771a2c11771b024693ae0` in prerelease
-`openclaw-v1.4.3-20261001-fc90aa4d9c-webkit-fb1167ebf2`.
-WebKit is unchanged from the previous `17c9ecf9eb` pin. The build adds fixes for
-compile-cache idle wakeups, `v8.queryObjects`, idempotent native readable
-`ref`/`unref`, the default `module-sync` condition, and `process.once` wrapper identity.
+`openclaw-v1.4.3-20261002-b3684189fe-webkit-fb1167ebf2`.
+WebKit is unchanged from the previous `fc90aa4d9c` pin. The build fixes post-script
+`--` argument separators, hidden CommonJS data exports, and truncated large writes
+through native standard I/O pipes. It also switches Darwin file watches to kqueue;
+that change does not affect Linux CI.
+It retains fixes for compile-cache idle wakeups, `v8.queryObjects`, idempotent
+native readable `ref`/`unref`, the default `module-sync` condition, and
+`process.once` wrapper identity.
 It retains the upstream Bun sync through `4b02e1031d` and fixes for thread-safe
 function ownership, shared-environment deletion, and a module-key crash.
 The shared provider-catalog retention test is qualified on this build and runs
@@ -752,7 +759,7 @@ automation account, and SecOps-owned-path cases before declaring enforcement act
 ## Fail-fast order
 
 1. `preflight` decides which lanes exist at all. The `docs-scope` and `changed-scope` logic are steps inside this job, not standalone jobs. Canonical `main` starts immediately in one of two parity slots; each slot admits one complete run and coalesces later pushes into its newest pending tip. Downstream jobs wait for the manifest, then eligible Blacksmith jobs restore exact dependencies from the trusted warmer or fall back to the ordinary pnpm-store cache on a miss. Pushes, pull requests, and manual runs targeting the workflow revision run preflight with native Node and skip dependency setup. Manual runs targeting a different revision install dependencies and retain that target's `tsx` tooling.
-2. `security-fast`, `check-*`, `check-additional-*`, `check-docs`, and `skills-python` fail quickly without waiting on the heavier artifact and platform matrix jobs. Additional checks start directly after preflight. Narrow PRs with additional checks also place the existing `check-dependencies` row there: its complete dependency, unused-file, and export scans do not consume the installed compiler/lint plan. Full selections and runs without that family retain the central row, and the aggregate requires the selected owner. Extension-only compiler inputs can be planned from the four noncore graphs when an already selected additional boundary row owns the full core graph check. This requires existing regular source files without symlink aliases; mixed source changes retain complete discovery, and missing or uncertain inputs retain full checking. Known full selections skip discovery and retain boundary proof in an already selected additional boundary row or the required planner. No extra boundary row is admitted for that optimization. The production dependency audit sends one complete graph with up to four attempts and a four-minute total request budget, including retries and response reading. Timeouts, native fetch failures, HTTP 429, and 5xx responses retry with exponential backoff; retryable HTTP responses honor `Retry-After`. Attempts and recovery are logged. Persistent unavailability, vulnerability findings, invalid inputs, malformed advisory data, oversized responses, and permanent HTTP failures block CI. An unavailable audit is incomplete coverage, not a clean result. CI dispatched by Full Release Validation or release publication records a failing audit as a warning instead, because advisories never block a release. Local pre-commit and release dependency audits use the same bounded request owner and fail on unavailability; release dependency evidence blocks only on known malware.
+2. `security-fast`, `check-*`, `check-additional-*`, `check-docs`, and `skills-python` fail quickly without waiting on the heavier artifact and platform matrix jobs. Additional checks start directly after preflight. Narrow PRs with additional checks also place the existing `check-guards` and `check-dependencies` rows there: their complete guard, dependency, unused-file, and export scans do not consume the installed compiler/lint plan. Guards use the same commands and fetch the exact comparison base during checkout. Full selections and runs without that family retain the central rows, and the aggregate requires each selected owner. Extension-only compiler inputs can be planned from the four noncore graphs when an already selected additional boundary row owns the full core graph check. This requires existing regular source files without symlink aliases; mixed source changes retain complete discovery, and missing or uncertain inputs retain full checking. Known full selections skip discovery and retain boundary proof in an already selected additional boundary row or the required planner. No extra boundary row is admitted for that optimization. The production dependency audit sends one complete graph with up to four attempts and a four-minute total request budget, including retries and response reading. Timeouts, native fetch failures, HTTP 429, and 5xx responses retry with exponential backoff; retryable HTTP responses honor `Retry-After`. Attempts and recovery are logged. Persistent unavailability, vulnerability findings, invalid inputs, malformed advisory data, oversized responses, and permanent HTTP failures block CI. An unavailable audit is incomplete coverage, not a clean result. CI dispatched by Full Release Validation or release publication records a failing audit as a warning instead, because advisories never block a release. Local pre-commit and release dependency audits use the same bounded request owner and fail on unavailability; release dependency evidence blocks only on known malware.
 3. `build-artifacts` and the locale checks overlap with the fast Linux lanes. Control UI and native app source PRs exclude generated locale snapshots/resources; their serialized refresh workflows repair and auto-merge isolated generated PRs in the background. Source CI still blocks stale source inventories and unsafe localization calls. Generated PRs, manual CI, and release prep enforce full translated/platform-generated parity. Canonical `release/YYYY.M.PATCH` branches may include release-prep locale repairs with the other generated release output.
 4. Baseline ratchets and selected Node test shards start independently after preflight. Node rows consume the manifest, not ratchet outputs. `ci-gate` still requires every selected ratchet to pass, and the PR failure monitor still cancels remaining work after a ratchet failure. Frozen targets retain their existing ratchet selection.
 5. Current plans with guards run `check:coercion-helpers` there once; fast-only plans retain its standalone row. Other platform and runtime lanes fan out independently: `checks-fast-core` (including startup corpus), `checks-fast-contracts-plugins`, `checks-fast-contracts-channels`, `checks-windows`, `macos-node`, `macos-swift`, `ios-build`, the screenshot shards, and `android`.
