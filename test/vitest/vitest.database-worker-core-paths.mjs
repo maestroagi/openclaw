@@ -1,6 +1,8 @@
 // These consumers need the host-owned SQLite broker, which runs in forked processes.
 export const databaseWorkerCoreTestFiles = [
+  "src/state/openclaw-agent-execution-incognito.compute.test.ts",
   "src/state/openclaw-agent-execution-incognito.lifecycle.test.ts",
+  "src/state/openclaw-agent-execution-incognito.history.test.ts",
   "src/agents/bash-tools.visible-subagent-notify.test.ts",
   "src/system-agent/audit.test.ts",
   "src/system-agent/operations.test.ts",
@@ -20,6 +22,7 @@ export const databaseWorkerCoreTestFiles = [
   "src/agents/embedded-agent-runner/wait-for-idle-before-flush.test.ts",
   "src/agents/embedded-agent-runner/run/attempt-session-identity.worker.test.ts",
   "src/agents/embedded-agent-runner/run-entry.cleanup.test.ts",
+  "src/agents/embedded-agent-runner/run-orchestrator.rooted-proof.test.ts",
   "src/agents/runtime-plugins.context-engine.integration.test.ts",
   "src/context-engine/context-engine.test.ts",
   "src/context-engine/host-param-projection.test.ts",
@@ -163,6 +166,7 @@ export const databaseWorkerCoreTestFiles = [
   "src/agents/agent-create.integration.test.ts",
   "src/agents/agent-create.workspace-worker.test.ts",
   "src/agents/sandbox.resolveSandboxContext.test.ts",
+  "src/agents/sandbox.context.github-identity.test.ts",
   "src/auto-reply/reply/stage-remote-inbound-media.owner.test.ts",
   "src/auto-reply/reply/stage-sandbox-media.scp.test.ts",
   "src/agents/workspace-alias-rebind.test.ts",
@@ -332,6 +336,7 @@ export const databaseWorkerCoreTestFiles = [
   "src/claws/update-apply.adopted.test.ts",
   "src/claws/update-apply.requirements.test.ts",
   "src/claws/update-apply.test.ts",
+  "src/cli/local-state-owner.process.test.ts",
   "src/cli/mcp-cli.json-failure.test.ts",
   "src/cli/mcp-cli.login-loopback.test.ts",
   "src/cli/mcp-cli.oauth.test.ts",
