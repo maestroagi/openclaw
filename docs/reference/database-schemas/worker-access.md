@@ -99,6 +99,15 @@ These cutovers change no schema, stored bytes, retention, or update behavior.
 
 ## Keep one store owner
 
+Public meeting-library pages use the transcript read worker's existing page query
+and bounded collector. The worker projects public fields and summary previews
+before measuring the transport budget, and retains lookahead without decoding an
+oversized next row. Tool reads retain their raw source authorization facts and
+separate byte budget. The host adds live capture and provider presentation and
+checks current request authority before disclosure. Date preparation stays with
+the caller's timezone owner. Export streaming keeps its distinct snapshot
+lifetime. Schemas, stored bytes, permissions, and update behavior are unchanged.
+
 Ordinary `chat.send` turns prepare persisted session lookups and sharing facts
 through the existing session workers. Missing rows retain the selected store's routing
 facts without opening a writable database on the Gateway thread. The router
@@ -969,6 +978,15 @@ never replay. Database close joins accepted mutations. Workspace authoring guard
 retain their existing owner. Schemas, quotas, retention, publication security checks,
 and update behavior are unchanged.
 
+Delegate-tool construction prepares sandbox classification and exec approvals
+through the existing readers before assembling its permission posture. Each
+construction and permission refresh reads current policy from its captured
+physical store; there is no run-wide approvals snapshot. Source and run authority
+are rechecked after preparation, and unavailable approval state remains fail-closed.
+Bundled tool factories await preparation; released synchronous harness factories
+remain deprecated SDK compatibility paths until the next Plugin SDK major.
+Schemas, stored bytes, permissions, retention, and update behavior are unchanged.
+
 Channel pairing allowlist preparation uses the existing shared-state reader.
 The async SDK reader captures the physical store before yielding and reads current
 rows outside inherited discovery snapshots. Ingress retains its channel and
@@ -1610,6 +1628,14 @@ before returning the result. Cold archives retain their existing restoration
 owner. Native transaction callbacks and process-held incognito transcripts retain
 their synchronous reader; worker failures never fall back to host disk reads.
 
+Generic and assistant matching share one reverse raw-sequence scanner. Stored
+navigation filters run, role, and idempotency candidates before compressed bodies
+are decoded; the canonical event still decides visible-final and delivery-mirror
+matches. Active-assistant anchors are checked in the same cold-marker-protected
+snapshot. Identity TEXT retains JavaScript duplicate-key and Unicode semantics;
+latest and arbitrary rewrite predicates keep canonical-body reads. This changes
+no schema, stored metadata, restoration, or update behavior.
+
 Turn completion and reply-delivery observation read durable anchors, projection
 readiness, and reply-tail identities through that same history worker. Each batch
 uses one snapshot and refuses stale projections without rebuilding them. Final
@@ -1662,6 +1688,14 @@ notifications retain their invalidation checks. Rows replaced or
 refreshed by direct reads while a reply is pending keep their newer facts; a dirty
 replacement retries under its own generation. Related rows use resident facts and
 existing invalidations to converge across batches.
+
+Cold resident-store admission reads its initial entry inventory through the same
+projection worker. The host captures every physical file before yielding, retains
+reader custody through publication, and rejects replies after a store replacement
+or a concurrent session publication. Existing stores reuse resident entries;
+canonical comparison-schema validation and metadata admission remain with the
+worker connection owner and its admitted schema facts. Schema, stored bytes,
+retention, and update behavior are unchanged.
 
 Dirty resident row refreshes also prepare ACP metadata in the shared-state read
 worker. Explicit absence travels with the row facts, so presentation does not
@@ -2042,8 +2076,10 @@ exit, and failed retirement retains unavailable custody.
 
 There is one live authority host per physical database. Cron writes use the
 serving Gateway; concurrent direct SQLite mutation is unsupported. Existing
-offline routing and exclusive Doctor maintenance remain unchanged. The close
-prelude seals new work before scheduler cancellation, while accepted persistence
+offline routing and exclusive Doctor maintenance remain unchanged. Doctor-owned
+cron custody closes with its exact maintenance resources before Gateway restoration,
+without waiting for process-wide CLI cleanup. Independently borrowed authority stays
+with its shared resource owner. The close prelude seals new work before scheduler cancellation, while accepted persistence
 and receipt finalizers retain their original source through settlement and
 publication. Stored grants survive restart; process-local observations do not.
 This publication foundation preserves receipt revisions, force-run eligibility,
