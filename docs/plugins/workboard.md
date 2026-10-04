@@ -76,7 +76,12 @@ Sessions boards, with the open board highlighted. Select a nested board to open 
 Sidebar labels use the board name; boards with the same name include their kind
 in parentheses, such as **Planning (cards)** and **Planning (sessions)**.
 Boards you create in the Control UI are pinned in the sidebar immediately.
-Use **Customize** to pin any other board or remove a pin; removed pins stay removed.
+Right-click a board, or focus its link and press **Shift+F10** or the context-menu
+key, to **Pin to sidebar**, **Unpin from sidebar**, or **Delete board…**.
+Deleting asks for confirmation naming the board and requires write access.
+The default board and boards that still contain cards cannot be deleted.
+Deleting the open board returns to the Workboard root page. You can also use
+**Customize** to manage pins; removed pins stay removed.
 Pinned boards remain available as top-level entries when you leave Workboard,
 and you can drag them to reorder them.
 
@@ -98,6 +103,14 @@ a replacement value for them. Other fields retain their ordinary update behavior
 `clearAppearance` must be an array containing only `"icon"` and `"color"`; an empty
 array changes nothing. Clients using this argument need a Gateway version that
 supports explicit appearance clearing; older Gateways do not implement this reset.
+
+Card lists share one prepared, claim-token-redacted snapshot per board scope and
+card revision. `workboard.cards.list` returns `revision`; repeat the same query
+with `{ sinceRevision: revision }` for `{ unchanged: true, revision }` when current.
+The revision includes the store epoch and, for scoped queries, the normalized
+`boardId`. Reconnects request a full snapshot. `plugin.workboard.changed` includes
+an event `revision` and a separate `cardsRevision`: session-fact notifications
+advance the event sequence without invalidating unchanged cards.
 
 ## Sessions board
 
