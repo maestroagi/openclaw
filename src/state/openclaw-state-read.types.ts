@@ -2,7 +2,9 @@ import type { DatabaseSync } from "node:sqlite";
 import type { Selectable } from "kysely";
 import type {
   AcpSessionReadCommand,
+  AcpSessionReadInput,
   AcpSessionReadResult,
+  AcpSessionRow,
 } from "../acp/runtime/session-meta-read.types.js";
 import type { McpOAuthReadOnlyOperations } from "../agents/mcp-oauth-store.kernel.js";
 import type {
@@ -256,6 +258,7 @@ export type OpenClawStateReadCommand =
   | { type: "updateRuns.status" }
   | { type: "updateRuns.historyStatus" }
   | { type: "worktrees.cleanupState" }
+  | { type: "worktrees.list" }
   | { type: "fleet.list" }
   | { type: "workerPlacements.changeSnapshot"; profileIds?: string[] }
   | { type: "fleet.get"; tenantId: string }
@@ -266,6 +269,13 @@ export type OpenClawStateReadCommand =
   | {
       type: "sessionRepositoryWorkspaces.find";
       owners: readonly RepositoryWorkspaceOwner[];
+    }
+  | {
+      type: "sessionRows.sharedFacts";
+      entries: readonly {
+        acp?: AcpSessionReadInput;
+        repositoryWorkspace?: RepositoryWorkspaceOwner & { workspaceId: string };
+      }[];
     }
   | { type: "workspace.snapshot"; workspaceDir: string }
   | { type: "sandboxRegistry.list" }
@@ -521,6 +531,7 @@ export type OpenClawStateReadResult =
       records: ManagedWorktreeRecord[];
       leases: ReturnType<typeof readWorktreeRunLeaseStateInDatabase>;
     }
+  | { type: "worktrees.list"; records: ManagedWorktreeRecord[] }
   | { type: "fleet.list"; cells: FleetCellRecord[] }
   | {
       type: "workerPlacements.changeSnapshot";
@@ -534,6 +545,13 @@ export type OpenClawStateReadResult =
   | {
       type: "sessionRepositoryWorkspaces.find";
       workspaces: SessionRepositoryWorkspaceRecord[];
+    }
+  | {
+      type: "sessionRows.sharedFacts";
+      rows: {
+        acp?: AcpSessionRow | null;
+        repositoryWorkspace?: SessionRepositoryWorkspaceRecord | null;
+      }[];
     }
   | { type: "workspace.snapshot"; snapshot: WorkspaceStateSnapshot }
   | {
