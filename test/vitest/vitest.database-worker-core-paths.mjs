@@ -1,5 +1,9 @@
 // These consumers need the host-owned SQLite broker, which runs in forked processes.
 export const databaseWorkerCoreTestFiles = [
+  "src/cli/admin-state-owner.process.test.ts",
+  "src/pairing/pairing-store.test.ts",
+  "src/pairing/pairing-store.worker.test.ts",
+  "src/plugin-sdk/channel-pairing.store.test.ts",
   "src/hooks/bundled/session-memory/capture.test.ts",
   "src/hooks/bundled/session-memory/handler.test.ts",
   "src/hooks/bundled/session-memory/handler-auto-reset.test.ts",
@@ -282,7 +286,6 @@ export const databaseWorkerCoreTestFiles = [
   "src/wizard/setup.gateway-config.test.ts",
   "src/state/openclaw-state-lease-async.test.ts",
   "src/state/openclaw-state-db.wal.test.ts",
-  "src/state/openclaw-state-lease-heartbeat.activation.test.ts",
   "src/plugins/diffs-cleanup.lifecycle.test.ts",
   "src/agents/agent-tools-agent-config.exec.test.ts",
   "src/agents/agent-tools.safe-bins.test.ts",
